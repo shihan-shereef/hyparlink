@@ -22,9 +22,49 @@ export const sendEmail = internalAction({
     html: v.optional(v.string()),
   },
   handler: async (_ctx, { to, subject, text, html }) => {
+    // If RESEND_API_KEY is configured, send directly via Resend REST API
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const from =
+          process.env.SMTP_FROM ||
+          process.env.RESEND_FROM ||
+          "HyperFrames <onboarding@resend.dev>";
+        const res = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from,
+            to: [to],
+            subject,
+            text,
+            html: html ?? defaultHtml,
+          }),
+        });
+
+        if (!res.ok) {
+          const errBody = await res.text();
+          console.error(`[email] Resend API error: ${errBody}`);
+          throw new Error(`Resend API Error: ${errBody}`);
+        }
+
+        const data = (await res.json()) as { id: string };
+        console.log(`[email] Sent email to ${to} via Resend (ID: ${data.id})`);
+        return { success: true, messageId: data.id };
+      } catch (err: any) {
+        console.error(`[email] Failed to send via Resend: ${err.message}`);
+        // Fall through to SMTP if configured
+        if (!process.env.SMTP_HOST) {
+          throw err;
+        }
+      }
+    }
+
     const host = process.env.SMTP_HOST;
     if (!host) {
-      console.warn("[email] SMTP_HOST not set. Email not sent.");
+      console.warn("[email] Neither RESEND_API_KEY nor SMTP_HOST set. Email not sent.");
       return;
     }
 
