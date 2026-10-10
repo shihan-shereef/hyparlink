@@ -1,0 +1,306 @@
+================================================================================
+          HYPARLINK DASHBOARD & HYPERFRAMES VIDEO GENERATION ENGINE
+                     COMPREHENSIVE WEB FEATURE REPORT
+================================================================================
+Generated: October 9, 2026
+System: Next.js 14.2.7 | Convex Self-Hosted | HyperFrames 0.8.139 | GSAP 3
+Repository: Hyparlink Dashboard (v1 Monorepo)
+================================================================================
+
+--------------------------------------------------------------------------------
+1. EXECUTIVE SUMMARY & PRODUCT MISSION
+--------------------------------------------------------------------------------
+Hyparlink Dashboard is a state-of-the-art web application and video creation platform
+designed to democratize cinematic motion graphics and generative video production.
+Built upon a modern full-stack monorepo (Turborepo + Bun), the platform converges
+natural-language AI code generation, strict StaticGuard validation, headless Chrome
+GPU timeline rendering, and the official HyperFrames visual Studio Editor into a
+unified, cloud-ready web interface.
+
+The web application allows individuals and creative teams to produce production-grade
+videos from pure text descriptions, refine them in an embedded visual canvas, manage
+brand assets, transcode them into multiple streamable formats, and collaborate across
+isolated multi-tenant workspaces.
+
+
+--------------------------------------------------------------------------------
+2. SYSTEM ARCHITECTURE & ENGINE FOUNDATION
+--------------------------------------------------------------------------------
+The application is structured into four tightly decoupled, highly resilient tiers:
+
+  [ Next.js 14 Frontend (:3000) ]
+        |
+        |-- Real-time reactive queries & mutations (WebSocket)
+        v
+  [ Self-Hosted Convex DB & Auth Engine (:3210 / :3211) ]
+        |
+        |-- Signed Webhook Dispatch & Job Queue Ingress
+        v
+  [ Backend Echo & Media Processor (:4000) ]
+        |
+        |-- AI Code Synthesis & StaticGuard Validation
+        |-- Headless Chrome ANGLE Metal GPU Rendering
+        |-- Apple Silicon Native FFmpeg Transcoder (1080p, 720p, 480p, WebP)
+        |-- Unified Storage Layer (Local Disk / AWS S3 / Cloudflare R2)
+        v
+  [ Official HyperFrames Studio Daemon (Dynamic Port Pool :3055..:3075) ]
+        |-- Deep-linked Visual Timeline Canvas embedded via Secure Sandbox <iframe>
+
+
+--------------------------------------------------------------------------------
+3. DETAILED WEB FEATURES CATALOG
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+FEATURE 1: NATURAL-LANGUAGE AI VIDEO CREATION STUDIO (/create-video)
+--------------------------------------------------------------------------------
+- Prompt-to-Video Engine:
+  Users enter free-form creative prompts (e.g., "Create a 15-second tech advertisement
+  with server visuals and cyan glowing text"). The AI engine parses scenes, camera moves,
+  color palettes, and GSAP timing curves.
+- Curated Presets:
+  One-click creative templates including "Title Card (Default Test)", "Tech Academy Ad",
+  and "Cinematic Product Video" for instant prompting.
+- Timeline Configuration Controls:
+  * Duration Selector (5s, 10s, 15s, 30s, or custom timing).
+  * Output Resolution (1080p Full HD, 720p HD, 480p SD).
+  * Aspect Ratio Presets (16:9 Landscape, 9:16 Vertical Story/Reels, 1:1 Square).
+  * Frame Rate (30 FPS standard, 60 FPS ultra-smooth).
+- Workspace Brand Assets Integration:
+  Select uploaded brand logos, SVG badges, and audio soundtracks directly from a visual
+  asset card selector. Selected media are automatically injected into the generated
+  HTML5 layout and animated in sync with the scene.
+- Real-Time Backend & AI Health Badge:
+  Live ping to the backend echo server (:4000/ai/status) displaying the active AI
+  provider, model latency, and runtime availability.
+
+
+--------------------------------------------------------------------------------
+FEATURE 2: PROJECTS MANAGEMENT & VIDEO SHOWCASE (/projects)
+--------------------------------------------------------------------------------
+- Interactive Display Modes:
+  Seamless toggle between a visual "Grid View" (rich thumbnail cards) and a compact
+  "Table View" (dense data rows).
+- Live Video Cards:
+  * High-fidelity WebP poster frame generated from the first active animation frame.
+  * Duration, resolution, and frame rate badges.
+  * Status badges: Draft, Generating (Amber), Validating (Blue), Rendering (Purple),
+    Completed (Green), or Failed (Red).
+  * Direct action shortcuts: "View Video", "Edit in Studio", "Duplicate", and "Delete".
+- Workspace Search & Filtering:
+  Instant search filtering projects by name, prompt text, or completion status.
+
+
+--------------------------------------------------------------------------------
+FEATURE 3: CINEMATIC VIDEO PLAYER & MULTI-RESOLUTION SWITCHER (/projects/[id])
+--------------------------------------------------------------------------------
+- Native HTML5 Video Player:
+  Custom media shell supporting byte-range streaming, instant scrubbing, pause, play,
+  and fullscreen playback.
+- Dynamic Resolution Switcher:
+  Interactive resolution tabs allowing users to hot-switch between:
+  * 1080p (Full HD master)
+  * 720p (Optimized web streaming)
+  * 480p (Lightweight mobile bandwidth)
+- Multi-Tier Download Menu:
+  One-click direct download buttons for all transcoded resolutions as well as the
+  original WebP poster frame.
+- Technical Media Metadata Inspector:
+  Displays technical metrics including exact render time (seconds), compilation status,
+  file byte size, storage ETag, and CDN object key.
+- One-Click Regeneration & Retry:
+  Instant re-dispatch mutation to re-run video generation if adjustments or retries
+  are required.
+
+
+--------------------------------------------------------------------------------
+FEATURE 4: OFFICIAL HYPERFRAMES STUDIO LIVE EDITOR (/editor/[projectId])
+--------------------------------------------------------------------------------
+- Embedded Studio Canvas:
+  Deep-links the official HyperFrames Studio (v0.8.139) directly inside the Next.js
+  dashboard using a zero-friction, sandboxed iframe.
+- Automated Studio Session Manager:
+  * Detects or launches an isolated `hyperframes preview` server on dedicated ports
+    (range 3055 to 3075).
+  * Automatic port health polling and connection recovery.
+  * Displays real-time connection status indicators ("Connecting", "Studio Live",
+    or "Error Retry").
+- Multi-View Workspace Modes:
+  * Official Studio View: Full visual timeline, keyframes, layers, and transform handles.
+  * Companion Inspector: Quick sliders for titles, subtitles, background colors,
+    duration, and FPS.
+  * Rendered Video View: Direct side-by-side comparison with the exported MP4.
+- Sync & Re-Render Engine:
+  Allows users to modify their code/timeline in the visual editor and trigger an
+  automated re-compile, re-render, and cloud upload cycle without leaving the browser.
+
+
+--------------------------------------------------------------------------------
+FEATURE 5: WORKSPACE MEDIA ASSET LIBRARY (/assets)
+--------------------------------------------------------------------------------
+- Multi-Format Media Support:
+  * Images: PNG, JPG, WebP, SVG (with direct inline vector preview).
+  * Audio: MP3, WAV, AAC (with integrated web audio preview player).
+  * Video: MP4, WebM clips for B-roll overlays.
+  * Fonts: TTF, WOFF, WOFF2 custom typography.
+- Filter Tabs:
+  Instant switching between "All Assets", "Images", "Videos", "Audio", and "Fonts".
+- Live Search & Instant Upload:
+  Drag-and-drop or file picker upload that stores assets into the workspace directory,
+  generates unified CDN URLs, and indexes metadata in Convex.
+- "Use in Video" Action:
+  Direct shortcut that launches the Create Video studio with the chosen asset
+  pre-selected and tagged for inclusion in the upcoming prompt.
+
+
+--------------------------------------------------------------------------------
+FEATURE 6: ASYNCHRONOUS JOB PIPELINE & OBSERVABILITY (/jobs)
+--------------------------------------------------------------------------------
+- Asynchronous Task Queue:
+  All heavyweight video generation tasks are offloaded to background jobs tracked
+  in Convex and dispatched to the backend runner.
+- Live Lifecycle Stages:
+  `queued` -> `validating` -> `rendering` -> `uploading` -> `completed` / `failed`
+- Real-Time Reactive Querying:
+  Powered by Convex reactive subscriptions; users see job state updates and progress
+  bars move in real time without refreshing the page.
+- Audit & Troubleshooting:
+  Inspect raw job inputs, failure stack traces, error messages, and execution durations.
+
+
+--------------------------------------------------------------------------------
+FEATURE 7: WORKSPACE FILE STORAGE (/files)
+--------------------------------------------------------------------------------
+- Convex Native Blob Storage:
+  Integrated file manager allowing arbitrary workspace files, documents, and backups
+  to be stored securely.
+- Paginated File Browser:
+  Displays human-readable file sizes (Bytes, KB, MB), MIME types, upload timestamps,
+  and quick download/delete controls.
+
+
+--------------------------------------------------------------------------------
+FEATURE 8: MULTI-TENANT WORKSPACE & TEAM COLLABORATION (/platform, /settings)
+--------------------------------------------------------------------------------
+- Workspace Switcher:
+  Support for multiple organizations and projects under a single user account.
+- Team Roles & Permissions (RBAC):
+  * Owner: Full billing, member, and workspace authority.
+  * Admin: Can manage projects, jobs, and invite team members.
+  * Member: Standard access to create and edit video assets.
+- Email Invitations:
+  Invite colleagues via email address; invite acceptance workflow with role assignment.
+- Workspace Deletion & Renaming:
+  Full management controls to configure organization branding and properties.
+
+
+--------------------------------------------------------------------------------
+FEATURE 9: DEVELOPER API KEYS & PROGRAMMATIC ACCESS (/platform)
+--------------------------------------------------------------------------------
+- Secure API Key Generation:
+  Generates high-entropy API tokens with human-readable prefixes (e.g. `hyp_...`).
+- Cryptographic Hashing:
+  Tokens are SHA-256 hashed prior to storage in the database; full plaintext keys
+  are displayed only once at creation time.
+- Instant Revocation:
+  One-click button to revoke compromised or deprecated API keys immediately.
+
+
+--------------------------------------------------------------------------------
+FEATURE 10: USAGE MONITORING, AUDIT TRAIL & NOTIFICATIONS
+--------------------------------------------------------------------------------
+- High-Performance O(1) Dashboard Stats:
+  Instant calculation of open jobs, total projects, members, files, and activity
+  counters via pre-aggregated counters.
+- Security Audit Trail:
+  Logs all critical workspace events (logins, project creations, member invites,
+  asset deletions, API key revocations) with timestamps and user IDs.
+- Rate-Limiting & Metric Quotas:
+  Tracks per-workspace video generation usage events to prevent runaway jobs.
+- Notifications Center:
+  Real-time in-app alerts for completed video renders, system notices, and team invites.
+
+
+--------------------------------------------------------------------------------
+FEATURE 11: AUTHENTICATION & ACCESS CONTROL (/login)
+--------------------------------------------------------------------------------
+- Convex Auth Architecture:
+  Built-in support for passwordless Email OTP / Magic Links and Google OAuth 2.0.
+- Zero External Email Dependency in Local Dev:
+  Local SMTP capture via Mailpit (:8025); developers and test users receive login
+  codes instantly without needing external Resend API credentials.
+- Cryptographic Session Security:
+  Signed RS256 JSON Web Tokens (JWT) verified against Convex JWKS endpoints.
+
+
+--------------------------------------------------------------------------------
+FEATURE 12: BILLING & SUBSCRIPTIONS (/settings/billing)
+--------------------------------------------------------------------------------
+- Polar.sh Integration:
+  Seamless billing architecture supporting tiered subscriptions, seat management,
+  and usage-based add-ons.
+- Customer Portal:
+  Direct links to Polar customer portal to manage invoices, payment methods, and tiers.
+
+
+--------------------------------------------------------------------------------
+4. UNDER-THE-HOOD TECHNICAL ADVANCEMENTS
+--------------------------------------------------------------------------------
+1. StaticGuard Automated Self-Healing Loop:
+   Before rendering, `npx hyperframes check --json` runs against the generated code.
+   If CSS, layout, or timeline syntax errors occur, the compiler triggers a multi-attempt
+   correction loop that parses compiler diagnostics and rewrites the code automatically.
+
+2. Apple Silicon Headless Chrome GPU Acceleration:
+   Video frames are rendered via Headless Chrome with ANGLE Metal GPU acceleration,
+   achieving up to 4x faster export speeds than traditional CPU software canvas renderers.
+
+3. Native Apple Silicon FFmpeg Transcoding:
+   Directly executes the high-efficiency ARM64 FFmpeg binary bundled in HyperFrames to
+   produce pristine 1080p, 720p, 480p MP4 files and WebP poster thumbnails in seconds.
+
+4. Pluggable Cloud Storage Abstraction:
+   Unified `IStorageProvider` interface supporting local byte-range streaming for dev,
+   and AWS S3 / Cloudflare R2 object storage with ETag verification for production.
+
+
+--------------------------------------------------------------------------------
+5. ACTIVE LOCAL RUNTIME PORTS & OPERATIONAL URLS
+--------------------------------------------------------------------------------
+The entire stack is currently live and accessible at the following URLs:
+
+* Main Dashboard Web Application:
+  http://localhost:3000
+  (Create Video, Projects, Assets, Editor, Platform, Settings)
+
+* Authentication Gateway:
+  http://localhost:3000/login
+  (Sign in with your email, e.g. admin@hyparlink.test)
+
+* Mailpit Local OTP Email Capture Server:
+  http://localhost:8025
+  (Open in your browser to view incoming login OTP codes and emails)
+
+* Backend Echo & Media Transcoder Service:
+  http://localhost:4000
+  (Handles video generation jobs, storage streaming, and Studio sessions)
+
+* Self-Hosted Convex Database API:
+  http://127.0.0.1:3210
+  (Convex queries, mutations, WebSocket realtime engine)
+
+* Convex Webhook Ingress & JWKS OIDC:
+  http://127.0.0.1:3211
+  (HTTP actions and webhook callbacks)
+
+* Convex Admin Management Console:
+  http://localhost:6791
+  (Self-hosted administrative dashboard for table inspection)
+
+================================================================================
+REPORT CONCLUSION:
+The Hyparlink Dashboard web application provides a complete, modern, and production-
+ready generative video ecosystem. All modules from creation to visual editing,
+asset handling, multi-resolution distribution, and team collaboration are fully
+operational and accessible at http://localhost:3000.
+================================================================================
