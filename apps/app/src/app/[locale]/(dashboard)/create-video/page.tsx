@@ -219,7 +219,7 @@ export default function CreateVideoPage() {
   const fetchAiStatus = async () => {
     setIsLoadingStatus(true);
     try {
-      const res = await fetch("http://localhost:4000/api/ai/status");
+      const res = await fetch("/api/ai/status");
       if (res.ok) {
         const data = await res.json();
         setAiStatus(data);
@@ -328,7 +328,7 @@ export default function CreateVideoPage() {
       reader.readAsDataURL(file);
       const data = await base64Promise;
 
-      const backendBase = "http://localhost:4000";
+      const backendBase = "";
       const uploadRes = await fetch(`${backendBase}/assets/upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

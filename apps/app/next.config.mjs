@@ -22,6 +22,26 @@ const nextConfig = {
         source: "/assets/upload",
         destination: "http://127.0.0.1:4000/assets/upload",
       },
+      {
+        source: "/api/:path*",
+        destination: "http://127.0.0.1:4000/api/:path*",
+      },
+      {
+        source: "/ai/:path*",
+        destination: "http://127.0.0.1:4000/ai/:path*",
+      },
+      {
+        source: "/editor/project/:path*",
+        destination: "http://127.0.0.1:4000/editor/project/:path*",
+      },
+      {
+        source: "/editor/session/:path*",
+        destination: "http://127.0.0.1:4000/editor/session/:path*",
+      },
+      {
+        source: "/backend-api/:path*",
+        destination: "http://127.0.0.1:4000/:path*",
+      },
     ];
   },
 };

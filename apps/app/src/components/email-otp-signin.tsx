@@ -21,7 +21,7 @@ export function EmailOtpSignin() {
     const fetchOtp = async () => {
       try {
         const res = await fetch(
-          `http://localhost:4000/api/dev-otp?email=${encodeURIComponent(step.email)}`,
+          `/api/dev-otp?email=${encodeURIComponent(step.email)}`,
         );
         if (res.ok) {
           const data = await res.json();

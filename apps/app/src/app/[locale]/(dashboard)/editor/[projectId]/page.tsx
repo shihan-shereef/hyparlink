@@ -156,7 +156,7 @@ export default function ProjectLiveEditorPage() {
 
   // Backend API URL
   const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+    process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
   // 1. Initialize or Reuse Official HyperFrames Studio Session
   const initStudioSession = useCallback(async () => {

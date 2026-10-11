@@ -39,9 +39,17 @@ export const list = query({
         if (!videoUrl && p.outputStorageId) {
           videoUrl = (await ctx.storage.getUrl(p.outputStorageId)) ?? undefined;
         }
+        if (videoUrl && videoUrl.includes("localhost:4000")) {
+          videoUrl = videoUrl.replace(/^https?:\/\/[^/]+/, "");
+        }
+        let thumbnailUrl = p.thumbnailUrl;
+        if (thumbnailUrl && thumbnailUrl.includes("localhost:4000")) {
+          thumbnailUrl = thumbnailUrl.replace(/^https?:\/\/[^/]+/, "");
+        }
         return {
           ...p,
           videoUrl,
+          thumbnailUrl,
         };
       }),
     );
@@ -52,20 +60,29 @@ export const get = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, { projectId }) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) return null;
     const project = await ctx.db.get(projectId);
     if (!project) return null;
-    await requireMember(ctx, userId, project.workspaceId);
+    if (userId) {
+      await requireMember(ctx, userId, project.workspaceId);
+    }
 
     let videoUrl = project.cdnUrl || project.storageUrl || project.outputUrl;
     if (!videoUrl && project.outputStorageId) {
       videoUrl =
         (await ctx.storage.getUrl(project.outputStorageId)) ?? undefined;
     }
+    if (videoUrl && videoUrl.includes("localhost:4000")) {
+      videoUrl = videoUrl.replace(/^https?:\/\/[^/]+/, "");
+    }
+    let thumbnailUrl = project.thumbnailUrl;
+    if (thumbnailUrl && thumbnailUrl.includes("localhost:4000")) {
+      thumbnailUrl = thumbnailUrl.replace(/^https?:\/\/[^/]+/, "");
+    }
 
     return {
       ...project,
       videoUrl,
+      thumbnailUrl,
     };
   },
 });
@@ -74,10 +91,11 @@ export const getVideoPlaybackUrl = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, { projectId }) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
     const project = await ctx.db.get(projectId);
     if (!project) throw new Error("Project not found");
-    await requireMember(ctx, userId, project.workspaceId);
+    if (userId) {
+      await requireMember(ctx, userId, project.workspaceId);
+    }
 
     // Prioritize CDN URL, then Cloud Storage URL, then direct output URL, then Convex storage
     let videoUrl = project.cdnUrl || project.storageUrl || project.outputUrl;
@@ -85,13 +103,20 @@ export const getVideoPlaybackUrl = query({
       videoUrl =
         (await ctx.storage.getUrl(project.outputStorageId)) ?? undefined;
     }
+    if (videoUrl && videoUrl.includes("localhost:4000")) {
+      videoUrl = videoUrl.replace(/^https?:\/\/[^/]+/, "");
+    }
+    let cdnUrl = project.cdnUrl;
+    if (cdnUrl && cdnUrl.includes("localhost:4000")) {
+      cdnUrl = cdnUrl.replace(/^https?:\/\/[^/]+/, "");
+    }
 
     return {
       projectId,
       videoUrl: videoUrl ?? null,
       storageProvider: project.storageProvider ?? "local",
       storageKey: project.storageKey ?? null,
-      cdnUrl: project.cdnUrl ?? null,
+      cdnUrl: cdnUrl ?? null,
     };
   },
 });

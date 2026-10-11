@@ -13,7 +13,17 @@ const I18nMiddleware = createI18nMiddleware({
 });
 
 const isSignInPage = createRouteMatcher(["/login"]);
-const isPublicRoute = createRouteMatcher(["/storage(.*)", "/cdn(.*)", "/api(.*)"]);
+const isPublicRoute = createRouteMatcher([
+  "/storage(.*)",
+  "/cdn(.*)",
+  "/outputs(.*)",
+  "/api(.*)",
+  "/ai(.*)",
+  "/assets/upload(.*)",
+  "/editor/project(.*)",
+  "/editor/session(.*)",
+  "/backend-api(.*)",
+]);
 
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
   if (isPublicRoute(request)) {

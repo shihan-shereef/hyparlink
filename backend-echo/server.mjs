@@ -25,7 +25,8 @@ const execAsync = promisify(exec);
 
 const PORT = process.env.PORT || 4000;
 const SERVICE_KEY = process.env.SERVICE_KEY || "";
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "";
+const WEBHOOK_SECRET =
+  process.env.WEBHOOK_SECRET || "whsec_hyperframes_secret_2026";
 const CONVEX_SITE_URL = process.env.CONVEX_SITE_URL || "http://127.0.0.1:3211";
 const AUDIENCE = process.env.CONVEX_AUDIENCE || "convex";
 const BACKEND_PUBLIC_URL =

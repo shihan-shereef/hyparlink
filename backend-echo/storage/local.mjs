@@ -15,7 +15,7 @@ export class LocalStorageProvider extends BaseStorageProvider {
     this.publicBaseUrl =
       config.publicUrl ||
       process.env.BACKEND_PUBLIC_URL ||
-      `http://localhost:${process.env.PORT || 4000}`;
+      "";
     this.signingSecret =
       process.env.STORAGE_SIGNING_SECRET || "dev-storage-secret-key";
 

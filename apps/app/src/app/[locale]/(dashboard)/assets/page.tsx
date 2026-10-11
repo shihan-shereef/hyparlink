@@ -95,7 +95,7 @@ export default function AssetsPage() {
 
       // Upload to backend service storage endpoint
       const backendBase =
-        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+        process.env.NEXT_PUBLIC_BACKEND_URL || "";
       const uploadRes = await fetch(`${backendBase}/assets/upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -148,7 +148,7 @@ export default function AssetsPage() {
       const res = await removeAsset({ assetId });
       if (res?.storageKey) {
         const backendBase =
-          process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+          process.env.NEXT_PUBLIC_BACKEND_URL || "";
         fetch(`${backendBase}/assets/${res.storageKey}`, {
           method: "DELETE",
         }).catch(() => {});
