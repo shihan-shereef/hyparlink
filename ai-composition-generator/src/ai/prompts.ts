@@ -44,7 +44,11 @@ export type SceneLayoutType =
   | "comparison-cards"
   | "image-showcase"
   | "kinetic-quote"
-  | "closing-summary";
+  | "closing-summary"
+  | "comic-ad-hook"
+  | "comic-dossier"
+  | "comic-arsenal"
+  | "comic-trailer-cta";
 
 export interface StoryboardScene {
   id: string; // e.g. "scene-01", "scene-02"
@@ -77,6 +81,29 @@ export interface StoryboardScene {
     assetName?: string;
     caption?: string;
     overlayText?: string;
+  };
+  comicSpec?: {
+    banner?: string;
+    tagline?: string;
+    subTagline?: string;
+    dossierPanels?: Array<{
+      title: string;
+      category: string;
+      description: string;
+      tag?: string;
+      stat?: string;
+    }>;
+    weapons?: Array<{
+      name: string;
+      type: string;
+      description: string;
+      badge?: string;
+    }>;
+    issueTitle?: string;
+    creators?: string;
+    publisher?: string;
+    ctaAction?: string;
+    subCta?: string;
   };
   background: {
     color: string;

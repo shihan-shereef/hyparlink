@@ -532,6 +532,18 @@ ${sceneTags}
       </div>
     </div>`;
 
+      case "comic-ad-hook":
+        return this.renderComicAdHook(scene);
+
+      case "comic-dossier":
+        return this.renderComicDossier(scene);
+
+      case "comic-arsenal":
+        return this.renderComicArsenal(scene);
+
+      case "comic-trailer-cta":
+        return this.renderComicTrailerCta(scene);
+
       default:
         return `
     <div class="standard-scene" style="max-width: 1100px; text-align: center; z-index: 10;">
@@ -799,6 +811,254 @@ ${sceneTags}
     </div>`;
   }
 
+  private static renderComicAdHook(scene: StoryboardScene): string {
+    const { typography, comicSpec } = scene;
+    const banner = comicSpec?.banner || "DC COMICS • ALL IN SPECIAL";
+    const tagline = comicSpec?.tagline || "WITHOUT MONEY. WITHOUT AN EMPIRE. WITHOUT MERCY.";
+    const subTagline = comicSpec?.subTagline || "The Dark Knight is reborn from Gotham's raw concrete.";
+
+    return `
+    <div class="comic-hook-layout" style="text-align: center; max-width: 1300px; width: 100%; z-index: 10; display: flex; flex-direction: column; align-items: center;">
+      <!-- DC Publisher Header Bar -->
+      <div class="anim-comic-elem" style="display: inline-flex; align-items: center; gap: 14px; background: #000000; color: #FFE600; padding: 10px 28px; font-weight: 900; font-size: 16px; letter-spacing: 0.16em; text-transform: uppercase; border: 3px solid #000000; box-shadow: 6px 6px 0px rgba(0,0,0,0.4); margin-bottom: 28px;">
+        <span style="display: inline-block; width: 12px; height: 12px; background: #FFE600; border-radius: 2px;"></span>
+        ${this.escapeHtml(banner)}
+      </div>
+
+      <!-- Giant Comic Title Box -->
+      <div id="comicLogoWrap" style="background: #000000; padding: 28px 56px; border: 8px solid #000000; box-shadow: 14px 14px 0px #000000; transform: skewX(-2deg); margin-bottom: 32px; display: inline-block;">
+        <h1 style="font-family: 'Space Grotesk', 'Syne', sans-serif; font-size: 92px; font-weight: 900; letter-spacing: -0.04em; text-transform: uppercase; line-height: 0.95; margin: 0; color: #FFE600;">
+          ${this.escapeHtml(typography.headline)}
+        </h1>
+      </div>
+
+      <!-- Action Comic Tagline -->
+      <div class="anim-comic-elem" style="font-size: 38px; font-weight: 900; color: #000000; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 16px; text-shadow: 2px 2px 0px rgba(0,0,0,0.15);">
+        ${this.escapeHtml(tagline)}
+      </div>
+
+      <p class="anim-comic-elem" style="font-size: 24px; font-weight: 600; color: #18181b; max-width: 900px; margin: 0 auto; line-height: 1.4;">
+        ${this.escapeHtml(subTagline)}
+      </p>
+
+      <!-- Comic Corner Stamp -->
+      <div class="anim-comic-elem" style="margin-top: 36px; display: inline-flex; gap: 10px; align-items: center; border: 3px solid #000000; padding: 8px 20px; background: rgba(0,0,0,0.06); font-weight: 800; font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: #000000;">
+        <span>DC ALL IN</span>
+        <span>•</span>
+        <span>SCOTT SNYDER</span>
+        <span>•</span>
+        <span>NICK DRAGOTTA</span>
+      </div>
+    </div>`;
+  }
+
+  private static renderComicDossier(scene: StoryboardScene): string {
+    const { comicSpec } = scene;
+    const panels = comicSpec?.dossierPanels || [
+      {
+        title: "CIVIL ENGINEER",
+        category: "MUNICIPAL ARCHITECTURE",
+        description: "Constructed Gotham's bridges, subways, and tunnels. Knows every structural flaw in the city.",
+        tag: "ORIGIN",
+        stat: "BLUE-COLLAR",
+      },
+      {
+        title: "6'6\" // 250 LBS TANK",
+        category: "PHYSICAL JUGGERNAUT",
+        description: "A terrifying wall of muscle and bone. Built to fight in the trenches and overpower entire armed syndicates alone.",
+        tag: "PHYSIQUE",
+        stat: "DOMINANT",
+      },
+      {
+        title: "$0 TRUST FUND",
+        category: "CRIME ALLEY SURVIVOR",
+        description: "No Wayne Manor. No butler. No billionaire safety net. Fueled purely by blue-collar sweat and survival grit.",
+        tag: "LEGACY",
+        stat: "100% GRIT",
+      },
+    ];
+
+    const panelsHtml = panels
+      .map(
+        (p, i) => `
+      <div class="comic-panel anim-comic-panel" id="panel-${i}" style="flex: 1; background: #FFE600; border: 5px solid #000000; box-shadow: 10px 10px 0px #000000; padding: 36px 30px; display: flex; flex-direction: column; justify-content: space-between; transform: skewX(-1.5deg); min-height: 380px;">
+        <div>
+          <!-- Category & Tag header -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #000000; padding-bottom: 12px;">
+            <span style="font-size: 13px; font-weight: 900; color: #000000; letter-spacing: 0.14em; text-transform: uppercase;">
+              ${this.escapeHtml(p.tag || `DOSSIER 0${i + 1}`)}
+            </span>
+            <span style="background: #000000; color: #FFE600; font-size: 12px; font-weight: 900; padding: 4px 10px; letter-spacing: 0.1em; text-transform: uppercase;">
+              ${this.escapeHtml(p.stat || "VERIFIED")}
+            </span>
+          </div>
+
+          <!-- Title -->
+          <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 34px; font-weight: 900; color: #000000; text-transform: uppercase; line-height: 1.1; margin-bottom: 10px; letter-spacing: -0.02em;">
+            ${this.escapeHtml(p.title)}
+          </h2>
+
+          <div style="font-size: 14px; font-weight: 800; color: #18181b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 18px;">
+            // ${this.escapeHtml(p.category)}
+          </div>
+
+          <!-- Description -->
+          <p style="font-size: 18px; font-weight: 600; color: #000000; line-height: 1.45;">
+            ${this.escapeHtml(p.description)}
+          </p>
+        </div>
+
+        <div style="margin-top: 24px; border-top: 2px dashed #000000; padding-top: 10px; font-size: 12px; font-weight: 900; color: #000000; letter-spacing: 0.15em; text-transform: uppercase;">
+          ABSOLUTE GOTHAM FILE // 0${i + 1}
+        </div>
+      </div>`,
+      )
+      .join("\n");
+
+    return `
+    <div class="comic-dossier-layout" style="width: 100%; max-width: 1420px; z-index: 10; display: flex; flex-direction: column; gap: 32px;">
+      <!-- Header Bar -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 5px solid #000000; padding-bottom: 20px;">
+        <div>
+          <div class="anim-elem" style="display: inline-block; background: #000000; color: #FFE600; padding: 6px 16px; font-weight: 900; font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 10px;">
+            CASE FILE // DOSSIER: BRUCE WAYNE
+          </div>
+          <h1 class="headline anim-elem" style="font-size: 58px; font-weight: 900; color: #000000; text-transform: uppercase; letter-spacing: -0.03em; margin: 0; line-height: 1;">
+            WHO IS THE <span style="background: #000000; color: #FFE600; padding: 2px 14px; display: inline-block; transform: skewX(-2deg);">ABSOLUTE BATMAN?</span>
+          </h1>
+        </div>
+        <div class="anim-elem" style="font-size: 15px; font-weight: 900; color: #000000; text-transform: uppercase; border: 4px solid #000000; padding: 8px 18px; background: rgba(0,0,0,0.06); box-shadow: 4px 4px 0px #000000;">
+          CONFIDENTIAL // DC ALL IN
+        </div>
+      </div>
+
+      <!-- 3 Panels Row -->
+      <div style="display: flex; gap: 24px; width: 100%;">
+        ${panelsHtml}
+      </div>
+    </div>`;
+  }
+
+  private static renderComicArsenal(scene: StoryboardScene): string {
+    const { comicSpec } = scene;
+    const weapons = comicSpec?.weapons || [
+      {
+        name: "DETACHABLE BATTLEAXE",
+        type: "SIGNATURE WEAPON",
+        description: "The broad chest Bat-emblem unlatches into a massive two-handed war axe designed to cleave reinforced steel and concrete.",
+        badge: "MELEE",
+      },
+      {
+        name: "HOOK-WEIGHTED CAPE",
+        type: "CONCRETE ANCHOR",
+        description: "Pre-stressed steel grappling hooks sewn into heavy cape edges that slice through armor and rip down masonry.",
+        badge: "TACTICAL",
+      },
+      {
+        name: "INDUSTRIAL EXOSUIT",
+        type: "BALLISTIC RIG",
+        description: "High-tensile municipal construction armor and concrete-shattering reinforced steel boots engineered for brutal ground combat.",
+        badge: "ARMOR",
+      },
+    ];
+
+    const cardsHtml = weapons
+      .map(
+        (w, i) => `
+      <div class="comic-weapon anim-comic-weapon" id="weapon-${i}" style="flex: 1; background: #000000; color: #FFE600; border: 5px solid #000000; box-shadow: 10px 10px 0px rgba(0,0,0,0.4); padding: 36px 30px; display: flex; flex-direction: column; justify-content: space-between; transform: skewX(-1deg); min-height: 380px;">
+        <div>
+          <!-- Type badge -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid rgba(255,230,0,0.4); padding-bottom: 12px;">
+            <span style="font-size: 13px; font-weight: 900; color: #FFE600; letter-spacing: 0.15em; text-transform: uppercase;">
+              ${this.escapeHtml(w.type)}
+            </span>
+            <span style="background: #FFE600; color: #000000; font-size: 12px; font-weight: 900; padding: 4px 10px; letter-spacing: 0.1em; text-transform: uppercase;">
+              ${this.escapeHtml(w.badge || "LETHAL")}
+            </span>
+          </div>
+
+          <!-- Weapon Name -->
+          <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 34px; font-weight: 900; color: #FFE600; text-transform: uppercase; line-height: 1.1; margin-bottom: 18px; letter-spacing: -0.02em;">
+            ${this.escapeHtml(w.name)}
+          </h2>
+
+          <!-- Description -->
+          <p style="font-size: 18px; font-weight: 500; color: #f4f4f5; line-height: 1.45;">
+            ${this.escapeHtml(w.description)}
+          </p>
+        </div>
+
+        <div style="margin-top: 24px; border-top: 2px dashed rgba(255,230,0,0.4); padding-top: 10px; font-size: 12px; font-weight: 900; color: #FFE600; letter-spacing: 0.15em; text-transform: uppercase;">
+          TACTICAL SPEC // 0${i + 1}
+        </div>
+      </div>`,
+      )
+      .join("\n");
+
+    return `
+    <div class="comic-arsenal-layout" style="width: 100%; max-width: 1420px; z-index: 10; display: flex; flex-direction: column; gap: 32px;">
+      <!-- Header Bar -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 5px solid #000000; padding-bottom: 20px;">
+        <div>
+          <div class="anim-elem" style="display: inline-block; background: #000000; color: #FFE600; padding: 6px 16px; font-weight: 900; font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 10px;">
+            TACTICAL HARDWARE &amp; ARSENAL
+          </div>
+          <h1 class="headline anim-elem" style="font-size: 58px; font-weight: 900; color: #000000; text-transform: uppercase; letter-spacing: -0.03em; margin: 0; line-height: 1;">
+            ENGINEERED FOR <span style="background: #000000; color: #FFE600; padding: 2px 14px; display: inline-block; transform: skewX(-2deg);">TOTAL WAR</span>
+          </h1>
+        </div>
+        <div class="anim-elem" style="font-size: 15px; font-weight: 900; color: #000000; text-transform: uppercase; border: 4px solid #000000; padding: 8px 18px; background: rgba(0,0,0,0.06); box-shadow: 4px 4px 0px #000000;">
+          HEAVY INDUSTRIAL COMBAT
+        </div>
+      </div>
+
+      <!-- 3 Weapon Cards Row -->
+      <div style="display: flex; gap: 24px; width: 100%;">
+        ${cardsHtml}
+      </div>
+    </div>`;
+  }
+
+  private static renderComicTrailerCta(scene: StoryboardScene): string {
+    const { comicSpec } = scene;
+    const issueTitle = comicSpec?.issueTitle || "ABSOLUTE BATMAN #1";
+    const creators = comicSpec?.creators || "WRITTEN BY SCOTT SNYDER • ART BY NICK DRAGOTTA • COLORS BY FRANK MARTIN";
+    const publisher = comicSpec?.publisher || "DC COMICS • THE ABSOLUTE UNIVERSE";
+    const ctaAction = comicSpec?.ctaAction || "AVAILABLE NOW AT YOUR LOCAL COMIC SHOP";
+    const subCta = comicSpec?.subCta || "READ DIGITALLY ON DC UNIVERSE INFINITE";
+
+    return `
+    <div class="comic-cta-layout" style="text-align: center; max-width: 1250px; width: 100%; z-index: 10; display: flex; flex-direction: column; align-items: center;">
+      <!-- Dramatic Quote -->
+      <div class="anim-comic-cta" style="font-size: 42px; font-weight: 900; color: #000000; text-transform: uppercase; letter-spacing: -0.02em; margin-bottom: 24px; text-shadow: 2px 2px 0px rgba(0,0,0,0.12);">
+        "I AM THE CONCRETE. I AM THE BAT."
+      </div>
+
+      <!-- Official Comic Box -->
+      <div id="comicIssueBox" style="background: #000000; color: #FFE600; padding: 40px 60px; border: 7px solid #000000; box-shadow: 16px 16px 0px #000000; width: 100%; max-width: 1080px; margin-bottom: 32px; transform: skewX(-1.5deg);">
+        <div style="font-size: 16px; font-weight: 900; letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 12px; color: #FFE600;">
+          ${this.escapeHtml(publisher)}
+        </div>
+        <h1 style="font-family: 'Space Grotesk', 'Syne', sans-serif; font-size: 80px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.04em; line-height: 0.95; margin: 0 0 18px; color: #FFE600;">
+          ${this.escapeHtml(issueTitle)}
+        </h1>
+        <div style="font-size: 18px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #FFE600; border-top: 2px solid rgba(255,230,0,0.4); border-bottom: 2px solid rgba(255,230,0,0.4); padding: 10px 0;">
+          ${this.escapeHtml(creators)}
+        </div>
+      </div>
+
+      <!-- Action Trailer CTA Button -->
+      <div class="anim-comic-cta" style="display: inline-flex; align-items: center; gap: 16px; background: #000000; color: #FFE600; padding: 20px 48px; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; border: 4px solid #000000; box-shadow: 8px 8px 0px #000000; margin-bottom: 16px;">
+        <span>${this.escapeHtml(ctaAction)}</span>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+
+      <div class="anim-comic-cta" style="font-size: 16px; font-weight: 800; color: #000000; letter-spacing: 0.12em; text-transform: uppercase;">
+        ${this.escapeHtml(subCta)}
+      </div>
+    </div>`;
+  }
+
   /**
    * Generates frame-accurate, strictly paused GSAP timelines.
    */
@@ -819,6 +1079,79 @@ ${sceneTags}
     }, 0.2);
 
     ${
+      layout === "comic-ad-hook"
+        ? `
+    // Comic title explosive slam
+    tl.from("#comicLogoWrap", {
+      scale: 1.35,
+      opacity: 0,
+      duration: 0.9,
+      ease: "back.out(1.7)"
+    }, 0.25);
+    tl.from(".anim-comic-elem", {
+      opacity: 0,
+      y: 30,
+      stagger: 0.15,
+      duration: 0.8,
+      ease: "power3.out"
+    }, 0.5);
+    `
+        : ""
+    }
+
+    ${
+      layout === "comic-dossier"
+        ? `
+    // Comic dossier panels staggered slam
+    tl.from(".anim-comic-panel", {
+      opacity: 0,
+      y: 50,
+      rotation: -2,
+      stagger: 0.2,
+      duration: 0.9,
+      ease: "power3.out"
+    }, 0.4);
+    `
+        : ""
+    }
+
+    ${
+      layout === "comic-arsenal"
+        ? `
+    // Arsenal cards staggered entrance
+    tl.from(".anim-comic-weapon", {
+      opacity: 0,
+      x: 40,
+      stagger: 0.2,
+      duration: 0.9,
+      ease: "power3.out"
+    }, 0.4);
+    `
+        : ""
+    }
+
+    ${
+      layout === "comic-trailer-cta"
+        ? `
+    // Comic trailer CTA card slam
+    tl.from("#comicIssueBox", {
+      scale: 0.9,
+      opacity: 0,
+      duration: 0.9,
+      ease: "power4.out"
+    }, 0.3);
+    tl.from(".anim-comic-cta", {
+      opacity: 0,
+      y: 25,
+      stagger: 0.15,
+      duration: 0.8,
+      ease: "power3.out"
+    }, 0.6);
+    `
+        : ""
+    }
+
+    ${
       layout === "split-diagram" || layout === "process-flow"
         ? `
     // Diagram nodes entrance & pulse
@@ -828,8 +1161,8 @@ ${sceneTags}
       y: 20,
       stagger: 0.15,
       duration: 0.9,
-      ease: "back.out(1.5)"
-    }, 0.6);
+      ease: "back.out(1.7)"
+    }, 0.5);
     `
         : ""
     }
