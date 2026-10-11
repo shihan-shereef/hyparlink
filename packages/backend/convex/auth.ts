@@ -24,8 +24,13 @@ const PasswordWithFlows = Password({
   },
 });
 
+const GoogleProvider = Google({
+  clientId: process.env.AUTH_GOOGLE_ID,
+  clientSecret: process.env.AUTH_GOOGLE_SECRET,
+});
+
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  providers: [PasswordWithFlows, ResendOTP, Google],
+  providers: [PasswordWithFlows, ResendOTP, GoogleProvider],
   // Brute-force protection: per-email token bucket (default is 10/hr) on password + OTP.
   signIn: { maxFailedAttempsPerHour: 5 },
 });
