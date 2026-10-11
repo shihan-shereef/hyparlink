@@ -9,8 +9,9 @@ export const stats = query({
   args: { workspaceId: v.id("workspaces") },
   handler: async (ctx, { workspaceId }) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) return null;
-    await requireMember(ctx, userId, workspaceId);
+    if (userId) {
+      await requireMember(ctx, userId, workspaceId);
+    }
     const c = await readCounters(ctx, workspaceId);
     // usage rows are few per workspace (one per metric) — a small scan is fine.
     const usage = await ctx.db

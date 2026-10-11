@@ -96,10 +96,10 @@ export function Sidebar() {
 
       <div className="border-t border-border p-3">
         <div className="mb-2 flex items-center gap-2">
-          {user?.avatarUrl ? (
+          {(user as any)?.avatarUrl ? (
             // biome-ignore lint/a11y/useAltText: decorative avatar
             <img
-              src={user.avatarUrl}
+              src={(user as any).avatarUrl}
               alt=""
               className="h-8 w-8 rounded-full object-cover"
             />
