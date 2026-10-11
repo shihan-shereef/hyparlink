@@ -814,35 +814,51 @@ ${sceneTags}
   private static renderComicAdHook(scene: StoryboardScene): string {
     const { typography, comicSpec } = scene;
     const banner = comicSpec?.banner || "DC COMICS • ALL IN SPECIAL";
-    const tagline = comicSpec?.tagline || "WITHOUT MONEY. WITHOUT AN EMPIRE. WITHOUT MERCY.";
     const subTagline = comicSpec?.subTagline || "The Dark Knight is reborn from Gotham's raw concrete.";
 
     return `
-    <div class="comic-hook-layout" style="text-align: center; max-width: 1300px; width: 100%; z-index: 10; display: flex; flex-direction: column; align-items: center;">
+    <div class="comic-action-bg" id="actionBg"></div>
+    <div class="comic-bat-watermark" id="batWatermark">
+      <svg width="100%" height="100%" viewBox="0 0 220 110" fill="none">
+        <path d="M10 20 L60 20 L80 45 L110 25 L140 45 L160 20 L210 20 L195 75 L140 75 L110 95 L80 75 L25 75 Z" fill="#000000"/>
+      </svg>
+    </div>
+
+    <div class="comic-hook-layout" id="rootContent" style="text-align: center; max-width: 1300px; width: 100%; z-index: 10; display: flex; flex-direction: column; align-items: center;">
       <!-- DC Publisher Header Bar -->
-      <div class="anim-comic-elem" style="display: inline-flex; align-items: center; gap: 14px; background: #000000; color: #FFE600; padding: 10px 28px; font-weight: 900; font-size: 16px; letter-spacing: 0.16em; text-transform: uppercase; border: 3px solid #000000; box-shadow: 6px 6px 0px rgba(0,0,0,0.4); margin-bottom: 28px;">
+      <div id="publisherBar" style="display: inline-flex; align-items: center; gap: 14px; background: #000000; color: #FFE600; padding: 10px 28px; font-weight: 900; font-size: 16px; letter-spacing: 0.16em; text-transform: uppercase; border: 3px solid #000000; box-shadow: 6px 6px 0px rgba(0,0,0,0.4); margin-bottom: 22px;">
         <span style="display: inline-block; width: 12px; height: 12px; background: #FFE600; border-radius: 2px;"></span>
         ${this.escapeHtml(banner)}
       </div>
 
+      <!-- Center Bat-Axe Emblem Graphic -->
+      <div id="batAxeIcon" style="margin-bottom: 20px;">
+        <svg width="220" height="110" viewBox="0 0 220 110" fill="none" style="filter: drop-shadow(8px 8px 0px rgba(0,0,0,0.4));">
+          <path d="M10 20 L60 20 L80 45 L110 25 L140 45 L160 20 L210 20 L195 75 L140 75 L110 95 L80 75 L25 75 Z" fill="#000000"/>
+          <line x1="110" y1="12" x2="110" y2="98" stroke="#FFE600" stroke-width="4" stroke-dasharray="6 4"/>
+        </svg>
+      </div>
+
       <!-- Giant Comic Title Box -->
-      <div id="comicLogoWrap" style="background: #000000; padding: 28px 56px; border: 8px solid #000000; box-shadow: 14px 14px 0px #000000; transform: skewX(-2deg); margin-bottom: 32px; display: inline-block;">
+      <div id="comicLogoWrap" style="background: #000000; padding: 26px 56px; border: 8px solid #000000; box-shadow: 14px 14px 0px #000000; transform: skewX(-2deg); margin-bottom: 28px; display: inline-block;">
         <h1 style="font-family: 'Space Grotesk', 'Syne', sans-serif; font-size: 92px; font-weight: 900; letter-spacing: -0.04em; text-transform: uppercase; line-height: 0.95; margin: 0; color: #FFE600;">
           ${this.escapeHtml(typography.headline)}
         </h1>
       </div>
 
-      <!-- Action Comic Tagline -->
-      <div class="anim-comic-elem" style="font-size: 38px; font-weight: 900; color: #000000; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 16px; text-shadow: 2px 2px 0px rgba(0,0,0,0.15);">
-        ${this.escapeHtml(tagline)}
+      <!-- Action Comic Tagline: Broken into 3 Staggered Impact Punches -->
+      <div id="taglineWrap" style="display: flex; gap: 14px; align-items: center; justify-content: center; margin-bottom: 16px; flex-wrap: wrap;">
+        <span class="anim-tagline-punch" style="font-size: 34px; font-weight: 900; background: #000000; color: #FFE600; padding: 6px 16px; transform: skewX(-2deg); box-shadow: 4px 4px 0px rgba(0,0,0,0.3);">WITHOUT MONEY.</span>
+        <span class="anim-tagline-punch" style="font-size: 34px; font-weight: 900; background: #000000; color: #FFE600; padding: 6px 16px; transform: skewX(-2deg); box-shadow: 4px 4px 0px rgba(0,0,0,0.3);">WITHOUT AN EMPIRE.</span>
+        <span class="anim-tagline-punch" style="font-size: 34px; font-weight: 900; background: #000000; color: #FFE600; padding: 6px 16px; transform: skewX(-2deg); box-shadow: 4px 4px 0px rgba(0,0,0,0.3);">WITHOUT MERCY.</span>
       </div>
 
-      <p class="anim-comic-elem" style="font-size: 24px; font-weight: 600; color: #18181b; max-width: 900px; margin: 0 auto; line-height: 1.4;">
+      <p id="subTaglineText" style="font-size: 24px; font-weight: 600; color: #18181b; max-width: 900px; margin: 0 auto; line-height: 1.4;">
         ${this.escapeHtml(subTagline)}
       </p>
 
       <!-- Comic Corner Stamp -->
-      <div class="anim-comic-elem" style="margin-top: 36px; display: inline-flex; gap: 10px; align-items: center; border: 3px solid #000000; padding: 8px 20px; background: rgba(0,0,0,0.06); font-weight: 800; font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: #000000;">
+      <div id="creatorStamp" style="margin-top: 30px; display: inline-flex; gap: 12px; align-items: center; border: 3px solid #000000; padding: 8px 22px; background: rgba(0,0,0,0.06); font-weight: 800; font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: #000000;">
         <span>DC ALL IN</span>
         <span>•</span>
         <span>SCOTT SNYDER</span>
@@ -881,10 +897,10 @@ ${sceneTags}
     const panelsHtml = panels
       .map(
         (p, i) => `
-      <div class="comic-panel anim-comic-panel" id="panel-${i}" style="flex: 1; background: #FFE600; border: 5px solid #000000; box-shadow: 10px 10px 0px #000000; padding: 36px 30px; display: flex; flex-direction: column; justify-content: space-between; transform: skewX(-1.5deg); min-height: 380px;">
+      <div class="comic-panel anim-comic-panel" id="panel-${i}" style="flex: 1; background: #FFE600; border: 5px solid #000000; box-shadow: 10px 10px 0px #000000; padding: 34px 28px; display: flex; flex-direction: column; justify-content: space-between; transform: skewX(-1.5deg); min-height: 400px; position: relative;">
         <div>
           <!-- Category & Tag header -->
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 3px solid #000000; padding-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; border-bottom: 3px solid #000000; padding-bottom: 12px;">
             <span style="font-size: 13px; font-weight: 900; color: #000000; letter-spacing: 0.14em; text-transform: uppercase;">
               ${this.escapeHtml(p.tag || `DOSSIER 0${i + 1}`)}
             </span>
@@ -894,40 +910,48 @@ ${sceneTags}
           </div>
 
           <!-- Title -->
-          <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 34px; font-weight: 900; color: #000000; text-transform: uppercase; line-height: 1.1; margin-bottom: 10px; letter-spacing: -0.02em;">
+          <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 900; color: #000000; text-transform: uppercase; line-height: 1.1; margin-bottom: 10px; letter-spacing: -0.02em;">
             ${this.escapeHtml(p.title)}
           </h2>
 
-          <div style="font-size: 14px; font-weight: 800; color: #18181b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 18px;">
+          <div style="font-size: 13px; font-weight: 800; color: #18181b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px;">
             // ${this.escapeHtml(p.category)}
           </div>
 
           <!-- Description -->
-          <p style="font-size: 18px; font-weight: 600; color: #000000; line-height: 1.45;">
+          <p style="font-size: 17px; font-weight: 600; color: #000000; line-height: 1.45;">
             ${this.escapeHtml(p.description)}
           </p>
         </div>
 
-        <div style="margin-top: 24px; border-top: 2px dashed #000000; padding-top: 10px; font-size: 12px; font-weight: 900; color: #000000; letter-spacing: 0.15em; text-transform: uppercase;">
-          ABSOLUTE GOTHAM FILE // 0${i + 1}
+        <div>
+          <!-- Animated Progress Gauge Bar -->
+          <div class="meter-container">
+            <div class="meter-fill" id="meter-${i}"></div>
+          </div>
+          <div style="margin-top: 10px; display: flex; justify-content: space-between; font-size: 11px; font-weight: 900; color: #000000; letter-spacing: 0.12em; text-transform: uppercase;">
+            <span>ACTIVE METRIC</span>
+            <span>100% VERIFIED</span>
+          </div>
         </div>
       </div>`,
       )
       .join("\n");
 
     return `
-    <div class="comic-dossier-layout" style="width: 100%; max-width: 1420px; z-index: 10; display: flex; flex-direction: column; gap: 32px;">
+    <div class="comic-action-bg" id="actionBg"></div>
+    <div class="comic-dossier-layout" id="rootContent" style="width: 100%; max-width: 1420px; z-index: 10; display: flex; flex-direction: column; gap: 32px;">
       <!-- Header Bar -->
       <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 5px solid #000000; padding-bottom: 20px;">
-        <div>
-          <div class="anim-elem" style="display: inline-block; background: #000000; color: #FFE600; padding: 6px 16px; font-weight: 900; font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 10px;">
+        <div id="dossierHeaderLeft">
+          <div style="display: inline-block; background: #000000; color: #FFE600; padding: 6px 16px; font-weight: 900; font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 10px;">
             CASE FILE // DOSSIER: BRUCE WAYNE
           </div>
-          <h1 class="headline anim-elem" style="font-size: 58px; font-weight: 900; color: #000000; text-transform: uppercase; letter-spacing: -0.03em; margin: 0; line-height: 1;">
+          <h1 class="headline" style="font-size: 58px; font-weight: 900; color: #000000; text-transform: uppercase; letter-spacing: -0.03em; margin: 0; line-height: 1;">
             WHO IS THE <span style="background: #000000; color: #FFE600; padding: 2px 14px; display: inline-block; transform: skewX(-2deg);">ABSOLUTE BATMAN?</span>
           </h1>
         </div>
-        <div class="anim-elem" style="font-size: 15px; font-weight: 900; color: #000000; text-transform: uppercase; border: 4px solid #000000; padding: 8px 18px; background: rgba(0,0,0,0.06); box-shadow: 4px 4px 0px #000000;">
+        <div id="classifiedStamp" style="font-size: 15px; font-weight: 900; color: #000000; text-transform: uppercase; border: 4px solid #000000; padding: 8px 18px; background: rgba(0,0,0,0.06); box-shadow: 4px 4px 0px #000000;">
           CONFIDENTIAL // DC ALL IN
         </div>
       </div>
@@ -962,10 +986,20 @@ ${sceneTags}
       },
     ];
 
+    const weaponIcons = [
+      // Battleaxe SVG
+      `<svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="#FFE600" stroke-width="2.5"><path d="M14 2l6 6-5 5-6-6 5-5z"/><path d="M4 20l10-10"/><path d="M19 3l2 2"/></svg>`,
+      // Hooked Cape SVG
+      `<svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="#FFE600" stroke-width="2.5"><path d="M12 2v8M8 6l4 4 4-4"/><path d="M6 14a6 6 0 0 0 12 0"/></svg>`,
+      // Exosuit Armor SVG
+      `<svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="#FFE600" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>`,
+    ];
+
     const cardsHtml = weapons
       .map(
         (w, i) => `
-      <div class="comic-weapon anim-comic-weapon" id="weapon-${i}" style="flex: 1; background: #000000; color: #FFE600; border: 5px solid #000000; box-shadow: 10px 10px 0px rgba(0,0,0,0.4); padding: 36px 30px; display: flex; flex-direction: column; justify-content: space-between; transform: skewX(-1deg); min-height: 380px;">
+      <div class="comic-weapon anim-comic-weapon" id="weapon-${i}" style="flex: 1; background: #000000; color: #FFE600; border: 5px solid #000000; box-shadow: 10px 10px 0px rgba(0,0,0,0.4); padding: 34px 28px; display: flex; flex-direction: column; justify-content: space-between; transform: skewX(-1deg); min-height: 400px; position: relative; overflow: hidden;">
+        <div class="weapon-shine-line" id="shine-${i}"></div>
         <div>
           <!-- Type badge -->
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid rgba(255,230,0,0.4); padding-bottom: 12px;">
@@ -977,18 +1011,23 @@ ${sceneTags}
             </span>
           </div>
 
+          <!-- Weapon Icon Box -->
+          <div class="anim-weapon-icon" id="weaponIcon-${i}" style="margin-bottom: 18px; display: inline-flex; padding: 10px; background: rgba(255,230,0,0.1); border: 2px solid rgba(255,230,0,0.3); border-radius: 8px;">
+            ${weaponIcons[i]}
+          </div>
+
           <!-- Weapon Name -->
-          <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 34px; font-weight: 900; color: #FFE600; text-transform: uppercase; line-height: 1.1; margin-bottom: 18px; letter-spacing: -0.02em;">
+          <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 900; color: #FFE600; text-transform: uppercase; line-height: 1.1; margin-bottom: 14px; letter-spacing: -0.02em;">
             ${this.escapeHtml(w.name)}
           </h2>
 
           <!-- Description -->
-          <p style="font-size: 18px; font-weight: 500; color: #f4f4f5; line-height: 1.45;">
+          <p style="font-size: 17px; font-weight: 500; color: #f4f4f5; line-height: 1.45;">
             ${this.escapeHtml(w.description)}
           </p>
         </div>
 
-        <div style="margin-top: 24px; border-top: 2px dashed rgba(255,230,0,0.4); padding-top: 10px; font-size: 12px; font-weight: 900; color: #FFE600; letter-spacing: 0.15em; text-transform: uppercase;">
+        <div style="margin-top: 20px; border-top: 2px dashed rgba(255,230,0,0.4); padding-top: 10px; font-size: 12px; font-weight: 900; color: #FFE600; letter-spacing: 0.15em; text-transform: uppercase;">
           TACTICAL SPEC // 0${i + 1}
         </div>
       </div>`,
@@ -996,18 +1035,19 @@ ${sceneTags}
       .join("\n");
 
     return `
-    <div class="comic-arsenal-layout" style="width: 100%; max-width: 1420px; z-index: 10; display: flex; flex-direction: column; gap: 32px;">
+    <div class="comic-action-bg" id="actionBg"></div>
+    <div class="comic-arsenal-layout" id="rootContent" style="width: 100%; max-width: 1420px; z-index: 10; display: flex; flex-direction: column; gap: 32px;">
       <!-- Header Bar -->
-      <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 5px solid #000000; padding-bottom: 20px;">
+      <div id="arsenalHeader" style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 5px solid #000000; padding-bottom: 20px;">
         <div>
-          <div class="anim-elem" style="display: inline-block; background: #000000; color: #FFE600; padding: 6px 16px; font-weight: 900; font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 10px;">
+          <div style="display: inline-block; background: #000000; color: #FFE600; padding: 6px 16px; font-weight: 900; font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 10px;">
             TACTICAL HARDWARE &amp; ARSENAL
           </div>
-          <h1 class="headline anim-elem" style="font-size: 58px; font-weight: 900; color: #000000; text-transform: uppercase; letter-spacing: -0.03em; margin: 0; line-height: 1;">
+          <h1 class="headline" style="font-size: 58px; font-weight: 900; color: #000000; text-transform: uppercase; letter-spacing: -0.03em; margin: 0; line-height: 1;">
             ENGINEERED FOR <span style="background: #000000; color: #FFE600; padding: 2px 14px; display: inline-block; transform: skewX(-2deg);">TOTAL WAR</span>
           </h1>
         </div>
-        <div class="anim-elem" style="font-size: 15px; font-weight: 900; color: #000000; text-transform: uppercase; border: 4px solid #000000; padding: 8px 18px; background: rgba(0,0,0,0.06); box-shadow: 4px 4px 0px #000000;">
+        <div style="font-size: 15px; font-weight: 900; color: #000000; text-transform: uppercase; border: 4px solid #000000; padding: 8px 18px; background: rgba(0,0,0,0.06); box-shadow: 4px 4px 0px #000000;">
           HEAVY INDUSTRIAL COMBAT
         </div>
       </div>
@@ -1028,14 +1068,16 @@ ${sceneTags}
     const subCta = comicSpec?.subCta || "READ DIGITALLY ON DC UNIVERSE INFINITE";
 
     return `
-    <div class="comic-cta-layout" style="text-align: center; max-width: 1250px; width: 100%; z-index: 10; display: flex; flex-direction: column; align-items: center;">
-      <!-- Dramatic Quote -->
-      <div class="anim-comic-cta" style="font-size: 42px; font-weight: 900; color: #000000; text-transform: uppercase; letter-spacing: -0.02em; margin-bottom: 24px; text-shadow: 2px 2px 0px rgba(0,0,0,0.12);">
-        "I AM THE CONCRETE. I AM THE BAT."
+    <div class="comic-action-bg" id="actionBg"></div>
+    <div class="comic-cta-layout" id="rootContent" style="text-align: center; max-width: 1250px; width: 100%; z-index: 10; display: flex; flex-direction: column; align-items: center;">
+      <!-- Dramatic Quote with Dual Kinetic Punch -->
+      <div style="display: flex; gap: 16px; align-items: center; justify-content: center; margin-bottom: 24px; flex-wrap: wrap;">
+        <span id="quotePart1" style="font-size: 44px; font-weight: 900; color: #000000; text-transform: uppercase; letter-spacing: -0.02em; text-shadow: 2px 2px 0px rgba(0,0,0,0.12);">"I AM THE CONCRETE.</span>
+        <span id="quotePart2" style="font-size: 44px; font-weight: 900; background: #000000; color: #FFE600; padding: 4px 18px; text-transform: uppercase; letter-spacing: -0.02em; transform: skewX(-2deg); box-shadow: 4px 4px 0px rgba(0,0,0,0.3);">I AM THE BAT."</span>
       </div>
 
       <!-- Official Comic Box -->
-      <div id="comicIssueBox" style="background: #000000; color: #FFE600; padding: 40px 60px; border: 7px solid #000000; box-shadow: 16px 16px 0px #000000; width: 100%; max-width: 1080px; margin-bottom: 32px; transform: skewX(-1.5deg);">
+      <div id="comicIssueBox" class="pulse-border-box" style="background: #000000; color: #FFE600; padding: 40px 60px; width: 100%; max-width: 1080px; margin-bottom: 30px; transform: skewX(-1.5deg);">
         <div style="font-size: 16px; font-weight: 900; letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 12px; color: #FFE600;">
           ${this.escapeHtml(publisher)}
         </div>
@@ -1047,13 +1089,13 @@ ${sceneTags}
         </div>
       </div>
 
-      <!-- Action Trailer CTA Button -->
-      <div class="anim-comic-cta" style="display: inline-flex; align-items: center; gap: 16px; background: #000000; color: #FFE600; padding: 20px 48px; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; border: 4px solid #000000; box-shadow: 8px 8px 0px #000000; margin-bottom: 16px;">
+      <!-- Action Trailer CTA Button with Bouncing Arrow -->
+      <div id="comicCtaBtn" style="display: inline-flex; align-items: center; gap: 16px; background: #000000; color: #FFE600; padding: 20px 48px; font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; border: 4px solid #000000; box-shadow: 8px 8px 0px #000000; margin-bottom: 16px;">
         <span>${this.escapeHtml(ctaAction)}</span>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        <svg class="cta-arrow-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       </div>
 
-      <div class="anim-comic-cta" style="font-size: 16px; font-weight: 800; color: #000000; letter-spacing: 0.12em; text-transform: uppercase;">
+      <div id="subCtaText" style="font-size: 16px; font-weight: 800; color: #000000; letter-spacing: 0.12em; text-transform: uppercase;">
         ${this.escapeHtml(subCta)}
       </div>
     </div>`;
@@ -1081,20 +1123,32 @@ ${sceneTags}
     ${
       layout === "comic-ad-hook"
         ? `
-    // Comic title explosive slam
-    tl.from("#comicLogoWrap", {
-      scale: 1.35,
-      opacity: 0,
-      duration: 0.9,
-      ease: "back.out(1.7)"
-    }, 0.25);
-    tl.from(".anim-comic-elem", {
-      opacity: 0,
-      y: 30,
-      stagger: 0.15,
-      duration: 0.8,
-      ease: "power3.out"
-    }, 0.5);
+    // Dynamic background speedlines continuous pan
+    tl.to("#actionBg", { backgroundPosition: "300px 300px", duration: ${duration}, ease: "none" }, 0);
+    // Subtle Bat watermark breathing
+    tl.fromTo("#batWatermark", { scale: 0.9, opacity: 0.03 }, { scale: 1.15, opacity: 0.08, duration: ${duration}, ease: "sine.inOut" }, 0);
+
+    // Camera slow cinematic zoom
+    tl.fromTo("#rootContent", { scale: 0.96 }, { scale: 1.03, duration: ${duration}, ease: "none" }, 0);
+
+    // Publisher bar drop
+    tl.from("#publisherBar", { y: -50, opacity: 0, duration: 0.7, ease: "back.out(1.8)" }, 0.15);
+
+    // Bat-Axe Emblem explosive slam
+    tl.from("#batAxeIcon", { scale: 0, rotation: -90, opacity: 0, duration: 0.8, ease: "back.out(2)" }, 0.3);
+    // Bat-Axe continuous subtle breathing pulse
+    tl.to("#batAxeIcon", { scale: 1.08, duration: 2.5, yoyo: true, repeat: 2, ease: "sine.inOut" }, 1.2);
+
+    // Main Title explosive slam with 3D drop-shadow expansion
+    tl.from("#comicLogoWrap", { scale: 1.6, y: -40, opacity: 0, duration: 0.75, ease: "power4.out" }, 0.45);
+    tl.fromTo("#comicLogoWrap", { boxShadow: "0px 0px 0px #000000" }, { boxShadow: "14px 14px 0px #000000", duration: 0.4, ease: "power2.out" }, 0.75);
+
+    // Staggered Tagline punches
+    tl.from(".anim-tagline-punch", { scale: 0.2, y: 30, opacity: 0, stagger: 0.22, duration: 0.6, ease: "back.out(2.2)" }, 0.9);
+
+    // Subtitle & creator stamp slide-up
+    tl.from("#subTaglineText", { opacity: 0, y: 20, duration: 0.7, ease: "power2.out" }, 1.6);
+    tl.from("#creatorStamp", { opacity: 0, scale: 0.8, duration: 0.6, ease: "back.out(1.5)" }, 1.8);
     `
         : ""
     }
@@ -1102,15 +1156,35 @@ ${sceneTags}
     ${
       layout === "comic-dossier"
         ? `
-    // Comic dossier panels staggered slam
+    // Background speedlines continuous pan
+    tl.to("#actionBg", { backgroundPosition: "300px 300px", duration: ${duration}, ease: "none" }, 0);
+    // Camera slow drift
+    tl.fromTo("#rootContent", { scale: 0.97 }, { scale: 1.03, duration: ${duration}, ease: "none" }, 0);
+
+    // Header entrance
+    tl.from("#dossierHeaderLeft", { x: -60, opacity: 0, duration: 0.8, ease: "power3.out" }, 0.2);
+    // Classified stamp drops and tilts
+    tl.from("#classifiedStamp", { scale: 2.2, rotation: -30, opacity: 0, duration: 0.6, ease: "back.out(1.8)" }, 0.35);
+
+    // 3 Panels staggered slam
     tl.from(".anim-comic-panel", {
       opacity: 0,
-      y: 50,
-      rotation: -2,
-      stagger: 0.2,
-      duration: 0.9,
-      ease: "power3.out"
-    }, 0.4);
+      y: 70,
+      scale: 0.88,
+      stagger: 0.22,
+      duration: 0.8,
+      ease: "back.out(1.6)"
+    }, 0.5);
+
+    // Meters fill sequentially via transform scaleX
+    tl.fromTo("#meter-0", { scaleX: 0 }, { scaleX: 1, duration: 1.2, ease: "power2.out" }, 1.2);
+    tl.fromTo("#meter-1", { scaleX: 0 }, { scaleX: 1, duration: 1.2, ease: "power2.out" }, 1.45);
+    tl.fromTo("#meter-2", { scaleX: 0 }, { scaleX: 1, duration: 1.2, ease: "power2.out" }, 1.7);
+
+    // Continuous floating/hovering of the 3 panels
+    tl.to("#panel-0", { y: -10, duration: 2.6, yoyo: true, repeat: 1, ease: "sine.inOut", overwrite: "auto" }, 1.8);
+    tl.to("#panel-1", { y: -14, duration: 2.3, yoyo: true, repeat: 1, ease: "sine.inOut", overwrite: "auto" }, 2.0);
+    tl.to("#panel-2", { y: -8, duration: 2.9, yoyo: true, repeat: 1, ease: "sine.inOut", overwrite: "auto" }, 2.2);
     `
         : ""
     }
@@ -1118,14 +1192,42 @@ ${sceneTags}
     ${
       layout === "comic-arsenal"
         ? `
-    // Arsenal cards staggered entrance
+    // Background speedlines continuous pan
+    tl.to("#actionBg", { backgroundPosition: "300px 300px", duration: ${duration}, ease: "none" }, 0);
+    // Camera slow drift
+    tl.fromTo("#rootContent", { scale: 0.97 }, { scale: 1.03, duration: ${duration}, ease: "none" }, 0);
+
+    // Header entrance
+    tl.from("#arsenalHeader", { y: -40, opacity: 0, duration: 0.7, ease: "power3.out" }, 0.2);
+
+    // 3 Weapon cards staggered slide-in
     tl.from(".anim-comic-weapon", {
       opacity: 0,
-      x: 40,
+      x: 100,
+      scale: 0.9,
       stagger: 0.2,
-      duration: 0.9,
-      ease: "power3.out"
+      duration: 0.85,
+      ease: "power4.out"
     }, 0.4);
+
+    // Weapon icons bounce in
+    tl.from(".anim-weapon-icon", {
+      scale: 0,
+      rotation: -120,
+      stagger: 0.2,
+      duration: 0.75,
+      ease: "back.out(2)"
+    }, 0.75);
+
+    // Gleaming light sweep across each weapon card using transforms (x)
+    tl.fromTo("#shine-0", { x: -400 }, { x: 700, duration: 1.2, ease: "power2.inOut" }, 1.3);
+    tl.fromTo("#shine-1", { x: -400 }, { x: 700, duration: 1.2, ease: "power2.inOut" }, 1.6);
+    tl.fromTo("#shine-2", { x: -400 }, { x: 700, duration: 1.2, ease: "power2.inOut" }, 1.9);
+
+    // Battleaxe card impact cleave shake
+    tl.to("#weapon-0", { scale: 1.04, duration: 0.15, yoyo: true, repeat: 1, ease: "power1.inOut", overwrite: "auto" }, 2.5);
+    tl.to("#weapon-1", { scale: 1.03, duration: 0.15, yoyo: true, repeat: 1, ease: "power1.inOut", overwrite: "auto" }, 2.8);
+    tl.to("#weapon-2", { scale: 1.03, duration: 0.15, yoyo: true, repeat: 1, ease: "power1.inOut", overwrite: "auto" }, 3.1);
     `
         : ""
     }
@@ -1133,20 +1235,31 @@ ${sceneTags}
     ${
       layout === "comic-trailer-cta"
         ? `
-    // Comic trailer CTA card slam
-    tl.from("#comicIssueBox", {
-      scale: 0.9,
-      opacity: 0,
-      duration: 0.9,
-      ease: "power4.out"
-    }, 0.3);
-    tl.from(".anim-comic-cta", {
-      opacity: 0,
-      y: 25,
-      stagger: 0.15,
-      duration: 0.8,
-      ease: "power3.out"
-    }, 0.6);
+    // Background speedlines continuous pan
+    tl.to("#actionBg", { backgroundPosition: "300px 300px", duration: ${duration}, ease: "none" }, 0);
+    // Camera slow push
+    tl.fromTo("#rootContent", { scale: 0.96 }, { scale: 1.04, duration: ${duration}, ease: "none" }, 0);
+
+    // Dramatic quote sequential punch reveals
+    tl.from("#quotePart1", { y: -40, opacity: 0, scale: 0.8, duration: 0.6, ease: "power4.out" }, 0.2);
+    tl.from("#quotePart2", { y: 40, opacity: 0, scale: 1.3, duration: 0.7, ease: "back.out(2)" }, 0.6);
+
+    // Comic Issue Box explosive slam
+    tl.from("#comicIssueBox", { scale: 1.4, opacity: 0, duration: 0.6, ease: "power4.out" }, 0.9);
+    tl.fromTo("#comicIssueBox", { boxShadow: "0px 0px 0px #000000" }, { boxShadow: "16px 16px 0px #000000", duration: 0.4, ease: "power2.out" }, 1.3);
+
+    // Pulsing Comic Issue Box border breathing (starts after slam at 1.8s)
+    tl.to("#comicIssueBox", { scale: 1.02, duration: 1.8, yoyo: true, repeat: 2, ease: "sine.inOut", overwrite: "auto" }, 1.8);
+
+    // Action CTA button drops and breathes
+    tl.from("#comicCtaBtn", { y: 40, opacity: 0, scale: 0.85, duration: 0.45, ease: "back.out(2)" }, 1.5);
+    tl.to("#comicCtaBtn", { scale: 1.05, duration: 0.8, yoyo: true, repeat: 4, ease: "sine.inOut", overwrite: "auto" }, 2.1);
+
+    // Arrow SVG continuous bouncing
+    tl.to(".cta-arrow-svg", { x: 10, duration: 0.4, yoyo: true, repeat: 9, ease: "power1.inOut" }, 2.1);
+
+    // Sub CTA text fade
+    tl.from("#subCtaText", { opacity: 0, y: 15, duration: 0.5, ease: "power2.out" }, 1.9);
     `
         : ""
     }
@@ -1242,6 +1355,66 @@ ${sceneTags}
     }
     .metric-card {
       /* Stat card styling */
+    }
+
+    /* Comic Action Speedlines Background */
+    .comic-action-bg {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        -45deg,
+        rgba(0, 0, 0, 0.035),
+        rgba(0, 0, 0, 0.035) 20px,
+        transparent 20px,
+        transparent 40px
+      );
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Comic Bat Watermark */
+    .comic-bat-watermark {
+      position: absolute;
+      width: 850px;
+      height: 420px;
+      opacity: 0.055;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* Weapon shine effect */
+    .weapon-shine-line {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 50%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 230, 0, 0.45), transparent);
+      transform: skewX(-25deg);
+      pointer-events: none;
+    }
+
+    /* Meter styles for Dossier */
+    .meter-container {
+      width: 100%;
+      height: 10px;
+      background: rgba(0, 0, 0, 0.15);
+      border: 2px solid #000000;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 14px;
+    }
+    .meter-fill {
+      height: 100%;
+      background: #000000;
+      width: 100%;
+      transform-origin: left center;
+    }
+
+    /* Pulsing border */
+    .pulse-border-box {
+      border: 7px solid #000000;
+      box-shadow: 16px 16px 0px #000000;
     }
     `;
   }
