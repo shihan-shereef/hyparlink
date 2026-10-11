@@ -22,6 +22,17 @@ export const sendEmail = internalAction({
     html: v.optional(v.string()),
   },
   handler: async (_ctx, { to, subject, text, html }) => {
+    const defaultHtml = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+        <h2 style="color: #0f172a; margin-top: 0; font-size: 20px;">Your Sign-In Verification Code</h2>
+        <p style="color: #475569; font-size: 14px; line-height: 1.5;">Use the following code to sign in to HyperFrames Studio. This code is valid for 15 minutes:</p>
+        <div style="margin: 24px 0; padding: 18px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; text-align: center;">
+          <span style="font-family: monospace; font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #0284c7;">${text.replace(/[^0-9]/g, "") || text}</span>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; margin-bottom: 0;">If you didn't request this code, you can safely ignore this email.</p>
+      </div>
+    `;
+
     // If RESEND_API_KEY is configured, send directly via Resend REST API
     if (process.env.RESEND_API_KEY) {
       try {
@@ -88,16 +99,6 @@ export const sendEmail = internalAction({
       },
     });
 
-    const defaultHtml = `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
-        <h2 style="color: #0f172a; margin-top: 0; font-size: 20px;">Your Sign-In Verification Code</h2>
-        <p style="color: #475569; font-size: 14px; line-height: 1.5;">Use the following code to sign in to HyperFrames Studio. This code is valid for 15 minutes:</p>
-        <div style="margin: 24px 0; padding: 18px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; text-align: center;">
-          <span style="font-family: monospace; font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #0284c7;">${text.replace(/[^0-9]/g, "") || text}</span>
-        </div>
-        <p style="color: #94a3b8; font-size: 12px; margin-bottom: 0;">If you didn't request this code, you can safely ignore this email.</p>
-      </div>
-    `;
 
     try {
       const info = await transport.sendMail({
