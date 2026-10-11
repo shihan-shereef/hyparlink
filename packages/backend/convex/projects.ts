@@ -133,6 +133,7 @@ function deriveProjectName(rawName: string, prompt: string): string {
     trimmed.toLowerCase() === "ai video project";
 
   if (isPresetOrGeneric) {
+    if (pLower.includes("batman")) return "Absolute Batman";
     if (pLower.includes("ollima")) return "Ollama Ad";
     if (pLower.includes("networks home")) return "Networks Home";
     const cleaned = prompt

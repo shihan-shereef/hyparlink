@@ -129,6 +129,7 @@ export interface Storyboard {
     accentColor: string;
     backgroundColor: string;
     bgPrimary?: string;
+    bgSecondary?: string;
     border?: string;
     textColor: string;
     fontDisplay: string;

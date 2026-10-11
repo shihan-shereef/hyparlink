@@ -59,11 +59,11 @@ export class CompositionBuilder {
 
       const bg = scene.background || ({} as any);
       scene.background = {
-        color: bg.color || theme?.backgroundColor || "#0a0a0f",
+        color: bg.color || theme?.bgPrimary || theme?.backgroundColor || "#0a0a0f",
         gradient:
           bg.gradient ||
-          `linear-gradient(135deg, ${theme?.backgroundColor || "#0a0a0f"} 0%, #16182a 100%)`,
-        ambientGlow: bg.ambientGlow || "rgba(99, 102, 241, 0.25)",
+          `linear-gradient(135deg, ${theme?.bgPrimary || theme?.backgroundColor || "#0a0a0f"} 0%, ${theme?.bgSecondary || "#16182a"} 100%)`,
+        ambientGlow: bg.ambientGlow || (theme?.textColor === "#000000" ? "rgba(0,0,0,0.08)" : "rgba(99, 102, 241, 0.25)"),
         gridOverlay: bg.gridOverlay ?? true,
       };
 
@@ -374,13 +374,13 @@ ${sceneTags}
       gap: 8px;
       padding: 6px 16px;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.05);
+      background: ${palette.surfaceColor || "rgba(255, 255, 255, 0.05)"};
       border: 1px solid ${palette.borderColor};
       font-size: 14px;
       font-weight: 700;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: ${palette.accent};
+      color: ${palette.textColor};
       backdrop-filter: blur(8px);
       margin-bottom: 24px;
     }
@@ -395,16 +395,16 @@ ${sceneTags}
     }
     .subtitle {
       font-size: 24px;
-      font-weight: 400;
+      font-weight: 500;
       line-height: 1.5;
       color: ${palette.subtextColor};
       max-width: 900px;
     }
     .highlight {
-      color: ${palette.accent};
-      background: linear-gradient(135deg, ${palette.accent} 0%, ${palette.secondary} 100%);
+      color: ${palette.textColor};
+      background: linear-gradient(135deg, ${palette.primary} 0%, ${palette.secondary} 100%);
       -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      -webkit-text-fill-color: ${palette.textColor};
     }
 
     /* Glassmorphic Cards */
@@ -526,7 +526,7 @@ ${sceneTags}
         ${this.escapeHtml(subtitleText)}
       </p>
       
-      <div class="cta-pill anim-elem" id="closingCta" style="display: inline-flex; align-items: center; gap: 14px; background: linear-gradient(135deg, ${palette.primary}, ${palette.secondary}); color: #ffffff; padding: 18px 40px; border-radius: 999px; font-size: 22px; font-weight: 700; box-shadow: 0 10px 30px rgba(0,0,0,0.4);">
+      <div class="cta-pill anim-elem" id="closingCta" style="display: inline-flex; align-items: center; gap: 14px; background: ${palette.textColor === "#000000" ? "#000000" : `linear-gradient(135deg, ${palette.primary}, ${palette.secondary})`}; color: ${palette.textColor === "#000000" ? "#FFE600" : "#ffffff"}; border: 2px solid ${palette.textColor === "#000000" ? "#000000" : "transparent"}; padding: 18px 40px; border-radius: 999px; font-size: 22px; font-weight: 700; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
         <span>${this.escapeHtml(typography.ctaText || "Explore Next Steps")}</span>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       </div>
@@ -561,7 +561,7 @@ ${sceneTags}
         <div class="diagram-node glass-card anim-node" id="node-${i}" style="padding: 24px 28px; min-width: 200px; text-align: left; position: relative;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
             <span style="font-size: 13px; font-weight: 800; color: ${palette.accent}; letter-spacing: 0.1em;">STEP 0${i + 1}</span>
-            <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center;">
+            <div style="width: 28px; height: 28px; border-radius: 8px; background: ${palette.textColor === "#000000" ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)"}; display: flex; align-items: center; justify-content: center;">
               ${this.getSvgIcon(node.icon || "cpu", palette.accent)}
             </div>
           </div>
@@ -591,7 +591,7 @@ ${sceneTags}
         </p>
       </div>
 
-      <div class="diagram-canvas glass-card anim-elem" id="diagramCanvas" style="padding: 44px 36px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: rgba(10, 16, 32, 0.55);">
+      <div class="diagram-canvas glass-card anim-elem" id="diagramCanvas" style="padding: 44px 36px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: ${palette.textColor === "#000000" ? "rgba(0, 0, 0, 0.05)" : "rgba(10, 16, 32, 0.55)"};">
         ${nodeCardsHtml}
       </div>
     </div>`;

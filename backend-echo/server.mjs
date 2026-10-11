@@ -1901,6 +1901,7 @@ const server = http.createServer(async (req, res) => {
                       t === "Modern Presentation" ||
                       t.toLowerCase().includes("quarterly revenue")
                     ) {
+                      if (pLower.includes("batman")) return "Absolute Batman";
                       if (pLower.includes("ollima")) return "Ollama Commercial";
                       if (pLower.includes("networks home")) return "Networks Home";
                     }

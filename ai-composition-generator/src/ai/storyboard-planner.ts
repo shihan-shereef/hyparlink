@@ -200,6 +200,12 @@ export class StoryboardPlanner {
     const lower = raw.toLowerCase();
 
     // 0. Explicit keyword prioritizations
+    if (/\b(?:absolute|absalut)\s+batman\b/i.test(raw) || (/\bbatman\b/i.test(raw) && /\b(?:absolute|absalut)\b/i.test(raw))) {
+      return "Absolute Batman";
+    }
+    if (/\bbatman\b/i.test(raw)) {
+      return "Absolute Batman";
+    }
     if (/\bnetworks\s+home\b/i.test(raw)) {
       return "Networks Home";
     }
@@ -584,6 +590,35 @@ export class StoryboardPlanner {
       };
     }
 
+    const isYellowBg =
+      /\b(yelow|yellow)\b/i.test(promptLower) ||
+      /\b(background|bg)\b.*\b(yelow|yellow)\b/i.test(promptLower) ||
+      /\b(yelow|yellow)\b.*\b(background|bg)\b/i.test(promptLower);
+
+    const isBlackFont =
+      /\b(black|blacke)\b/i.test(promptLower) ||
+      /\b(font|text)\b.*\b(black|blacke)\b/i.test(promptLower) ||
+      /\b(black|blacke)\b.*\b(font|text)\b/i.test(promptLower);
+
+    if (
+      (isYellowBg && isBlackFont) ||
+      (isYellowBg && promptLower.includes("background")) ||
+      (topicLower.includes("batman") && isYellowBg)
+    ) {
+      return {
+        primary: "#000000", // Stark Solid Jet Black
+        secondary: "#18181b", // Charcoal Black
+        accent: "#000000", // Bold Black Accent
+        bgPrimary: "#FFE600", // Bold Graphic Novel Comic Yellow
+        bgSecondary: "#FDD835", // Deep Rich Golden Amber Yellow
+        textColor: "#000000", // Pure Jet Black Font
+        textMuted: "#27272a", // Dark Charcoal for Subtitles
+        surface: "rgba(0, 0, 0, 0.06)", // Soft Dark Panel Surface
+        border: "rgba(0, 0, 0, 0.28)", // Bold Black Outline
+        glow: "rgba(0, 0, 0, 0.12)", // Vignette
+      };
+    }
+
     if (promptLower.includes("gold") || promptLower.includes("yellow")) {
       return {
         primary: "#facc15",
@@ -653,6 +688,14 @@ export class StoryboardPlanner {
     topic: string,
     count: number,
   ): string[] {
+    if (topic.toLowerCase().includes("batman")) {
+      return [
+        "Built from Gotham's Concrete: No Billions, 100% Grit",
+        "Civil Engineering Turned Lethal Urban Warfare",
+        "Detachable Battleaxe Emblem & Hook-Weighted Cape",
+        "The Working-Class Tank Gotham Deserves",
+      ];
+    }
     return [
       `Next-Generation Experience Built for ${topic}`,
       `Seamless Integration & High-Speed Performance`,
@@ -675,6 +718,9 @@ export class StoryboardPlanner {
     const isLast = sceneIndex === totalScenes;
     const p = analysis.colorTheme;
     const topic = analysis.topic;
+    const isBatman =
+      topic.toLowerCase().includes("batman") ||
+      analysis.topic.toLowerCase().includes("batman");
 
     let purpose = `Chapter ${sceneIndex}`;
     let mainHeading = `${topic} Overview`;
@@ -692,32 +738,52 @@ export class StoryboardPlanner {
 
     let badgeText = "FEATURED PRESENTATION";
     if (isFirst) {
-      badgeText = isOllama ? "LOCAL AI ENGINE" : "CINEMATIC PRODUCT SHOWCASE";
+      badgeText = isBatman
+        ? "DC ALL IN • WORKING-CLASS VIGILANTE"
+        : isOllama
+          ? "LOCAL AI ENGINE"
+          : "CINEMATIC PRODUCT SHOWCASE";
       purpose = "Cinematic Opening Title & Hook";
-      mainHeading = isOllama ? "Ollama" : topic;
-      supportingText = isOllama
-        ? "Run powerful large language models locally on your private machine."
-        : analysis.purpose;
+      mainHeading = isBatman ? "Absolute Batman" : isOllama ? "Ollama" : topic;
+      supportingText = isBatman
+        ? "No billions. No mansion. Pure unrelenting grit, massive brute force, and lethal tactical engineering."
+        : isOllama
+          ? "Run powerful large language models locally on your private machine."
+          : analysis.purpose;
     } else if (isLast) {
-      badgeText = isOllama ? "GET STARTED NOW" : "DECISIVE CALL TO ACTION";
+      badgeText = isBatman
+        ? "GOTHAM'S TRUE DEFENDER"
+        : isOllama
+          ? "GET STARTED NOW"
+          : "DECISIVE CALL TO ACTION";
       purpose = "Summary & Call to Action";
-      mainHeading = isOllama
-        ? "Unleash Local AI with Ollima"
-        : `Experience ${topic} Today`;
-      supportingText = isOllama
-        ? "Get started in seconds. Fast, private, open-source AI for everyone."
-        : "Step into effortless connectivity, superior performance, and unmatched peace of mind.";
+      mainHeading = isBatman
+        ? "I Am The Concrete. I Am The Bat."
+        : isOllama
+          ? "Unleash Local AI with Ollima"
+          : `Experience ${topic} Today`;
+      supportingText = isBatman
+        ? "The corrupt elite built Gotham to bleed its citizens dry. Absolute Batman rises from the pavement to break their empire."
+        : isOllama
+          ? "Get started in seconds. Fast, private, open-source AI for everyone."
+          : "Step into effortless connectivity, superior performance, and unmatched peace of mind.";
     } else if (layout === "image-showcase") {
-      badgeText = isOllama
-        ? "HIGH-PERFORMANCE ARCHITECTURE"
-        : "AUTHENTIC MEDIA SPOTLIGHT";
+      badgeText = isBatman
+        ? "URBAN BATTLEGROUND SPOTLIGHT"
+        : isOllama
+          ? "HIGH-PERFORMANCE ARCHITECTURE"
+          : "AUTHENTIC MEDIA SPOTLIGHT";
       purpose = "Visual Asset Feature";
-      mainHeading = isOllama
-        ? "Private, Fast & Local Intelligence"
-        : `Engineered for ${topic}`;
-      supportingText = isOllama
-        ? "Direct GPU acceleration, zero data leakage, and developer-friendly CLI & API."
-        : "Experience precision hardware, responsive performance, and whole-environment harmony.";
+      mainHeading = isBatman
+        ? "Forged in Gotham's Streets"
+        : isOllama
+          ? "Private, Fast & Local Intelligence"
+          : `Engineered for ${topic}`;
+      supportingText = isBatman
+        ? "Weaponizing Gotham's municipal architecture, steel girders, and reinforced structural mechanics."
+        : isOllama
+          ? "Direct GPU acceleration, zero data leakage, and developer-friendly CLI & API."
+          : "Experience precision hardware, responsive performance, and whole-environment harmony.";
 
       // Feature the selected user asset!
       const candidate =
@@ -736,92 +802,172 @@ export class StoryboardPlanner {
       if (candidate) {
         imageSpec = {
           assetName: candidate.name || candidate.originalFilename,
-          caption: isOllama
-            ? "Ollama AI Local Infrastructure"
-            : `${topic} Featured Experience`,
-          overlayText: isOllama
-            ? "Ollama Ultra Edition"
-            : `${topic} High-Performance Edition`,
+          caption: isBatman
+            ? "Absolute Batman Tactical Ground"
+            : isOllama
+              ? "Ollama AI Local Infrastructure"
+              : `${topic} Featured Experience`,
+          overlayText: isBatman
+            ? "Absolute Batman • DC Comics"
+            : isOllama
+              ? "Ollama Ultra Edition"
+              : `${topic} High-Performance Edition`,
         };
       }
-    }
- else if (layout === "metrics-grid") {
-      badgeText = "PROVEN BENCHMARKS";
+    } else if (layout === "metrics-grid") {
+      badgeText = isBatman
+        ? "COMBAT BENCHMARKS & HARDWARE"
+        : "PROVEN BENCHMARKS";
       purpose = "Data Proof & Performance Metrics";
-      mainHeading = "Unrivaled Performance & Scale";
-      supportingText =
-        "Demonstrated benchmarks engineered for demanding environments.";
-      metricData = [
-        {
-          label: "Latency",
-          value: "<1ms",
-          detail: "Instant response",
-          trend: "Real-Time",
-        },
-        {
-          label: "Reliability",
-          value: "99.99%",
-          detail: "Always connected",
-          trend: "Rock Solid",
-        },
-        {
-          label: "Efficiency",
-          value: "10x",
-          detail: "Elevated capability",
-          trend: "+94% Peak",
-        },
-      ];
+      mainHeading = isBatman
+        ? "Brutal Tactical Mass & Arsenal"
+        : "Unrivaled Performance & Scale";
+      supportingText = isBatman
+        ? "Standing 6'6\" and 250 lbs, engineered for devastating impact against Gotham's criminal syndicate."
+        : "Demonstrated benchmarks engineered for demanding environments.";
+      metricData = isBatman
+        ? [
+            {
+              label: "Height & Weight",
+              value: "6'6\" / 250 LBS",
+              detail: "Pure physical powerhouse",
+              trend: "Dominant",
+            },
+            {
+              label: "Primary Weapon",
+              value: "BROAD AXE",
+              detail: "Detachable chest crest",
+              trend: "Heavy Impact",
+            },
+            {
+              label: "Trust Fund",
+              value: "$0.00",
+              detail: "Working-class guerrilla",
+              trend: "100% Grit",
+            },
+          ]
+        : [
+            {
+              label: "Latency",
+              value: "<1ms",
+              detail: "Instant response",
+              trend: "Real-Time",
+            },
+            {
+              label: "Reliability",
+              value: "99.99%",
+              detail: "Always connected",
+              trend: "Rock Solid",
+            },
+            {
+              label: "Efficiency",
+              value: "10x",
+              detail: "Elevated capability",
+              trend: "+94% Peak",
+            },
+          ];
     } else if (layout === "split-diagram" || layout === "process-flow") {
-      badgeText = "ARCHITECTURE OVERVIEW";
+      badgeText = isBatman
+        ? "TACTICAL BLUEPRINT & ORIGIN"
+        : "ARCHITECTURE OVERVIEW";
       purpose = "System Architecture & Process Flow";
-      mainHeading = `${topic} System Architecture`;
-      supportingText =
-        "A modular, robust pipeline designed for speed, security, and scale.";
-      diagramSpec = {
-        type: "flow",
-        nodes: [
-          {
-            label: "Smart Ingestion",
-            sub: "Low-latency edge",
-            icon: "brain",
-          },
-          {
-            label: "Core Processing",
-            sub: "Real-time engine",
-            icon: "cpu",
-          },
-          {
-            label: "Security Layer",
-            sub: "Encrypted stream",
-            icon: "shield",
-          },
-          {
-            label: "Seamless Delivery",
-            sub: "Connected living",
-            icon: "sparkles",
-          },
-        ],
-      };
+      mainHeading = isBatman
+        ? "Civil Engineer Turned Urban Tank"
+        : `${topic} System Architecture`;
+      supportingText = isBatman
+        ? "Bruce Wayne weaponized municipal infrastructure mechanics into an unstoppable urban guerrilla combat philosophy."
+        : "A modular, robust pipeline designed for speed, security, and scale.";
+      diagramSpec = isBatman
+        ? {
+            type: "flow",
+            nodes: [
+              {
+                label: "Civil Engineering",
+                sub: "Infrastructure mastery",
+                icon: "brain",
+              },
+              {
+                label: "Physical Mass",
+                sub: "6'6\" & 250 lbs tank",
+                icon: "shield",
+              },
+              {
+                label: "Battleaxe Crest",
+                sub: "Detachable chest weapon",
+                icon: "cpu",
+              },
+              {
+                label: "Trench Warfare",
+                sub: "Hook-weighted cape",
+                icon: "sparkles",
+              },
+            ],
+          }
+        : {
+            type: "flow",
+            nodes: [
+              {
+                label: "Smart Ingestion",
+                sub: "Low-latency edge",
+                icon: "brain",
+              },
+              {
+                label: "Core Processing",
+                sub: "Real-time engine",
+                icon: "cpu",
+              },
+              {
+                label: "Security Layer",
+                sub: "Encrypted stream",
+                icon: "shield",
+              },
+              {
+                label: "Seamless Delivery",
+                sub: "Connected living",
+                icon: "sparkles",
+              },
+            ],
+          };
     } else if (layout === "comparison-cards") {
-      badgeText = "COMPARATIVE ADVANTAGE";
+      badgeText = isBatman
+        ? "CHARACTER DUALITY"
+        : "COMPARATIVE ADVANTAGE";
       purpose = "Breakthrough Comparison";
-      mainHeading = `Traditional Setups vs ${topic}`;
-      supportingText =
-        "Comparing legacy limitations against next-generation modern capabilities.";
-      comparisonData = {
-        leftTitle: "Traditional Workflows",
-        leftItems: [
-          "Fragmented connectivity & lag",
-          "Complex multi-device setup",
-          "Slow responsiveness under load",
-        ],
-        rightTitle: `${topic} Standard`,
-        rightItems: [
-          "Zero-latency unified sync",
-          "Intelligent automated control",
-          "Encrypted, enterprise-grade uptime",
-        ],
-      };
+      mainHeading = isBatman
+        ? "Classic Wayne vs Absolute Batman"
+        : `Traditional Setups vs ${topic}`;
+      supportingText = isBatman
+        ? "Contrasting billionaire privilege against working-class brute force and tactical ingenuity."
+        : "Comparing legacy limitations against next-generation modern capabilities.";
+      comparisonData = isBatman
+        ? {
+            leftTitle: "Classic Wayne Legacy",
+            leftItems: [
+              "Billionaire fortune & Wayne Enterprises",
+              "Wayne Manor & High-Tech Batcave",
+              "Military gadgets & Alfred the butler",
+            ],
+            rightTitle: "Absolute Batman Standard",
+            rightItems: [
+              "Self-made civil municipal engineer",
+              "Lives in working-class Gotham trenches",
+              "Detachable chest battleaxe & raw muscle",
+            ],
+          }
+        : {
+            leftTitle: "Traditional Workflows",
+            leftItems: [
+              "Fragmented connectivity & lag",
+              "Complex multi-device setup",
+              "Slow responsiveness under load",
+            ],
+            rightTitle: `${topic} Standard`,
+            rightItems: [
+              "Zero-latency unified sync",
+              "Intelligent automated control",
+              "Encrypted, enterprise-grade uptime",
+            ],
+          };
     }
 
     return {
