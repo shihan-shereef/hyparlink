@@ -178,7 +178,18 @@ const CATEGORIES = [
 export default function CreateVideoPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { current } = useWorkspace();
+  const { current, workspaces, select } = useWorkspace();
+  const activeWorkspaceId =
+    current ||
+    (workspaces && workspaces[0]?._id) ||
+    ("mh7eadmg10g11yqwbjtyc41yjs8fxx17" as Id<"workspaces">);
+
+  useEffect(() => {
+    if (!current && workspaces && workspaces[0]) {
+      select(workspaces[0]._id);
+    }
+  }, [current, workspaces, select]);
+
   const createProject = useMutation(api.projects.create);
   const createAsset = useMutation(api.assets.create);
 
@@ -254,7 +265,7 @@ export default function CreateVideoPage() {
   // Query workspace assets
   const workspaceAssets = useQuery(
     api.assets.list,
-    current ? { workspaceId: current } : "skip",
+    activeWorkspaceId ? { workspaceId: activeWorkspaceId } : "skip",
   );
 
   useEffect(() => {
@@ -297,7 +308,8 @@ export default function CreateVideoPage() {
   // Direct Video & Media Upload Handler
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !current) return;
+    if (!file) return;
+    const targetWs = current || activeWorkspaceId;
 
     let assetType = "image";
     if (file.type.startsWith("video/") || /\.(mp4|webm|mov|m4v)$/i.test(file.name)) {
@@ -350,7 +362,7 @@ export default function CreateVideoPage() {
       const uploadData = await uploadRes.json();
 
       const newAssetId = await createAsset({
-        workspaceId: current,
+        workspaceId: targetWs,
         name: file.name,
         originalFilename: file.name,
         type: assetType,
@@ -390,14 +402,11 @@ export default function CreateVideoPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!current) {
-      toast.error("Please select a workspace");
-      return;
-    }
     if (!prompt.trim()) {
       toast.error("Please enter a video prompt");
       return;
     }
+    const targetWs = current || activeWorkspaceId;
 
     setIsSubmitting(true);
     try {
@@ -450,7 +459,7 @@ export default function CreateVideoPage() {
 
 
       const res = await createProject({
-        workspaceId: current,
+        workspaceId: targetWs,
         name: projectName,
         prompt: prompt.trim(),
         duration,
@@ -875,7 +884,7 @@ export default function CreateVideoPage() {
               {/* Submit Arrow Button */}
               <button
                 type="submit"
-                disabled={isSubmitting || !current || !prompt.trim()}
+                disabled={isSubmitting || !prompt.trim()}
                 className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-black hover:bg-neutral-200 transition disabled:opacity-40 disabled:hover:bg-white"
                 title="Generate Video"
               >
@@ -903,7 +912,7 @@ export default function CreateVideoPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploadingMedia || !current}
+                  disabled={isUploadingMedia}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-semibold text-purple-300 hover:bg-purple-500/20 transition disabled:opacity-50"
                 >
                   {isUploadingMedia ? (
@@ -1378,7 +1387,7 @@ export default function CreateVideoPage() {
             <Button
               type="submit"
               size="lg"
-              disabled={isSubmitting || !current || !prompt.trim()}
+              disabled={isSubmitting || !prompt.trim()}
               className="gap-2.5 bg-white text-black hover:bg-neutral-200 px-8 py-2.5 font-bold rounded-xl shadow-lg transition"
             >
               <Sparkles className="h-4 w-4" />

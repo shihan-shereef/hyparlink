@@ -11,13 +11,12 @@ function getConvexUrl(): string {
       window.location.hostname === "localhost" ||
       window.location.hostname === "127.0.0.1";
 
+    // 1. On localhost, ALWAYS connect directly to local Convex on port 3210
     if (isLocalhost) {
-      return (
-        process.env.NEXT_PUBLIC_CONVEX_URL ||
-        "http://localhost:3210"
-      );
+      return "http://localhost:3210";
     }
 
+    // 2. On remote / Cloudflare tunnel, read the live meta tag injected dynamically by RootLayout
     const metaUrl = document
       .querySelector('meta[name="convex-url"]')
       ?.getAttribute("content");
@@ -29,21 +28,11 @@ function getConvexUrl(): string {
       return metaUrl;
     }
 
-    const configured = process.env.NEXT_PUBLIC_CONVEX_URL;
-    if (
-      configured &&
-      !configured.includes("localhost") &&
-      !configured.includes("127.0.0.1")
-    ) {
-      return configured;
-    }
-    return "https://aud-over-passed-stock.trycloudflare.com";
+    // 3. Fallback to active Cloudflare tunnel
+    return "https://partial-incidence-briefly-documentation.trycloudflare.com";
   }
 
-  return (
-    process.env.NEXT_PUBLIC_CONVEX_URL ||
-    "https://aud-over-passed-stock.trycloudflare.com"
-  );
+  return "http://localhost:3210";
 }
 
 const convex = new ConvexReactClient(getConvexUrl(), {
