@@ -73,10 +73,10 @@ export default function ProjectLiveEditorPage() {
     projectId ? { projectId } : "skip",
   );
 
-  // View mode: official Studio (default), companion Inspector, or Rendered Video
+  // View mode: companion Inspector (default for remote/tunnel), official Studio, or Rendered Video
   const [activeView, setActiveView] = useState<
     "studio" | "inspector" | "video"
-  >("studio");
+  >("inspector");
   const [activeInspectorTab, setActiveInspectorTab] = useState<
     "visual" | "code"
   >("visual");

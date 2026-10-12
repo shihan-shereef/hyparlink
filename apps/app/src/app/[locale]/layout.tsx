@@ -28,6 +28,12 @@ export default function RootLayout({
   return (
     <ConvexAuthNextjsServerProvider>
       <html lang="en" suppressHydrationWarning>
+        <head>
+          <meta
+            name="convex-url"
+            content={process.env.NEXT_PUBLIC_CONVEX_URL || ""}
+          />
+        </head>
         <body
           className={cn(
             `${GeistSans.variable} ${GeistMono.variable}`,

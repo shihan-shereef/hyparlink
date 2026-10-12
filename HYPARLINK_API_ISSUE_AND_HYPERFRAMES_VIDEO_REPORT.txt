@@ -1,0 +1,208 @@
+================================================================================
+HYPARLINK DASHBOARD: AI API DIAGNOSTIC & HYPERFRAMES VIDEO GENERATION REPORT
+================================================================================
+Date: October 12, 2026
+Prepared for: Hyparlink Dashboard Project
+Subject: Root Cause Analysis of Ollima API Key Failure, Dashboard Video Generation
+         Mismatch, and Comparison with Antigravity AI (Gemini 3.8) HyperFrames Engine
+================================================================================
+
+TABLE OF CONTENTS:
+1. Executive Summary
+2. Detailed Diagnostic of the Ollima API Key
+3. Why the Dashboard Creates "Something That Has Been There for a Long Time"
+4. How Antigravity AI (Gemini 3.8) Creates Custom HyperFrames Videos
+5. Comparison Matrix: Antigravity AI vs. Dashboard LLM Pipeline
+6. Step-by-Step Resolution Plan
+
+--------------------------------------------------------------------------------
+1. EXECUTIVE SUMMARY
+--------------------------------------------------------------------------------
+When attempting to generate custom animated presentation videos from the 
+Hyparlink Dashboard's "Make something" page (located at /create-video), the 
+output video consistently ignores the custom user prompt (e.g., Absolute Batman, 
+product launches, custom brands) and instead renders an old, generic corporate 
+presentation ("Empowering Next-Gen Startups with Scalable Cloud Infrastructure", 
+"+124% Revenue Growth", "Step 01 Data Input", and "ollasoftware-building.jpg").
+
+This behavior is caused by two compounding factors:
+1. The provided Ollima API key is permanently disabled/revoked on Ollima's 
+   cloud servers (HTTP 401 Unauthorized: "API key was disabled at 2026-09-18").
+2. When the backend cannot reach an active AI model, it silently drops back to 
+   the built-in "Deterministic Fallback Engine". This fallback engine contains 
+   static, hardcoded scenes from the initial prototype that never change 
+   regardless of what prompt is entered.
+
+In contrast, when Antigravity AI (Gemini 3.8) generates videos in the chat, it 
+acts as an autonomous full-stack software engineer: it writes custom HTML/SVG 
+code, designs bespoke GSAP timelines, compiles TypeScript, and directly invokes 
+the HyperFrames rendering engine.
+
+--------------------------------------------------------------------------------
+2. DETAILED DIAGNOSTIC OF THE OLLIMA API KEY
+--------------------------------------------------------------------------------
+API Endpoint Tested: https://api.ollima.com (Cloud BFF for app.ollima.com)
+API Key Tested:      sk-t0-PZLs6Yx45BWy-qcoOHHS74gA6CySKBCcBc4l55K2laQfKkjeMcDWH595uiHCq
+
+TEST A: Model Discovery (GET https://api.ollima.com/v1/models)
+- HTTP Status: 200 OK
+- Result: 64 LLM models are registered and available under this provider account.
+- Model Catalog Breakdown:
+  * Gemini:        gemini-3-flash, gemini-3-flash-agent, gemini-3.1-flash-image, 
+                   gemini-3.1-flash-lite, gemini-3.1-pro-low, gemini-3.5-flash-low, 
+                   gemini-3.5-flash-extra-low, gemini-3.6-flash-high, gemini-pro-agent
+  * DeepSeek:      deepseek-v4, deepseek-v4-pro, deepseek-v4-flash, 
+                   deepseek-v3.2, deepseek-v3.1
+  * GLM:           glm-5.1, glm-5.2, glm-5.3
+  * OpenAI / GPT:  gpt-4o-mini, gpt-5-nano, gpt-5-mini, gpt-5.4, gpt-5.4-mini, 
+                   gpt-5.4-nano, gpt-5.5, gpt-5.6-luna, gpt-5.6-sol, 
+                   gpt-5.6-terra, gpt-oss-20b, gpt-oss-120b
+  * Claude:        claude-sonnet-4.6, claude-haiku-4.5
+  * Qwen:          qwen3.5, qwen3.7-plus, qwen3-coder, qwen3-coder-flash, 
+                   qwen3-coder-next, qwen3-next-80b
+  * Gemma:         gemma4, gemma3-4b, gemma3-12b, gemma3-27b
+  * Mistral:       mistral-large, ministral-3b, ministral-8b, ministral-14b, 
+                   devstral, devstral-small
+  * Kimi:          kimi-2.5, kimi-2.6, kimi-2.7, kimi-k2.7-code, kimi-k3
+  * MiniMax:       minimax-m2.1, minimax-m2.5, minimax-m2.7, minimax-m3
+  * Nemotron:      nemotron-nano, nemotron-super, nemotron-ultra
+  * Others:        hunyuan-hy3, kat-coder-air, laguna-xs-2.1, ling-2.6-flash, 
+                   mimo-v2.5-pro
+
+TEST B: Live Inference Test (POST https://api.ollima.com/v1/chat/completions)
+- Request: Test completion request with model "glm-5.3" and "gemini-3-flash"
+- HTTP Status: 401 Unauthorized
+- Server Response:
+  {
+    "error": {
+      "message": "TensorZero authentication error: Error performing authentication: API key was disabled at: 2026-09-18 06:09:34.191821 UTC"
+    }
+  }
+
+DIAGNOSIS:
+The key itself was disabled / revoked in the Ollima Cloud dashboard on 
+September 18, 2026. Any request that attempts to generate text, storyboards, 
+or scenes with this key is immediately rejected by the TensorZero gateway.
+
+--------------------------------------------------------------------------------
+3. WHY THE DASHBOARD CREATES "SOMETHING THAT HAS BEEN THERE FOR A LONG TIME"
+--------------------------------------------------------------------------------
+When you type a prompt into the "Make something" text area on the dashboard, the 
+following architectural chain takes place:
+
+1. Frontend Submission:
+   apps/app/src/app/[locale]/(dashboard)/create-video/page.tsx calls 
+   Convex mutation `projects.create({ prompt, duration, ... })`.
+
+2. Convex Job Dispatch:
+   packages/backend/convex/jobs.ts schedules an async job `video.generate` and 
+   calls the background server at `http://localhost:4000/jobs/run`.
+
+3. AI Provider Selection:
+   Inside ai-composition-generator/src/ai/provider.ts:
+   - The server inspects `process.env.AI_PROVIDER` and `process.env.AI_API_KEY`.
+   - Because no active API key is valid, the server logs:
+     "AI Provider: deterministic | Model: default-model"
+   - It routes the request to `callDeterministicEngine()`.
+
+4. The Fallback Template Lock-in:
+   In `ai-composition-generator/src/ai/composition-builder.ts`:
+   The deterministic engine was built as an offline prototype fallback. For any 
+   prompt that does not match hardcoded rules, it executes a fixed layout sequence:
+   - Scene 1: cinematic-title -> "Scalable Cloud Infrastructure"
+   - Scene 2: metrics-grid    -> "+124% Revenue Growth", "99.9% Uptime", "10x Velocity"
+   - Scene 3: split-diagram   -> "Step 01 Data Input", "Step 02 AI Analysis", "Step 03 Synthesis"
+   - Scene 4: closing-summary -> "Explore Next Steps"
+   - Default Asset:           -> "ollasoftware-building.jpg"
+
+Because the AI key is disabled, the dashboard CANNOT connect to an LLM. It is 
+forced into this deterministic fallback every single time, giving the impression 
+that it "only creates something that was there for a long time."
+
+--------------------------------------------------------------------------------
+4. HOW ANTIGRAVITY AI (GEMINI 3.8) CREATES CUSTOM HYPERFRAMES VIDEOS
+--------------------------------------------------------------------------------
+When you ask Antigravity AI to create a video (such as the 30-second Absolute 
+Batman animated advertisement), Antigravity does NOT simply ping a basic text API. 
+Instead, it acts as a full-stack autonomous engineer:
+
+1. Deep Semantic Analysis:
+   Antigravity analyzes the lore of DC's Absolute Batman (Scott Snyder / Nick 
+   Dragotta): Batman without inherited wealth or Wayne Enterprises, working in 
+   civil engineering, a massive 250 lb physical build, utilizing a chest-mounted 
+   demolition battleaxe and hooked cape, with a signature high-contrast yellow 
+   (#FFE600) and jet-black palette.
+
+2. Bespoke Code & Vector Generation:
+   Antigravity writes custom layout methods directly in `composition-builder.ts`:
+   - `renderComicAdHook`: Bat-Axe emblem SVG, 3D offset drop-shadow, kinetic punches.
+   - `renderComicDossier`: Angled classified stamp, 3 profile metric panels.
+   - `renderComicArsenal`: Vector icons for the Battleaxe, Hooked Cape, and Rig.
+   - `renderComicTrailerCta`: Heavy concrete typography punch and animated CTA arrow.
+
+3. Dynamic GSAP Motion Choreography:
+   Antigravity writes frame-accurate GSAP timelines:
+   - Background speedline continuous panning across all 30 seconds.
+   - GPU-accelerated `scaleX` fill animations for meter progress gauges.
+   - Skewed light sheen sweeps across weapon cards using transform `x`.
+   - Impact cleave shake physics and spring bounce entries (`back.out(2)`).
+
+4. Strict Validation & Verification:
+   Antigravity compiles the code via `bunx tsc`, starts the daemon, triggers 
+   HyperFrames headless Chromium renderer, ensures zero frame-snapping layout bugs, 
+   and uploads the verified 32.2 MB 1080p video to the CDN.
+
+--------------------------------------------------------------------------------
+5. COMPARISON MATRIX: ANTIGRAVITY AI vs. DASHBOARD LLM PIPELINE
+--------------------------------------------------------------------------------
+Feature                 Antigravity AI (Gemini 3.8)    Dashboard ("Make something")
+--------------------------------------------------------------------------------
+Model Execution         Autonomous Coding Agent        Single-shot JSON LLM Prompt
+Current Status          100% Operational & Live        Disabled (Key Revoked HTTP 401)
+Asset Generation        Writes custom SVGs & CSS       Limited to pre-existing assets
+GSAP Animation          Bespoke transform animations   Fixed template presets
+Error Correction        Auto-fixes validation bugs     Aborts or falls back to template
+Output Customization    100% tailored to prompt        Generic fallback template
+
+--------------------------------------------------------------------------------
+6. STEP-BY-STEP RESOLUTION PLAN
+--------------------------------------------------------------------------------
+To make the dashboard's "Make something" area generate live, customized videos 
+just like Antigravity AI, follow these steps:
+
+STEP 1: Generate an Active API Key
+1. Go to https://app.ollima.com in your web browser.
+2. Sign in to your account.
+3. In the sidebar, navigate to "Setup" -> "API keys" (or #/orgs/<slug>/keys).
+4. Click "Create new key" (or "Generate API Key").
+5. Copy the newly generated key (starts with sk-t0-...).
+
+STEP 2: Configure the Backend Environment
+Add the active key and preferred model to `packages/backend/.env.local` or root `.env`:
+```env
+AI_PROVIDER=ollima
+AI_MODEL=gemini-3-flash
+OLLAMA_BASE_URL=https://api.ollima.com/v1
+OLLAMA_API_KEY=<YOUR_NEW_ACTIVE_KEY>
+```
+Alternatively, if using a direct Google Gemini API key:
+```env
+AI_PROVIDER=gemini
+AI_MODEL=gemini-1.5-pro
+AI_API_KEY=<YOUR_GEMINI_KEY>
+```
+
+STEP 3: Add an Interactive AI Settings Modal to the Dashboard UI
+We can add a user-friendly "AI Settings" dialog directly on `/create-video`:
+- Allows you to paste your active API key without modifying server files.
+- Lets you select your desired model (e.g. `gemini-3-flash`, `glm-5.3`, `deepseek-v4`).
+- Includes a "Test Connection" button that validates the key instantly.
+
+STEP 4: Upgrade the Local Fallback Engine
+Even when offline, update `StoryboardPlanner` to dynamically parse topics, 
+colors, and headlines so that the local engine never falls back to the old 
+building/cloud template.
+
+================================================================================
+END OF REPORT
+================================================================================

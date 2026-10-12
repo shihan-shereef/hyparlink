@@ -23,6 +23,10 @@ import { promisify } from "node:util";
 
 const execAsync = promisify(exec);
 
+process.on("SIGHUP", () => {
+  console.log("[Server] SIGHUP received - ignoring to remain running in background");
+});
+
 const PORT = process.env.PORT || 4000;
 const SERVICE_KEY = process.env.SERVICE_KEY || "";
 const WEBHOOK_SECRET =
@@ -451,6 +455,16 @@ async function postWebhook(body) {
 function getContentType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   switch (ext) {
+    case ".html":
+    case ".htm":
+      return "text/html; charset=utf-8";
+    case ".css":
+      return "text/css; charset=utf-8";
+    case ".js":
+    case ".mjs":
+      return "application/javascript; charset=utf-8";
+    case ".json":
+      return "application/json; charset=utf-8";
     case ".webp":
       return "image/webp";
     case ".svg":
@@ -460,6 +474,8 @@ function getContentType(filePath) {
     case ".jpg":
     case ".jpeg":
       return "image/jpeg";
+    case ".mp4":
+      return "video/mp4";
     case ".mp3":
       return "audio/mpeg";
     case ".wav":
@@ -481,7 +497,8 @@ function getContentType(filePath) {
     case ".ttf":
       return "font/ttf";
     default:
-      return "video/mp4";
+      if (filePath.endsWith(".mp4")) return "video/mp4";
+      return "application/octet-stream";
   }
 }
 

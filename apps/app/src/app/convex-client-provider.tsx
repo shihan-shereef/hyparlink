@@ -18,6 +18,17 @@ function getConvexUrl(): string {
       );
     }
 
+    const metaUrl = document
+      .querySelector('meta[name="convex-url"]')
+      ?.getAttribute("content");
+    if (
+      metaUrl &&
+      !metaUrl.includes("localhost") &&
+      !metaUrl.includes("127.0.0.1")
+    ) {
+      return metaUrl;
+    }
+
     const configured = process.env.NEXT_PUBLIC_CONVEX_URL;
     if (
       configured &&
@@ -26,12 +37,12 @@ function getConvexUrl(): string {
     ) {
       return configured;
     }
-    return "https://discussing-harley-acute-drive.trycloudflare.com";
+    return "https://aud-over-passed-stock.trycloudflare.com";
   }
 
   return (
     process.env.NEXT_PUBLIC_CONVEX_URL ||
-    "https://discussing-harley-acute-drive.trycloudflare.com"
+    "https://aud-over-passed-stock.trycloudflare.com"
   );
 }
 
