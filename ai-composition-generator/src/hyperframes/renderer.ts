@@ -71,10 +71,23 @@ export class Renderer {
     // Ensure output directory exists
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
+    // Map resolution safely to supported HyperFrames CLI values
+    let safeResolution = "1080p";
+    const resLower = (resolution || "").toLowerCase();
+    if (resLower.includes("4k")) {
+      safeResolution = "4k";
+    } else if (resLower === "portrait" || resLower === "9:16") {
+      safeResolution = "portrait";
+    } else if (resLower === "square" || resLower === "1:1") {
+      safeResolution = "square";
+    } else {
+      safeResolution = "1080p";
+    }
+
     const ffmpegPath = await this.getFfmpegPath();
     const ffmpegDir = path.dirname(ffmpegPath);
     const envPath = `${ffmpegDir}:${process.env.PATH || ""}`;
-    const command = `npx --yes hyperframes@0.8.139 render --resolution ${resolution} --format ${format} -o "${outputPath}"`;
+    const command = `npx --yes hyperframes@0.8.139 render --resolution ${safeResolution} --format ${format} -o "${outputPath}"`;
 
     console.log(`[Renderer] Render started...`);
     console.log(`[Renderer] Command: ${command}`);

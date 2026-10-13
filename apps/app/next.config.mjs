@@ -42,6 +42,10 @@ const nextConfig = {
         source: "/backend-api/:path*",
         destination: "http://127.0.0.1:4000/:path*",
       },
+      {
+        source: "/convex/:path*",
+        destination: "http://127.0.0.1:3210/:path*",
+      },
     ];
   },
 };

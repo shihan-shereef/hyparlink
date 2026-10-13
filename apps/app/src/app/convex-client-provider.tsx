@@ -7,17 +7,6 @@ import type { ReactNode } from "react";
 
 function getConvexUrl(): string {
   if (typeof window !== "undefined") {
-    // 1. If meta tag is injected dynamically by RootLayout
-    const metaUrl = document
-      .querySelector('meta[name="convex-url"]')
-      ?.getAttribute("content");
-    if (
-      metaUrl &&
-      !metaUrl.includes("partial-incidence-briefly-documentation")
-    ) {
-      return metaUrl.trim();
-    }
-
     const isLocalhost =
       window.location.hostname === "localhost" ||
       window.location.hostname === "127.0.0.1";
@@ -25,6 +14,22 @@ function getConvexUrl(): string {
     if (isLocalhost) {
       return "http://localhost:3210";
     }
+
+    // 1. If meta tag is injected dynamically by RootLayout and is external
+    const metaUrl = document
+      .querySelector('meta[name="convex-url"]')
+      ?.getAttribute("content");
+    if (
+      metaUrl &&
+      !metaUrl.includes("localhost") &&
+      !metaUrl.includes("127.0.0.1") &&
+      !metaUrl.includes("partial-incidence-briefly-documentation")
+    ) {
+      return metaUrl.trim();
+    }
+
+    // When accessed through tunnel or external domain, proxy through /convex
+    return `${window.location.origin}/convex`;
   }
 
   return process.env.NEXT_PUBLIC_CONVEX_URL || "http://127.0.0.1:3210";

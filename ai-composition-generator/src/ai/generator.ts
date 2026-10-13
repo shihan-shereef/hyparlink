@@ -24,6 +24,7 @@ import { AssetAnalyzer, AnalyzedAsset } from "./asset-analyzer.js";
 import { ScenePlanner, PlannedTimeline } from "./scene-planner.js";
 import { CompositionSynthesizer } from "./composition-synthesizer.js";
 import { AIImageGenerator } from "./image-generator.js";
+import { WebCrawler, WebCrawlResult } from "./web-crawler.js";
 
 export interface GeneratedProjectPayload {
   files: Record<string, string>;
@@ -164,6 +165,23 @@ export class AIGenerator {
       }
     }
 
+    // STAGE 0: Web Research & Media Crawling (for URLs or topic names)
+    let webResult: WebCrawlResult | null = null;
+    try {
+      webResult = await WebCrawler.enrichFromWeb(userPrompt, onProgress);
+      if (webResult) {
+        console.log(`[AIGenerator] WebCrawler enriched topic "${webResult.title}" with ${webResult.assets.length} image(s) and ${webResult.keyFacts.length} fact(s)`);
+      }
+    } catch (crawlErr: any) {
+      console.warn(`[AIGenerator] WebCrawler notice: ${crawlErr.message}`);
+    }
+
+    // If web crawler retrieved real images from the site/web topic, and user uploaded no assets, use crawled web images!
+    if (webResult && webResult.assets.length > 0 && (!assets || assets.length === 0)) {
+      assets = webResult.assets;
+      console.log(`[AIGenerator] Bound ${assets.length} scraped web asset(s) to video composition!`);
+    }
+
     // Creative Brief Generation via Ollima LLM
     if (onProgress) {
       await onProgress(
@@ -174,7 +192,12 @@ export class AIGenerator {
 
     let creativeBrief: CreativeBrief;
     try {
-      const briefPrompt = `PROMPT:\n${userPrompt}\n\nAUTHORITATIVE SPECS:\n- Duration: ${duration} seconds (EXACT)\n- Resolution: ${width}x${height} @ ${fps}fps\n${assets.length > 0 ? `- Selected Assets: ${assets.map((a: any) => a.name || a.originalFilename).join(", ")}` : ""}\n\nPlease generate the Creative Brief JSON adhering strictly to the official HyperFrames Prompting Guide (Levels 1-7 & Appendix).`;
+      let promptWithWeb = userPrompt;
+      if (webResult) {
+        promptWithWeb += `\n\nREAL WEB RESEARCH & FACT DATA:\n- Page/Topic Title: ${webResult.title}\n- Summary: ${webResult.summary}\n- Key Facts: ${webResult.keyFacts.slice(0, 5).join("; ")}\n- Headings: ${webResult.headings.slice(0, 5).join(", ")}`;
+      }
+
+      const briefPrompt = `PROMPT:\n${promptWithWeb}\n\nAUTHORITATIVE SPECS:\n- Duration: ${duration} seconds (EXACT)\n- Resolution: ${width}x${height} @ ${fps}fps\n${assets.length > 0 ? `- Selected Assets: ${assets.map((a: any) => a.name || a.originalFilename).join(", ")}` : ""}\n\nPlease generate the Creative Brief JSON adhering strictly to the official HyperFrames Prompting Guide (Levels 1-7 & Appendix).`;
 
       const briefRaw = await this.provider.complete(
         [
@@ -198,7 +221,7 @@ export class AIGenerator {
       console.warn(
         `[AIGenerator] Creative brief LLM response fallback: ${briefErr.message}`,
       );
-      creativeBrief = this.synthesizeDefaultBrief(userPrompt, duration, assets);
+      creativeBrief = this.synthesizeDefaultBrief(userPrompt, duration, assets, webResult);
       creativeBrief.aiProvider = "offline-synthesizer";
     }
 
@@ -323,6 +346,7 @@ export class AIGenerator {
     prompt: string,
     duration: number,
     assets: any[],
+    webResult?: WebCrawlResult | null,
   ): CreativeBrief {
     const promptLower = prompt.toLowerCase();
     const isTreeGrowth =
@@ -870,6 +894,87 @@ export class AIGenerator {
         cameraMovement: "Slow push-in scale 1.0 to 1.06",
         closingMessage: "TRUTH. JUSTICE. HOPE.",
         callToAction: "EXPERIENCE SUPERMAN",
+        aiProvider: "offline-synthesizer",
+      };
+    }
+
+    // SCENARIO 5D: Real Web Crawled Site/Topic Showcase
+    if (webResult && (webResult.summary || (webResult.keyFacts && webResult.keyFacts.length > 0))) {
+      const cleanTitle = (webResult.title || "Web Showcase").slice(0, 40);
+      const headline1 = (webResult.headings[0] || cleanTitle || "INNOVATION").toUpperCase().slice(0, 24);
+      const headline2 = (webResult.headings[1] || (webResult.keyFacts && webResult.keyFacts[0]) || "WORLD CLASS").toUpperCase().slice(0, 24);
+      const headline3 = (webResult.headings[2] || "TRANSFORM TODAY").toUpperCase().slice(0, 24);
+      let host = "";
+      try {
+        if (webResult.sourceUrl) host = new URL(webResult.sourceUrl).hostname;
+      } catch {}
+      const cta = host ? `VISIT ${host.toUpperCase()}` : "DISCOVER MORE";
+
+      return {
+        title: cleanTitle,
+        subject: webResult.summary || `Professional showcase presentation for ${cleanTitle} featuring verified web research and images`,
+        videoType: "product_advertisement",
+        category: "advertisement",
+        promptComponents: {
+          route: "product_advertisement",
+          spec: {
+            durationSeconds: duration,
+            resolution: "1920x1080",
+            frameRate: 30,
+            aspectRatio: "16:9",
+            visualStyle: "High-end corporate showcase with real downloaded photography, dynamic glassmorphic cards, and kinetic typography",
+            colorPalette: ["#3B82F6", "#06B6D4", "#F43F5E"],
+            typography: "Plus Jakarta Sans",
+            cameraMovement: "Slow cinematic scale",
+            sceneCount: Math.min(5, Math.max(3, assets.length || 3)),
+          },
+          beats: [
+            { id: "b1", purpose: "Introduction & Identity", duration: duration * 0.33, visualContent: `Spotlight on ${cleanTitle} identity and core mission`, animation: "Hero scale & stagger text" },
+            { id: "b2", purpose: "Key Capabilities & Highlights", duration: duration * 0.34, visualContent: (webResult.keyFacts && webResult.keyFacts[0]) || "Key architectural and technological advantages", animation: "Card sweep & feature badges" },
+            { id: "b3", purpose: "Call to Action Climax", duration: duration * 0.33, visualContent: `Official contact and next steps for ${cleanTitle}`, animation: "Button glow & final reveal" },
+          ],
+          copy: {
+            headlines: [headline1, headline2, headline3],
+            callToAction: cta,
+          },
+          technique: ["Cinematic Ken Burns camera scale", "Glassmorphic telemetry HUD", "Kinetic typography"],
+          negatives: ["no comic book elements", "no cartoon graphics", "no low-contrast text"],
+        },
+        audioPlan: {
+          isSilent,
+          backgroundMusicDescription: isSilent ? undefined : "Inspiring upbeat commercial tech soundtrack with modern synth percussion",
+        },
+        intendedAudience: "Prospective clients, customers, and general audience",
+        visualAtmosphere: "Sleek modern digital agency atmosphere with subtle cyan and indigo ambient gradients",
+        colorPalette: {
+          primary: "#3B82F6",
+          secondary: "#06B6D4",
+          accent: "#F43F5E",
+          backgroundColor: "#050B14",
+          surfaceColor: "rgba(10, 20, 38, 0.75)",
+          textColor: "#FFFFFF",
+          textMutedColor: "#94A3B8",
+          glowColor: "rgba(59, 130, 246, 0.4)",
+          borderColor: "rgba(59, 130, 246, 0.3)",
+        },
+        typography: {
+          displayFont: "Plus Jakarta Sans",
+          bodyFont: "Inter",
+          weights: ["400", "700", "900"],
+          headlineTransform: "uppercase",
+        },
+        narrativeProgression: [
+          `Scene 1: Introducing ${cleanTitle}`,
+          `Scene 2: Core capabilities: ${(webResult.keyFacts && webResult.keyFacts[0]) || "Verified expertise"}`,
+          `Scene 3: Connect with ${cleanTitle}`,
+        ],
+        sceneCount: Math.min(5, Math.max(3, assets.length || 3)),
+        totalDuration: duration,
+        requiredImages: assets.map((a) => a.name || a.originalFilename || "asset.jpg"),
+        animationStyle: "Polished corporate motion design",
+        cameraMovement: "Subtle zoom 1.0 to 1.05",
+        closingMessage: `DISCOVER ${cleanTitle.toUpperCase()}`,
+        callToAction: cta,
         aiProvider: "offline-synthesizer",
       };
     }

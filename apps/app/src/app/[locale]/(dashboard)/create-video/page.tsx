@@ -21,6 +21,7 @@ import {
   FileVideo,
   FileAudio,
   Upload,
+  Globe,
   Plus,
   Play,
   X,
@@ -320,6 +321,7 @@ export default function CreateVideoPage() {
   }, [prompt]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const promptInputRef = useRef<HTMLTextAreaElement>(null);
 
   const [aiStatus, setAiStatus] = useState<{
     provider: string;
@@ -469,6 +471,20 @@ export default function CreateVideoPage() {
     ) {
       setSelectedAssetIds((prev) => [...prev, assetIdParam as Id<"assets">]);
     }
+
+    const promptParam = searchParams.get("prompt");
+    if (promptParam) {
+      setPrompt(promptParam);
+      const dur = extractDuration(promptParam);
+      if (dur) setDuration(dur);
+      if (searchParams.get("duration")) {
+        const d = Number(searchParams.get("duration"));
+        if (!isNaN(d) && d > 0) setDuration(d);
+      }
+      if (searchParams.get("aspectRatio")) {
+        setAspectRatio(searchParams.get("aspectRatio")!);
+      }
+    }
   }, [searchParams]);
 
   // Reactive subscription to active project status
@@ -517,9 +533,32 @@ export default function CreateVideoPage() {
             ) {
               setIsSubmitting(false);
             }
+            return;
           }
         }
       } catch (err) {
+        // Silently continue to direct API check
+      }
+
+      // Direct API Status Check Fallback (for Cloudflare tunnel & offline Convex)
+      try {
+        const directRes = await fetch(
+          `/api/generate/status?projectId=${activeProjectId}`,
+        );
+        if (directRes.ok) {
+          const data = await directRes.json();
+          if (isMounted && data) {
+            setPolledProject((prev: any) => ({
+              ...prev,
+              ...data,
+              _id: activeProjectId,
+            }));
+            if (data.status === "completed" || data.status === "failed") {
+              setIsSubmitting(false);
+            }
+          }
+        }
+      } catch (directErr) {
         // Silently retry on next interval
       }
     };
@@ -800,20 +839,49 @@ export default function CreateVideoPage() {
 
       const promptDur = extractDuration(prompt.trim());
       const effectiveDuration = promptDur || duration;
+      let projectId: any = null;
+      try {
+        const res = await createProject({
+          workspaceId: targetWs,
+          name: projectName,
+          prompt: prompt.trim(),
+          duration: effectiveDuration,
+          width,
+          height,
+          fps,
+          assetIds: selectedAssetIds.length > 0 ? selectedAssetIds : undefined,
+          model: selectedModel,
+        });
+        projectId = res.projectId;
+      } catch (convexErr: any) {
+        console.warn("[Convex Notice] Using direct /api/generate pipeline fallback:", convexErr.message);
+        const directRes = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: prompt.trim(),
+            duration: effectiveDuration,
+            width,
+            height,
+            fps,
+            model: selectedModel,
+          }),
+        });
+        if (!directRes.ok) {
+          throw new Error(`Generation failed: ${directRes.statusText}`);
+        }
+        const directData = await directRes.json();
+        projectId = directData.projectId;
+        setPolledProject({
+          _id: projectId,
+          name: projectName,
+          prompt: prompt.trim(),
+          status: "writing_composition",
+          duration: effectiveDuration,
+        });
+      }
 
-      const res = await createProject({
-        workspaceId: targetWs,
-        name: projectName,
-        prompt: prompt.trim(),
-        duration: effectiveDuration,
-        width,
-        height,
-        fps,
-        assetIds: selectedAssetIds.length > 0 ? selectedAssetIds : undefined,
-        model: selectedModel,
-      });
-
-      setActiveProjectId(res.projectId);
+      setActiveProjectId(projectId);
       toast.success("Video generation job created!");
     } catch (err: any) {
       toast.error(err.message || "Failed to start generation");
@@ -1143,7 +1211,23 @@ export default function CreateVideoPage() {
 
         {/* MAIN PROMPT CARD (Matching Image 2) */}
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="relative rounded-2xl border border-white/15 bg-neutral-900/60 p-5 shadow-2xl backdrop-blur-xl transition focus-within:border-white/30 focus-within:ring-2 focus-within:ring-white/10">
+          <div
+            onClick={() => promptInputRef.current?.focus()}
+            className="relative rounded-2xl border border-white/15 bg-neutral-900/60 p-5 shadow-2xl backdrop-blur-xl transition focus-within:border-white/30 focus-within:ring-2 focus-within:ring-white/10 cursor-text"
+          >
+            {/* Live Web Crawler & Autonomous Media Banner */}
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+              <div className="flex items-center gap-2">
+                <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="font-semibold uppercase tracking-wider text-[11px]">
+                  Autonomous Web Crawler & Real Media Extractor Active
+                </span>
+              </div>
+              <span className="text-[11px] text-emerald-300/80">
+                Type any topic or paste a URL (e.g. https://...) to fetch live data & real photos directly
+              </span>
+            </div>
+
             {/* Active Inspirations Chips */}
             {selectedInspirations.length > 0 && (
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs">
@@ -1230,6 +1314,7 @@ export default function CreateVideoPage() {
               {/* Textarea */}
               <div className="flex-1">
                 <textarea
+                  ref={promptInputRef}
                   required
                   rows={3}
                   value={prompt}
@@ -1250,18 +1335,68 @@ export default function CreateVideoPage() {
                       setName("");
                     }
                   }}
-                  placeholder="Describe your video. Type @ for files, your projects and the media library, or drop a project to bring it in."
-                  className="w-full resize-none bg-transparent text-sm md:text-base text-white placeholder:text-neutral-500 focus:outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      handleSubmit(e);
+                    }
+                  }}
+                  placeholder="Describe your video or paste a website URL (e.g. https://en.wikipedia.org/wiki/Superman). Press Cmd+Enter to generate..."
+                  className="w-full resize-none bg-transparent text-sm md:text-base text-white placeholder:text-neutral-400 focus:outline-none"
                 />
 
+                {/* Quick Prompts Bar */}
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs border-t border-white/5 pt-2">
+                  <span className="text-neutral-400 text-[11px] font-medium mr-1">
+                    Quick Prompts:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPrompt("Create a 30-second cinematic DC superman ad for clurk Kent with voice and logo of the superman and presentation of Clark Kent");
+                      setDuration(30);
+                      setAspectRatio("16:9");
+                      promptInputRef.current?.focus();
+                    }}
+                    className="rounded-full border border-white/10 bg-white/5 hover:bg-white/10 px-2.5 py-0.5 text-[11px] text-neutral-300 transition"
+                  >
+                    🦸‍♂️ Superman (Clark Kent)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPrompt("Create a 30-second ad of green lantern series of dc with voice and logo of the lantern ring and presentation of guy gardner");
+                      setDuration(30);
+                      setAspectRatio("16:9");
+                      promptInputRef.current?.focus();
+                    }}
+                    className="rounded-full border border-white/10 bg-white/5 hover:bg-white/10 px-2.5 py-0.5 text-[11px] text-neutral-300 transition"
+                  >
+                    🟢 Green Lantern (Guy Gardner)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPrompt("https://en.wikipedia.org/wiki/Superman Create a 30-second video presentation with facts and photos");
+                      setDuration(30);
+                      setAspectRatio("16:9");
+                      promptInputRef.current?.focus();
+                    }}
+                    className="rounded-full border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-0.5 text-[11px] text-emerald-300 transition"
+                  >
+                    🌐 Crawl URL: Wikipedia Superman
+                  </button>
+                </div>
               </div>
 
               {/* Submit Arrow Button */}
               <button
                 type="submit"
                 disabled={isSubmitting || !prompt.trim()}
-                className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-black hover:bg-neutral-200 transition disabled:opacity-40 disabled:hover:bg-white"
-                title="Generate Video"
+                className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-black hover:bg-neutral-200 transition disabled:opacity-40 disabled:hover:bg-white cursor-pointer"
+                title="Generate Video (Cmd+Enter)"
               >
                 {isSubmitting ? (
                   <RefreshCw className="h-4 w-4 animate-spin" />

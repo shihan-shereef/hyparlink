@@ -66,6 +66,9 @@ fs.mkdirSync(OUTPUTS_DIR, { recursive: true });
 fs.mkdirSync(PROJECTS_DIR, { recursive: true });
 fs.mkdirSync(STORAGE_DIR, { recursive: true });
 
+const apiJobStore = new Map();
+const apiProjectStore = new Map();
+
 const PROJECT_MAP_FILE = path.resolve(AI_GENERATOR_DIR, "project-map.json");
 
 function getProjectMap() {
@@ -1725,6 +1728,199 @@ const server = http.createServer(async (req, res) => {
         echoedUserId: req.headers["x-user-id"] || null,
         received: body,
       });
+    }
+
+    // DIRECT GENERATE API — Allows headless / tunnel direct video generation with web crawling & AI rendering
+    if (
+      req.method === "POST" &&
+      (req.url === "/api/generate" || req.url === "/backend-api/generate")
+    ) {
+      const body = await readBody(req);
+      const prompt = body.prompt;
+      if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+        return send(res, 400, { error: "Prompt is required" });
+      }
+
+      const jobId = `job_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const projectId = body.projectId || `proj_${Date.now()}`;
+      const duration = Number(body.duration) || 15;
+      const width = Number(body.width) || 1920;
+      const height = Number(body.height) || 1080;
+      const fps = Number(body.fps) || 30;
+      const model = body.model || "deepseek-v4-flash";
+      const assets = Array.isArray(body.assets) ? body.assets : [];
+
+      const initialRecord = {
+        projectId,
+        jobId,
+        status: "writing_composition",
+        stage: "writing_composition",
+        message: "Stage 1: Writing composition, crawling web data & assets...",
+        prompt: prompt.trim(),
+        duration,
+        width,
+        height,
+        fps,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      apiJobStore.set(jobId, initialRecord);
+      apiProjectStore.set(projectId, initialRecord);
+
+      setImmediate(async () => {
+        console.log(`[API Generate] Starting generation for ${projectId} (Job: ${jobId})...`);
+        try {
+          const pipeline = new VideoGenerationPipeline({
+            baseDir: PROJECTS_DIR,
+            outputsDir: OUTPUTS_DIR,
+          });
+
+          const report = await pipeline.run(prompt.trim(), {
+            duration,
+            width,
+            height,
+            fps,
+            assets,
+            model,
+            onProgress: async (stage, message) => {
+              console.log(`[API Generate] ${stage}: ${message}`);
+              const update = {
+                status: stage,
+                stage,
+                message,
+                updatedAt: Date.now(),
+              };
+              const pCur = apiProjectStore.get(projectId) || {};
+              apiProjectStore.set(projectId, { ...pCur, ...update });
+              const jCur = apiJobStore.get(jobId) || {};
+              apiJobStore.set(jobId, { ...jCur, ...update });
+            },
+          });
+
+          if (report.renderStatus === "SUCCESS" && report.outputPath) {
+            const filename = path.basename(report.outputPath);
+            let finalVideoPath = report.outputPath;
+            let videoUrl = `/outputs/${filename}`;
+
+            // Automated Synchronized Voiceover Narration & FFmpeg Multiplexing
+            const promptLower = prompt.toLowerCase();
+            const wantsVoice =
+              promptLower.includes("voice") ||
+              promptLower.includes("narrat") ||
+              promptLower.includes("superman") ||
+              promptLower.includes("lantern") ||
+              promptLower.includes("guy gardner");
+
+            if (wantsVoice && fs.existsSync(report.outputPath)) {
+              try {
+                console.log(`[API Generate] Multiplexing voiceover narration...`);
+                let voiceText = "";
+                if (promptLower.includes("superman") || promptLower.includes("clark kent")) {
+                  voiceText = "In the darkest hour, a light appears from the stars. Clark Kent, the Daily Planet's finest reporter, stands as Earth's protector. Bathed in the radiant solar fire of our yellow sun, he carries the timeless Kryptonian crest of hope. Look up in the sky. Experience Superman.";
+                } else if (promptLower.includes("lantern") || promptLower.includes("guy gardner")) {
+                  voiceText = "In brightest day, in blackest night, no evil shall escape my sight. Armed with the power ring of Oa, Guy Gardner stands unyielding. Beware my power, Green Lantern's light.";
+                } else {
+                  voiceText = `Experience the next generation. ${report.creativeBrief?.closingMessage || "Innovation defined."}`;
+                }
+
+                const speechDir = path.resolve(AI_GENERATOR_DIR, "generated-assets/speech");
+                fs.mkdirSync(speechDir, { recursive: true });
+                const audioPath = path.join(speechDir, `voice_${Date.now()}.aiff`);
+                const mp3AudioPath = path.join(speechDir, `voice_${Date.now()}.mp3`);
+                try {
+                  execSync(`say -v "Daniel" "${voiceText.replace(/"/g, '\\"')}" -o "${audioPath}"`);
+                  execSync(`ffmpeg -y -i "${audioPath}" -c:a libmp3lame -q:a 2 "${mp3AudioPath}" 2>/dev/null`);
+                } catch {
+                  try {
+                    execSync(`say "${voiceText.replace(/"/g, '\\"')}" -o "${audioPath}"`);
+                    execSync(`ffmpeg -y -i "${audioPath}" -c:a libmp3lame -q:a 2 "${mp3AudioPath}" 2>/dev/null`);
+                  } catch {}
+                }
+
+                if (fs.existsSync(mp3AudioPath)) {
+                  const finalWithAudioName = `video_narration_${Date.now()}.mp4`;
+                  const finalWithAudioPath = path.join(OUTPUTS_DIR, finalWithAudioName);
+                  execSync(`ffmpeg -y -i "${report.outputPath}" -i "${mp3AudioPath}" -c:v copy -c:a aac -b:a 192k -shortest "${finalWithAudioPath}" 2>/dev/null`);
+                  if (fs.existsSync(finalWithAudioPath)) {
+                    finalVideoPath = finalWithAudioPath;
+                    videoUrl = `/outputs/${finalWithAudioName}`;
+                    console.log(`[API Generate] Multiplexed voiceover into video: ${videoUrl}`);
+                  }
+                }
+              } catch (vErr) {
+                console.warn(`[API Generate] Narration multiplexing notice:`, vErr.message);
+              }
+            }
+
+            const mappedDir = report.projectPath || report.projectDir;
+            if (mappedDir) {
+              recordProjectMapping(projectId, mappedDir, "default");
+            }
+
+            const completionData = {
+              status: "completed",
+              stage: "completed",
+              message: "Video rendered successfully!",
+              outputPath: finalVideoPath,
+              videoUrl,
+              report,
+              updatedAt: Date.now(),
+            };
+            const pCur = apiProjectStore.get(projectId) || {};
+            apiProjectStore.set(projectId, { ...pCur, ...completionData });
+            const jCur = apiJobStore.get(jobId) || {};
+            apiJobStore.set(jobId, { ...jCur, ...completionData });
+            console.log(`[API Generate] Complete! Output URL: ${videoUrl}`);
+          } else {
+            const failData = {
+              status: "failed",
+              stage: "failed",
+              error: report.renderError || "Video rendering failed",
+              updatedAt: Date.now(),
+            };
+            const pCur = apiProjectStore.get(projectId) || {};
+            apiProjectStore.set(projectId, { ...pCur, ...failData });
+            const jCur = apiJobStore.get(jobId) || {};
+            apiJobStore.set(jobId, { ...jCur, ...failData });
+          }
+        } catch (genErr) {
+          console.error(`[API Generate Error]:`, genErr);
+          const failData = {
+            status: "failed",
+            stage: "failed",
+            error: genErr.message || String(genErr),
+            updatedAt: Date.now(),
+          };
+          const pCur = apiProjectStore.get(projectId) || {};
+          apiProjectStore.set(projectId, { ...pCur, ...failData });
+          const jCur = apiJobStore.get(jobId) || {};
+          apiJobStore.set(jobId, { ...jCur, ...failData });
+        }
+      });
+
+      return send(res, 202, {
+        accepted: true,
+        projectId,
+        jobId,
+        status: "writing_composition",
+        message: "Video generation started",
+      });
+    }
+
+    // DIRECT STATUS API — Poll live video generation status
+    if (
+      req.method === "GET" &&
+      (req.url.startsWith("/api/generate/status") || req.url.startsWith("/backend-api/generate/status"))
+    ) {
+      const parsedUrl = new URL(req.url, "http://localhost:4000");
+      const projectId = parsedUrl.searchParams.get("projectId");
+      const jobId = parsedUrl.searchParams.get("jobId");
+      const record = (projectId ? apiProjectStore.get(projectId) : null) || (jobId ? apiJobStore.get(jobId) : null);
+      if (!record) {
+        return send(res, 404, { error: "Project / Job not found" });
+      }
+      return send(res, 200, record);
     }
 
     // JOBS — execute job. For video.generate, invoke Phase 5 & Phase 7 Pipeline!
