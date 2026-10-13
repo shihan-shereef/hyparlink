@@ -774,9 +774,12 @@ const server = http.createServer(async (req, res) => {
         req.url.startsWith("/heygen/avatars?") ||
         req.url.startsWith("/api/heygen/avatars?"))
     ) {
+      const parsedUrl = new URL(req.url, "http://localhost:4000");
+      const apiKey = parsedUrl.searchParams.get("apiKey") || req.headers["x-api-key"];
+      const avatars = await HeyGenService.getAvatars(apiKey);
       return send(res, 200, {
         success: true,
-        avatars: HeyGenService.getAvatars(),
+        avatars,
       });
     }
 
@@ -788,9 +791,12 @@ const server = http.createServer(async (req, res) => {
         req.url.startsWith("/heygen/voices?") ||
         req.url.startsWith("/api/heygen/voices?"))
     ) {
+      const parsedUrl = new URL(req.url, "http://localhost:4000");
+      const apiKey = parsedUrl.searchParams.get("apiKey") || req.headers["x-api-key"];
+      const voices = await HeyGenService.getVoices(apiKey);
       return send(res, 200, {
         success: true,
-        voices: HeyGenService.getVoices(),
+        voices,
       });
     }
 

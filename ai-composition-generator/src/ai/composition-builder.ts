@@ -201,26 +201,11 @@ export class CompositionBuilder {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${this.escapeHtml(title)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Orbitron:wght@500;700;900&family=Playfair+Display:ital,wght@0,600;0,800;0,900;1,600&family=Cinzel:wght@700;900&family=Space+Grotesk:wght@500;600;700&family=Syne:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Montserrat:wght@400;500;600;700;800;900&family=Outfit:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <style>
-    @font-face {
-      font-family: 'Plus Jakarta Sans';
-      src: local('Plus Jakarta Sans'), local('Inter'), sans-serif;
-    }
-    @font-face {
-      font-family: 'Space Grotesk';
-      src: local('Space Grotesk'), local('Inter'), sans-serif;
-    }
-    @font-face {
-      font-family: 'Syne';
-      src: local('Syne'), local('Inter'), sans-serif;
-    }
-    @font-face {
-      font-family: 'Outfit';
-      src: local('Outfit'), local('Inter'), sans-serif;
-    }
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body, html {
       width: 100%;
@@ -286,26 +271,9 @@ ${sceneTags}
   <title>${this.escapeHtml(scene.name)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Syne:wght@700;800&family=Outfit:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Orbitron:wght@500;700;900&family=Playfair+Display:ital,wght@0,600;0,800;0,900;1,600&family=Cinzel:wght@700;900&family=Space+Grotesk:wght@500;600;700&family=Syne:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Montserrat:wght@400;500;600;700;800;900&family=Outfit:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <style>
-    @font-face {
-      font-family: 'Plus Jakarta Sans';
-      src: local('Plus Jakarta Sans'), local('Inter'), sans-serif;
-    }
-    @font-face {
-      font-family: 'Space Grotesk';
-      src: local('Space Grotesk'), local('Inter'), sans-serif;
-    }
-    @font-face {
-      font-family: 'Syne';
-      src: local('Syne'), local('Inter'), sans-serif;
-    }
-    @font-face {
-      font-family: 'Outfit';
-      src: local('Outfit'), local('Inter'), sans-serif;
-    }
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body, html {
       width: 100%;
@@ -655,7 +623,7 @@ ${sceneTags}
               : ""
           }
         </div>
-        <div class="metric-num" style="font-size: 68px; font-weight: 800; color: ${palette.textColor}; line-height: 1; margin-bottom: 14px; font-family: 'Space Grotesk', sans-serif;">
+        <div class="metric-num" style="font-size: 68px; font-weight: 800; color: ${palette.textColor}; line-height: 1; margin-bottom: 14px; font-family: 'Space Grotesk', 'Plus Jakarta Sans', sans-serif;">
           ${this.escapeHtml(m.value)}
         </div>
         <div style="font-size: 16px; color: ${palette.subtextColor}; font-weight: 500;">
@@ -941,7 +909,7 @@ ${sceneTags}
 
       <!-- Giant Comic Title Box -->
       <div id="comicLogoWrap" style="background: #000000; padding: 26px 56px; border: 8px solid #000000; box-shadow: 14px 14px 0px #000000; transform: skewX(-2deg); margin-bottom: 28px; display: inline-block;">
-        <h1 style="font-family: 'Space Grotesk', 'Syne', sans-serif; font-size: 92px; font-weight: 900; letter-spacing: -0.04em; text-transform: uppercase; line-height: 0.95; margin: 0; color: #FFE600;">
+        <h1 style="font-family: 'Bebas Neue', 'Impact', sans-serif; font-size: 108px; font-weight: 900; letter-spacing: 0.03em; text-transform: uppercase; line-height: 0.95; margin: 0; color: #FFE600;">
           ${this.escapeHtml(typography.headline)}
         </h1>
       </div>
@@ -1010,7 +978,7 @@ ${sceneTags}
           </div>
 
           <!-- Title -->
-          <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 900; color: #000000; text-transform: uppercase; line-height: 1.1; margin-bottom: 10px; letter-spacing: -0.02em;">
+          <h2 style="font-family: 'Bebas Neue', 'Impact', sans-serif; font-size: 38px; font-weight: 900; color: #000000; text-transform: uppercase; line-height: 1.1; margin-bottom: 8px; letter-spacing: 0.04em;">
             ${this.escapeHtml(p.title)}
           </h2>
 
@@ -1117,7 +1085,7 @@ ${sceneTags}
           </div>
 
           <!-- Weapon Name -->
-          <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 900; color: #FFE600; text-transform: uppercase; line-height: 1.1; margin-bottom: 14px; letter-spacing: -0.02em;">
+          <h2 style="font-family: 'Bebas Neue', 'Impact', sans-serif; font-size: 36px; font-weight: 900; color: #FFE600; text-transform: uppercase; line-height: 1.1; margin-bottom: 12px; letter-spacing: 0.04em;">
             ${this.escapeHtml(w.name)}
           </h2>
 
@@ -1181,7 +1149,7 @@ ${sceneTags}
         <div style="font-size: 16px; font-weight: 900; letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 12px; color: #FFE600;">
           ${this.escapeHtml(publisher)}
         </div>
-        <h1 style="font-family: 'Space Grotesk', 'Syne', sans-serif; font-size: 80px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.04em; line-height: 0.95; margin: 0 0 18px; color: #FFE600;">
+        <h1 style="font-family: 'Bebas Neue', 'Impact', sans-serif; font-size: 96px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; line-height: 0.95; margin: 0 0 16px; color: #FFE600;">
           ${this.escapeHtml(issueTitle)}
         </h1>
         <div style="font-size: 18px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #FFE600; border-top: 2px solid rgba(255,230,0,0.4); border-bottom: 2px solid rgba(255,230,0,0.4); padding: 10px 0;">

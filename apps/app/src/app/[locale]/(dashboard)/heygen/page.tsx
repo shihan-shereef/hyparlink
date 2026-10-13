@@ -273,6 +273,11 @@ export default function HeyGenStudioPage() {
   const [avatarCategoryFilter, setAvatarCategoryFilter] = useState<string>("all");
   const [voiceFilter, setVoiceFilter] = useState<string>("all");
 
+  // Custom HeyGen Avatar & Voice IDs
+  const [avatarMode, setAvatarMode] = useState<"library" | "custom">("library");
+  const [customAvatarId, setCustomAvatarId] = useState<string>("");
+  const [customVoiceId, setCustomVoiceId] = useState<string>("");
+
   // Script & Parameters
   const [script, setScript] = useState<string>(
     "Welcome to our platform! Today we are introducing our new AI avatar studio, powered by HyperFrames and HeyGen. You can generate studio-quality talking presenter videos in just a few clicks."
@@ -309,18 +314,9 @@ export default function HeyGenStudioPage() {
   const [latestVideo, setLatestVideo] = useState<GeneratedVideo | null>(null);
   const [history, setHistory] = useState<GeneratedVideo[]>([]);
 
-  // Load API key from localStorage and fetch catalogs
-  useEffect(() => {
-    try {
-      const savedKey = localStorage.getItem("heygen_api_key");
-      if (savedKey) {
-        setApiKey(savedKey);
-        verifyKey(savedKey);
-      }
-    } catch {}
-
-    // Fetch dynamic catalog
-    fetch("/api/heygen/avatars")
+  const loadCatalogs = (key?: string) => {
+    const q = key ? `?apiKey=${encodeURIComponent(key)}` : "";
+    fetch(`/api/heygen/avatars${q}`)
       .then((res) => res.json())
       .then((data) => {
         if (data?.avatars && Array.isArray(data.avatars)) {
@@ -329,7 +325,7 @@ export default function HeyGenStudioPage() {
       })
       .catch(() => {});
 
-    fetch("/api/heygen/voices")
+    fetch(`/api/heygen/voices${q}`)
       .then((res) => res.json())
       .then((data) => {
         if (data?.voices && Array.isArray(data.voices)) {
@@ -337,6 +333,28 @@ export default function HeyGenStudioPage() {
         }
       })
       .catch(() => {});
+  };
+
+  // Load API key & custom IDs from localStorage and fetch catalogs
+  useEffect(() => {
+    try {
+      const savedKey = localStorage.getItem("heygen_api_key");
+      if (savedKey) {
+        setApiKey(savedKey);
+        verifyKey(savedKey);
+      }
+      const savedAvatarId = localStorage.getItem("heygen_custom_avatar_id");
+      if (savedAvatarId) {
+        setCustomAvatarId(savedAvatarId);
+        setAvatarMode("custom");
+      }
+      const savedVoiceId = localStorage.getItem("heygen_custom_voice_id");
+      if (savedVoiceId) {
+        setCustomVoiceId(savedVoiceId);
+      }
+    } catch {}
+
+    loadCatalogs();
   }, []);
 
   const verifyKey = async (keyToTest: string) => {
@@ -365,6 +383,7 @@ export default function HeyGenStudioPage() {
           message: "HeyGen Account Connected: Live Cloud Rendering Active.",
         });
         localStorage.setItem("heygen_api_key", keyToTest.trim());
+        loadCatalogs(keyToTest.trim());
       } else {
         setConnectionStatus({
           valid: false,
@@ -449,11 +468,27 @@ export default function HeyGenStudioPage() {
     const timer2 = setTimeout(() => setGenStage(3), 1800);
     const timer3 = setTimeout(() => setGenStage(4), 2800);
 
+    const effectiveAvatarId =
+      avatarMode === "custom" && customAvatarId.trim()
+        ? customAvatarId.trim()
+        : selectedAvatarId;
+    const effectiveVoiceId =
+      avatarMode === "custom" && customVoiceId.trim()
+        ? customVoiceId.trim()
+        : selectedVoiceId;
+
+    if (avatarMode === "custom") {
+      try {
+        if (customAvatarId.trim()) localStorage.setItem("heygen_custom_avatar_id", customAvatarId.trim());
+        if (customVoiceId.trim()) localStorage.setItem("heygen_custom_voice_id", customVoiceId.trim());
+      } catch {}
+    }
+
     try {
       const payload = {
-        apiKey: connectionStatus.valid ? apiKey.trim() : undefined,
-        avatarId: selectedAvatarId,
-        voiceId: selectedVoiceId,
+        apiKey: connectionStatus.valid ? apiKey.trim() : (apiKey.trim() || undefined),
+        avatarId: effectiveAvatarId,
+        voiceId: effectiveVoiceId,
         script: script.trim(),
         speed,
         pitch,
@@ -488,15 +523,15 @@ export default function HeyGenStudioPage() {
         sizeBytes: data.sizeBytes || 250000,
         resolution: data.resolution || "1920x1080",
         avatar: data.avatar || {
-          id: selectedAvatarId,
-          name: avatars.find((a) => a.id === selectedAvatarId)?.name || "Avatar",
-          title: avatars.find((a) => a.id === selectedAvatarId)?.title || "Presenter",
-          image: avatars.find((a) => a.id === selectedAvatarId)?.image || "/avatars/sarah.jpg",
+          id: effectiveAvatarId,
+          name: avatarMode === "custom" ? `Custom Avatar (${effectiveAvatarId.slice(0, 16)})` : (avatars.find((a) => a.id === effectiveAvatarId)?.name || "Avatar"),
+          title: avatarMode === "custom" ? "HeyGen Custom Avatar" : (avatars.find((a) => a.id === effectiveAvatarId)?.title || "Presenter"),
+          image: avatars.find((a) => a.id === effectiveAvatarId)?.image || "/avatars/sarah.jpg",
         },
         voice: data.voice || {
-          id: selectedVoiceId,
-          name: voices.find((v) => v.id === selectedVoiceId)?.name || "Voice",
-          locale: voices.find((v) => v.id === selectedVoiceId)?.locale || "en-US",
+          id: effectiveVoiceId,
+          name: avatarMode === "custom" ? `Custom Voice (${effectiveVoiceId.slice(0, 14)})` : (voices.find((v) => v.id === effectiveVoiceId)?.name || "Voice"),
+          locale: voices.find((v) => v.id === effectiveVoiceId)?.locale || "en-US",
         },
         script: script.trim(),
         engine: data.engine || (connectionStatus.valid ? "heygen_cloud" : "local_ffmpeg_studio"),
@@ -719,96 +754,238 @@ export default function HeyGenStudioPage() {
           <div className="space-y-6 lg:col-span-7">
             {/* STEP 2: AVATAR SELECTION */}
             <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500/20 text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                    2
-                  </span>
-                  <h3 className="text-sm font-semibold text-primary">
-                    Select Your AI Avatar
-                  </h3>
-                </div>
-                <div className="flex items-center gap-1 text-xs">
-                  {["all", "studio", "tech", "executive", "creative"].map((cat) => (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500/20 text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                      2
+                    </span>
+                    <h3 className="text-sm font-semibold text-primary">
+                      Select Your AI Avatar
+                    </h3>
+                  </div>
+
+                  {/* Mode Selector Tabs */}
+                  <div className="inline-flex rounded-lg border border-border bg-secondary/50 p-1 text-xs">
                     <button
-                      key={cat}
                       type="button"
-                      onClick={() => setAvatarCategoryFilter(cat)}
-                      className={`rounded-md px-2.5 py-1 capitalize transition ${
-                        avatarCategoryFilter === cat
-                          ? "bg-primary text-primary-foreground font-medium"
-                          : "text-primary/60 hover:bg-secondary"
+                      onClick={() => setAvatarMode("library")}
+                      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition ${
+                        avatarMode === "library"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-primary/60 hover:text-primary"
                       }`}
                     >
-                      {cat}
+                      <UserCheck className="h-3.5 w-3.5" />
+                      Curated Presenters
                     </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Avatar Grid */}
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-4">
-                {filteredAvatars.map((av) => {
-                  const isSelected = selectedAvatarId === av.id;
-                  return (
-                    <div
-                      key={av.id}
-                      onClick={() => {
-                        setSelectedAvatarId(av.id);
-                        if (av.recommendedVoice) setSelectedVoiceId(av.recommendedVoice);
-                      }}
-                      className={`group relative cursor-pointer overflow-hidden rounded-xl border transition-all ${
-                        isSelected
-                          ? "border-indigo-500 ring-2 ring-indigo-500/40 shadow-lg"
-                          : "border-border hover:border-indigo-500/50 hover:shadow-md"
-                      } bg-secondary/30`}
+                    <button
+                      type="button"
+                      onClick={() => setAvatarMode("custom")}
+                      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium transition ${
+                        avatarMode === "custom"
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "text-primary/60 hover:text-primary"
+                      }`}
                     >
-                      <div className="relative aspect-square w-full overflow-hidden bg-muted">
-                        <img
-                          src={av.image}
-                          alt={av.name}
-                          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                        />
-                        {isSelected && (
-                          <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-white shadow">
-                            <Check className="h-3.5 w-3.5" />
-                          </div>
-                        )}
-                        <span className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur">
-                          {av.style}
-                        </span>
+                      <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                      My Custom HeyGen Avatar (Direct ID)
+                    </button>
+                  </div>
+                </div>
+
+                {avatarMode === "library" ? (
+                  <>
+                    <div className="flex items-center justify-between border-t border-border/40 pt-3 text-xs">
+                      <span className="text-xs text-primary/60">Choose a studio presenter:</span>
+                      <div className="flex items-center gap-1">
+                        {["all", "studio", "tech", "executive", "creative"].map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setAvatarCategoryFilter(cat)}
+                            className={`rounded-md px-2.5 py-1 capitalize transition ${
+                              avatarCategoryFilter === cat
+                                ? "bg-primary text-primary-foreground font-medium"
+                                : "text-primary/60 hover:bg-secondary"
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
                       </div>
-                      <div className="p-2.5">
-                        <h4 className="truncate text-xs font-semibold text-primary">
-                          {av.name}
-                        </h4>
-                        <p className="truncate text-[10px] text-primary/60">
-                          {av.title}
+                    </div>
+
+                    {/* Avatar Grid */}
+                    <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-4">
+                      {filteredAvatars.map((av) => {
+                        const isSelected = selectedAvatarId === av.id;
+                        return (
+                          <div
+                            key={av.id}
+                            onClick={() => {
+                              setSelectedAvatarId(av.id);
+                              if (av.recommendedVoice) setSelectedVoiceId(av.recommendedVoice);
+                            }}
+                            className={`group relative cursor-pointer overflow-hidden rounded-xl border transition-all ${
+                              isSelected
+                                ? "border-indigo-500 ring-2 ring-indigo-500/40 shadow-lg"
+                                : "border-border hover:border-indigo-500/50 hover:shadow-md"
+                            } bg-secondary/30`}
+                          >
+                            <div className="relative aspect-square w-full overflow-hidden bg-muted">
+                              <img
+                                src={av.image}
+                                alt={av.name}
+                                className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                              />
+                              {isSelected && (
+                                <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-white shadow">
+                                  <Check className="h-3.5 w-3.5" />
+                                </div>
+                              )}
+                              <span className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur">
+                                {av.style}
+                              </span>
+                            </div>
+                            <div className="p-2.5">
+                              <h4 className="truncate text-xs font-semibold text-primary">
+                                {av.name}
+                              </h4>
+                              <p className="truncate text-[10px] text-primary/60">
+                                {av.title}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Selected Avatar Overview */}
+                    <div className="mt-4 flex items-center gap-3 rounded-lg border border-border/60 bg-secondary/40 p-3 text-xs">
+                      <img
+                        src={selectedAvatar.image}
+                        alt={selectedAvatar.name}
+                        className="h-12 w-12 rounded-lg object-cover"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-primary">{selectedAvatar.name}</span>
+                          <span className="rounded bg-indigo-500/20 px-1.5 py-0.2 text-[10px] text-indigo-500 font-medium">
+                            {selectedAvatar.style}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-primary/70 line-clamp-1">
+                          {selectedAvatar.description}
                         </p>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </>
+                ) : (
+                  /* DIRECT HEYGEN AVATAR ID & VOICE ID FORM */
+                  <div className="mt-2 space-y-4 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-500">
+                          Direct HeyGen Custom Avatar Integration
+                        </h4>
+                      </div>
+                      <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-medium text-indigo-600 dark:text-indigo-400">
+                        Saved to Browser
+                      </span>
+                    </div>
 
-              {/* Selected Avatar Overview */}
-              <div className="mt-4 flex items-center gap-3 rounded-lg border border-border/60 bg-secondary/40 p-3 text-xs">
-                <img
-                  src={selectedAvatar.image}
-                  alt={selectedAvatar.name}
-                  className="h-12 w-12 rounded-lg object-cover"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-primary">{selectedAvatar.name}</span>
-                    <span className="rounded bg-indigo-500/20 px-1.5 py-0.2 text-[10px] text-indigo-500 font-medium">
-                      {selectedAvatar.style}
-                    </span>
+                    <p className="text-xs text-primary/70">
+                      Create an account on HeyGen, train your personal <strong>Instant Avatar</strong> or <strong>Studio Avatar</strong>, and paste your <strong>Avatar ID</strong> and <strong>Voice ID</strong> below. The dashboard will generate videos featuring your exact custom avatar!
+                    </p>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-primary mb-1">
+                          HeyGen Avatar ID <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Angela-in-office-20240820 or your Avatar UUID"
+                          value={customAvatarId}
+                          onChange={(e) => {
+                            setCustomAvatarId(e.target.value);
+                            try {
+                              localStorage.setItem("heygen_custom_avatar_id", e.target.value.trim());
+                            } catch {}
+                          }}
+                          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-mono text-primary placeholder:text-primary/40 focus:border-indigo-500 focus:outline-none"
+                        />
+                        <span className="mt-1 block text-[10px] text-primary/50">
+                          Found in HeyGen under <strong>Avatars</strong> &rarr; Click your avatar &rarr; Avatar details / URL.
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-primary mb-1">
+                          HeyGen Voice ID <span className="text-primary/40">(Optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 1bd8ba5613b54435... or cloned Voice ID"
+                          value={customVoiceId}
+                          onChange={(e) => {
+                            setCustomVoiceId(e.target.value);
+                            try {
+                              localStorage.setItem("heygen_custom_voice_id", e.target.value.trim());
+                            } catch {}
+                          }}
+                          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-mono text-primary placeholder:text-primary/40 focus:border-indigo-500 focus:outline-none"
+                        />
+                        <span className="mt-1 block text-[10px] text-primary/50">
+                          Your cloned voice or preferred voice ID. Defaults to standard neural voice if blank.
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* How-to Card */}
+                    <div className="rounded-lg border border-border bg-secondary/60 p-3 text-xs text-primary/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-primary flex items-center gap-1.5">
+                          <Info className="h-3.5 w-3.5 text-indigo-500" />
+                          How to find your Avatar ID and Voice ID in HeyGen:
+                        </span>
+                        <a
+                          href="https://app.heygen.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] font-medium text-indigo-500 hover:underline flex items-center gap-1"
+                        >
+                          Open HeyGen <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                      <ol className="list-decimal list-inside space-y-1 text-primary/70 text-[11px]">
+                        <li>Log in to your account at <strong className="text-primary">app.heygen.com</strong>.</li>
+                        <li>Click <strong>Avatars</strong> on the left bar and select the avatar you created (Instant Avatar or Studio Avatar).</li>
+                        <li>Look at the address bar or click the share/API button to copy the <strong>Avatar ID</strong> (e.g., <code>Angela-in-office-20240820</code>).</li>
+                        <li>Under <strong>Voices</strong>, copy your cloned Voice ID if you created one.</li>
+                        <li>Paste both IDs above &mdash; your custom avatar will be used whenever you render!</li>
+                      </ol>
+                    </div>
+
+                    {/* Status Feedback */}
+                    <div className="flex items-center gap-2 rounded-lg bg-background/80 p-2.5 text-xs border border-border">
+                      <div className={`h-2.5 w-2.5 rounded-full ${customAvatarId.trim() ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
+                      <div className="flex-1">
+                        {customAvatarId.trim() ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                            Ready: Videos will render using custom avatar ID <code className="font-mono bg-secondary px-1.5 py-0.5 rounded text-[11px]">{customAvatarId.trim()}</code>
+                          </span>
+                        ) : (
+                          <span className="text-amber-600 dark:text-amber-400">
+                            Please paste your HeyGen Avatar ID above to render with your custom avatar.
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <p className="mt-0.5 text-[11px] text-primary/70 line-clamp-1">
-                    {selectedAvatar.description}
-                  </p>
-                </div>
+                )}
               </div>
             </div>
 

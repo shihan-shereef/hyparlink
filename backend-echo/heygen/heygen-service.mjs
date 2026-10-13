@@ -189,16 +189,74 @@ export const HEYGEN_VOICES = [
 
 export class HeyGenService {
   /**
-   * Get all supported avatars
+   * Get all supported avatars (and user custom account avatars if apiKey provided)
    */
-  static getAvatars() {
+  static async getAvatars(apiKey) {
+    if (apiKey && typeof apiKey === "string" && apiKey.trim().length > 10) {
+      try {
+        const response = await fetch("https://api.heygen.com/v2/avatars", {
+          headers: {
+            "X-Api-Key": apiKey.trim(),
+            Accept: "application/json",
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const cloudAvatars = (data?.data?.avatars || []).map((av) => ({
+            id: av.avatar_id,
+            name: av.avatar_name || av.avatar_id,
+            title: av.gender ? `${av.gender.toUpperCase()} Avatar` : "HeyGen Custom Avatar",
+            category: "custom",
+            gender: av.gender || "custom",
+            style: "HeyGen Cloud",
+            image: av.preview_image_url || "/avatars/sarah.jpg",
+            isCustom: true,
+            description: `Custom avatar created in your HeyGen account (ID: ${av.avatar_id}).`,
+          }));
+          if (cloudAvatars.length > 0) {
+            return [...cloudAvatars, ...HEYGEN_AVATARS];
+          }
+        }
+      } catch (err) {
+        console.warn("[HeyGenService] Cloud avatars query:", err.message);
+      }
+    }
     return HEYGEN_AVATARS;
   }
 
   /**
-   * Get all supported voices
+   * Get all supported voices (and user custom cloned voices if apiKey provided)
    */
-  static getVoices() {
+  static async getVoices(apiKey) {
+    if (apiKey && typeof apiKey === "string" && apiKey.trim().length > 10) {
+      try {
+        const response = await fetch("https://api.heygen.com/v2/voices", {
+          headers: {
+            "X-Api-Key": apiKey.trim(),
+            Accept: "application/json",
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const cloudVoices = (data?.data?.voices || []).map((v) => ({
+            id: v.voice_id,
+            name: v.name || v.voice_id,
+            gender: v.gender || "neutral",
+            language: v.language || "English",
+            locale: v.locale || "en-US",
+            tone: "HeyGen Cloned / Cloud Voice",
+            accent: v.accent || "Standard",
+            previewAudio: v.preview_audio,
+            isCustom: true,
+          }));
+          if (cloudVoices.length > 0) {
+            return [...cloudVoices, ...HEYGEN_VOICES];
+          }
+        }
+      } catch (err) {
+        console.warn("[HeyGenService] Cloud voices query:", err.message);
+      }
+    }
     return HEYGEN_VOICES;
   }
 
@@ -397,8 +455,23 @@ export class HeyGenService {
    * Generate video locally using FFmpeg + Node.js Studio Engine
    */
   static async generateLocalStudioVideo({ avatarId, voiceId, script, speed = 1.0, background, resolution = "1920x1080" }) {
-    const avatar = HEYGEN_AVATARS.find((a) => a.id === avatarId) || HEYGEN_AVATARS[0];
-    const voice = HEYGEN_VOICES.find((v) => v.id === voiceId) || HEYGEN_VOICES[0];
+    const isCustomAvatar = !HEYGEN_AVATARS.some((a) => a.id === avatarId);
+    const avatar = HEYGEN_AVATARS.find((a) => a.id === avatarId) || {
+      id: avatarId || "custom_avatar",
+      name: `Custom Avatar (${(avatarId || "User").slice(0, 18)})`,
+      title: "HeyGen Custom Avatar Model",
+      style: "Custom Avatar",
+      image: "/avatars/sarah.jpg",
+      isCustom: true,
+    };
+    const isCustomVoice = !HEYGEN_VOICES.some((v) => v.id === voiceId);
+    const voice = HEYGEN_VOICES.find((v) => v.id === voiceId) || {
+      id: voiceId || "custom_voice",
+      name: `Custom Voice (${(voiceId || "User").slice(0, 14)})`,
+      locale: "en-US",
+      ttsVoice: "Samantha",
+      isCustom: true,
+    };
 
     const jobId = `heygen_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
     const outputFilename = `${jobId}.mp4`;

@@ -154,21 +154,12 @@ export class DesignValidator {
       }
     }
 
-    // Ensure index.html font-family declarations have @font-face
-    const indexFontCandidates = ["Plus Jakarta Sans", "Space Grotesk", "Outfit", "Syne"];
-    let indexFontUpdated = indexHtml;
-    for (const fontName of indexFontCandidates) {
-      const fontRegex = new RegExp(`font-family:[^;]*${fontName}`, "i");
-      const fontFaceRegex = new RegExp(`@font-face[^{]*{[^}]*font-family:\\s*['"]?${fontName}`, "i");
-      if (fontRegex.test(indexFontUpdated) && !fontFaceRegex.test(indexFontUpdated)) {
-        const fontFaceBlock = `\n    @font-face {\n      font-family: '${fontName}';\n      src: local('${fontName}'), local('Inter'), sans-serif;\n    }\n`;
-        indexFontUpdated = indexFontUpdated.replace("<style>", `<style>${fontFaceBlock}`);
-        repairedCount++;
-      }
-    }
-    if (indexFontUpdated !== indexHtml) {
-      await fs.writeFile(indexPath, indexFontUpdated, "utf-8");
-      indexHtml = indexFontUpdated;
+    // Ensure index.html has Google Fonts stylesheet
+    if (!indexHtml.includes("fonts.googleapis.com")) {
+      const googleFontsTag = `\n  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Orbitron:wght@500;700;900&family=Playfair+Display:ital,wght@0,600;0,800;0,900;1,600&family=Cinzel:wght@700;900&family=Space+Grotesk:wght@500;600;700&family=Syne:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Montserrat:wght@400;500;600;700;800;900&family=Outfit:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\n`;
+      indexHtml = indexHtml.replace("<head>", `<head>${googleFontsTag}`);
+      await fs.writeFile(indexPath, indexHtml, "utf-8");
+      repairedCount++;
     }
 
     // 5. Inspect individual scene files
@@ -307,23 +298,12 @@ export class DesignValidator {
           modified = true;
         }
 
-        // H. Check for font-family usage without @font-face
-        const fontCandidates = ["Plus Jakarta Sans", "Space Grotesk", "Outfit", "Syne"];
-        for (const fontName of fontCandidates) {
-          const fontRegex = new RegExp(`font-family:[^;]*${fontName}`, "i");
-          const fontFaceRegex = new RegExp(`@font-face[^{]*{[^}]*font-family:\\s*['"]?${fontName}`, "i");
-          if (fontRegex.test(content) && !fontFaceRegex.test(content)) {
-            const fontFaceBlock = `\n    @font-face {\n      font-family: '${fontName}';\n      src: local('${fontName}'), local('Inter'), sans-serif;\n    }\n`;
-            content = content.replace("<style>", `<style>${fontFaceBlock}`);
-            modified = true;
-            repairedCount++;
-            issues.push({
-              type: "repaired",
-              code: "MISSING_FONT_FACE_REPAIRED",
-              file,
-              message: `Injected required @font-face local fallback declaration for '${fontName}' in ${file}.`,
-            });
-          }
+        // H. Check for Google Fonts stylesheet link in scene
+        if (!content.includes("fonts.googleapis.com")) {
+          const googleFontsTag = `\n  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Orbitron:wght@500;700;900&family=Playfair+Display:ital,wght@0,600;0,800;0,900;1,600&family=Cinzel:wght@700;900&family=Space+Grotesk:wght@500;600;700&family=Syne:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Montserrat:wght@400;500;600;700;800;900&family=Outfit:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\n`;
+          content = content.replace("<head>", `<head>${googleFontsTag}`);
+          modified = true;
+          repairedCount++;
         }
 
         // I. Check asset references in scene

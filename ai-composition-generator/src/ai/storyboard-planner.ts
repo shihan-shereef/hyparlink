@@ -170,7 +170,7 @@ export class StoryboardPlanner {
 
     // 8. Dynamic Color Theme & Fonts
     const colorTheme = this.selectColorTheme(presentationStyle, lower, topic);
-    const fonts = this.selectFonts(presentationStyle);
+    const fonts = this.selectFonts(presentationStyle, lower, topic);
 
     // 9. Key Messages Tailored to the Topic
     const keyMessages = this.generateTopicKeyMessages(topic, sceneCount);
@@ -703,24 +703,90 @@ export class StoryboardPlanner {
     };
   }
 
-  private static selectFonts(style: PromptAnalysis["presentationStyle"]) {
-    switch (style) {
-      case "motivational-kinetic":
-        return {
-          display: "'Syne', 'Inter', sans-serif",
-          body: "'Inter', sans-serif",
-        };
-      case "environmental-sustainability":
-        return {
-          display: "'Outfit', 'Plus Jakarta Sans', sans-serif",
-          body: "'Plus Jakarta Sans', sans-serif",
-        };
-      default:
-        return {
-          display: "'Space Grotesk', 'Plus Jakarta Sans', sans-serif",
-          body: "'Plus Jakarta Sans', sans-serif",
-        };
+  private static selectFonts(
+    style: PromptAnalysis["presentationStyle"],
+    lowerPrompt: string = "",
+    topic: string = "",
+  ) {
+    const text = `${lowerPrompt} ${topic}`.toLowerCase();
+
+    // 1. Superhero / Blockbuster / Cinematic Comic / Epic (Superman, Clark Kent, Batman, Green Lantern, DC, Marvel)
+    if (
+      /superman|clark kent|batman|lantern|guy gardner|dc |marvel|hero|avenger|comic|action|blockbuster|cinematic|epic|warrior|titans/i.test(
+        text,
+      )
+    ) {
+      return {
+        display: "'Bebas Neue', 'Impact', sans-serif",
+        body: "'Montserrat', sans-serif",
+      };
     }
+
+    // 2. Futuristic Tech / Cyberpunk / AI / Crypto / Terminal / Quantum / Space / Gaming
+    if (
+      /cyberpunk|sci-fi|terminal|matrix|neon|crypto|blockchain|gaming|quantum|space|alien|galaxy|futur/i.test(
+        text,
+      )
+    ) {
+      return {
+        display: "'Orbitron', 'Space Grotesk', sans-serif",
+        body: "'Space Grotesk', sans-serif",
+      };
+    }
+
+    // 3. Luxury / Fashion / Editorial / Premium / Architecture / Jewelry / Real Estate
+    if (
+      /luxury|fashion|editorial|jewelry|perfume|elegance|classic|prestige|architect|real estate|hotel|resort/i.test(
+        text,
+      )
+    ) {
+      return {
+        display: "'Playfair Display', 'Cinzel', serif",
+        body: "'Plus Jakarta Sans', sans-serif",
+      };
+    }
+
+    // 4. Motivational / High Energy / Athletic / Street / Kinetic
+    if (
+      style === "motivational-kinetic" ||
+      /motivat|energy|fitness|athlet|sport|gym|punchy|hype/i.test(text)
+    ) {
+      return {
+        display: "'Syne', 'Outfit', sans-serif",
+        body: "'Outfit', sans-serif",
+      };
+    }
+
+    // 5. Environmental / Sustainability / Nature / Health / Wellness / Food
+    if (
+      style === "environmental-sustainability" ||
+      /eco|green|nature|sustainab|tree|forest|wellness|organic|clean/i.test(
+        text,
+      )
+    ) {
+      return {
+        display: "'Outfit', 'Plus Jakarta Sans', sans-serif",
+        body: "'Plus Jakarta Sans', sans-serif",
+      };
+    }
+
+    // 6. SaaS / Developer / Cloud / Enterprise / Tech Academy / Modern Corporate
+    if (
+      /saas|software|cloud|code|developer|api|tech academy|dashboard|analytics|ollima|database/i.test(
+        text,
+      )
+    ) {
+      return {
+        display: "'Plus Jakarta Sans', 'Inter', sans-serif",
+        body: "'Inter', sans-serif",
+      };
+    }
+
+    // 7. Default Modern Bold Geometric
+    return {
+      display: "'Space Grotesk', 'Plus Jakarta Sans', sans-serif",
+      body: "'Plus Jakarta Sans', sans-serif",
+    };
   }
 
   private static generateTopicKeyMessages(

@@ -284,6 +284,20 @@ export default function CreateVideoPage() {
   const [showStepByStep, setShowStepByStep] = useState(false);
   const [showEnvCard, setShowEnvCard] = useState(false);
 
+  // Typography Engine & HeyGen Custom Avatar Integration
+  const [selectedTypographyStyle, setSelectedTypographyStyle] = useState<string>("auto");
+  const [savedHeyGenAvatarId, setSavedHeyGenAvatarId] = useState<string>("");
+  const [savedHeyGenVoiceId, setSavedHeyGenVoiceId] = useState<string>("");
+
+  useEffect(() => {
+    try {
+      const avId = localStorage.getItem("heygen_custom_avatar_id");
+      if (avId) setSavedHeyGenAvatarId(avId);
+      const vcId = localStorage.getItem("heygen_custom_voice_id");
+      if (vcId) setSavedHeyGenVoiceId(vcId);
+    } catch {}
+  }, []);
+
   // Helper: Extract authoritative duration from prompt
   const extractDuration = (text: string): number | null => {
     if (!text) return null;
@@ -781,10 +795,22 @@ export default function CreateVideoPage() {
 
   const handleSubmit = async (e?: React.FormEvent, explicitPrompt?: string) => {
     if (e) e.preventDefault();
-    const promptValue = (explicitPrompt || prompt || "").trim();
+    let promptValue = (explicitPrompt || prompt || "").trim();
     if (!promptValue) {
       toast.error("Please enter a video prompt");
       return;
+    }
+
+    if (selectedTypographyStyle === "comic_hero" && !promptValue.toLowerCase().includes("bebas")) {
+      promptValue += " (Typography: Bebas Neue bold display headers, Montserrat body)";
+    } else if (selectedTypographyStyle === "cyberpunk" && !promptValue.toLowerCase().includes("orbitron")) {
+      promptValue += " (Typography: Orbitron futuristic display headers, Space Grotesk body)";
+    } else if (selectedTypographyStyle === "luxury" && !promptValue.toLowerCase().includes("playfair")) {
+      promptValue += " (Typography: Playfair Display high-contrast serif headers, Cinzel body)";
+    } else if (selectedTypographyStyle === "kinetic" && !promptValue.toLowerCase().includes("syne")) {
+      promptValue += " (Typography: Syne ultra-bold kinetic headers, Outfit body)";
+    } else if (selectedTypographyStyle === "saas" && !promptValue.toLowerCase().includes("jakarta")) {
+      promptValue += " (Typography: Plus Jakarta Sans modern headers, Inter body)";
     }
     const targetWs = current || activeWorkspaceId;
 
@@ -1648,7 +1674,7 @@ export default function CreateVideoPage() {
 
           {/* ADVANCED VIDEO CONTROLS ACCORDION / BAR */}
           <div className="rounded-xl border border-white/10 bg-neutral-900/40 p-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400">
@@ -1746,6 +1772,24 @@ export default function CreateVideoPage() {
                   <option value={60}>60 fps (Smooth Motion)</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">
+                  Typography &amp; Fonts
+                </label>
+                <select
+                  value={selectedTypographyStyle}
+                  onChange={(e) => setSelectedTypographyStyle(e.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-neutral-800 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/20"
+                >
+                  <option value="auto">Auto-Adaptive (AI Genre)</option>
+                  <option value="comic_hero">Bebas Neue (Heroic Comic)</option>
+                  <option value="cyberpunk">Orbitron (Cyber / Tech)</option>
+                  <option value="luxury">Playfair Display (Luxury)</option>
+                  <option value="kinetic">Syne (Kinetic Bold)</option>
+                  <option value="saas">Plus Jakarta (Modern SaaS)</option>
+                </select>
+              </div>
             </div>
 
             {/* AI Provider Status Bar */}
@@ -1763,6 +1807,45 @@ export default function CreateVideoPage() {
               <span className="text-neutral-500">
                 Authoritative duration normalization active
               </span>
+            </div>
+          </div>
+
+          {/* HEYGEN AI AVATAR PRESENTER INTEGRATION BANNER */}
+          <div className="rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-neutral-900/40 p-4 backdrop-blur-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-white">HeyGen Avatar Presenter Studio</h3>
+                    <span className="rounded-full bg-indigo-500/20 border border-indigo-500/40 px-2 py-0.5 text-[10px] font-semibold text-indigo-300">
+                      Direct Avatar ID Integration
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-300 mt-0.5">
+                    {savedHeyGenAvatarId ? (
+                      <>
+                        Custom Avatar ID <code className="bg-white/10 px-1 py-0.5 rounded text-[11px] text-white font-mono">{savedHeyGenAvatarId}</code> configured &amp; ready.
+                      </>
+                    ) : (
+                      "Create custom Instant or Studio Avatars in HeyGen, copy your Avatar ID & Voice ID, and generate personalized presenter videos."
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <Link
+                  href="/heygen"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3.5 py-2 text-xs font-semibold text-white shadow-md transition"
+                >
+                  <Film className="h-3.5 w-3.5" />
+                  <span>Launch HeyGen Studio</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
             </div>
           </div>
 
