@@ -62,6 +62,7 @@ bin/cloudflared
 ai-composition-generator/outputs/
 ai-composition-generator/storage/
 ai-composition-generator/generated-projects/
+ai-composition-generator/generated-assets/
 ai-composition-generator/dist/
 outputs/
 generated-projects/
