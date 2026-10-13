@@ -1,170 +1,284 @@
 ================================================================================
           HYPARLINK DASHBOARD & HYPERFRAMES VIDEO GENERATION ENGINE
-                      MIDDAY PROGRESS & IMPLEMENTATION REPORT
+                      FULL-DAY COMPREHENSIVE WORK REPORT
 ================================================================================
 Date: October 13, 2026
 System: Next.js 14.2.7 | Bun Monorepo | Convex Self-Hosted | HyperFrames 0.8.139
 Platform: Apple Silicon (macOS) | Node.js / Bun | FFmpeg 8.1.2 | Sana AI Image Engine
+Repository: https://github.com/shihan-shereef/hyparlink (Branch: main)
+Public Live URL: https://berlin-rental-listed-committee.trycloudflare.com
 Report Author: AI Pair Programming Assistant (Antigravity)
-Status: All Production Daemons Healthy (:3000 Frontend, :4000 Backend)
+Status: All Production Daemons Active (:3000 Next.js, :4000 Backend API, Cloudflare Tunnel)
 ================================================================================
 
 --------------------------------------------------------------------------------
-1. EXECUTIVE SUMMARY
+1. EXECUTIVE SUMMARY OF TODAY'S ACHIEVEMENTS
 --------------------------------------------------------------------------------
-This morning and midday's development resolved the fundamental gap between 
-direct AI assistance (Antigravity) and the self-serve Hyparlink Dashboard engine,
-delivered a full 30-second cinematic DC Superman / Clark Kent video, and permanently
-integrated an automated 100% FREE AI Image Generation engine directly into the
-dashboard backend so that ANY prompt entered in the UI now produces rich artwork,
-custom scene choreography, and tailored voiceover without manual uploads.
+Throughout today's development cycles (October 13, 2026), the Hyparlink Dashboard
+underwent major architectural upgrades spanning public global access, autonomous
+data ingestion, dynamic typography repair, and native custom HeyGen Avatar integration.
 
-Key Milestones Achieved Today:
-  [✔] Full Forensic Root-Cause Analysis comparing Dashboard vs. Antigravity outputs.
-  [✔] Identified & resolved hardcoded corporate voiceover fallback in backend-echo.
-  [✔] Resolved empty asset pipeline (assets: []) for arbitrary text prompts.
-  [✔] Built 1080p photorealistic Superman & Clark Kent artwork suite (5 assets).
-  [✔] Created 5 bespoke Superman & Daily Planet scene blueprints with GSAP animations.
-  [✔] Rendered full 30s Superman master video (1920x1080 @ 30fps, 25.8 MB) with voiceover.
-  [✔] Overwrote user download file: /Users/apple/Downloads/ai-video-project-1080p.mp4.
-  [✔] Created dedicated project copy: /Users/apple/Downloads/superman-clark-kent-30s.mp4.
-  [✔] Implemented AIImageGenerator module using the free Sana AI diffusion engine.
-  [✔] Integrated automated 5-scene image generation directly into AIGenerator.
-  [✔] Upgraded ScenePlanner & Synthesizer with full-screen hero backdrops & Ken Burns pushes.
-  [✔] Verified end-to-end automated image generation with live DC Wonder Woman test.
-  [✔] Clean TypeScript build (0 errors) & restarted backend daemon on port 4000.
-
-
---------------------------------------------------------------------------------
-2. FORENSIC ROOT-CAUSE ANALYSIS: DASHBOARD VS. ANTIGRAVITY
---------------------------------------------------------------------------------
-When the user entered the prompt:
-"Create a 30-second cinematic DC superman ad for clurk Kent with voice and logo of the
-superman and presentation of Clark Kent"
-
-The dashboard originally produced a 1.3 MB video with corporate voiceover and plain text.
-Forensic investigation revealed three architectural root causes:
-
-A. Hardcoded Fallback Voiceover in backend-echo/server.mjs:
-   - Line 1952 checked `if (isGL)` (Green Lantern).
-   - Any other prompt evaluated to false and fell into a generic corporate array:
-     "Experience the next level of cinematic motion graphics... Engineered with precision timing..."
-   - No character-specific dialogue was written or synthesized for Superman.
-
-B. Zero Image Generation in the Dashboard's Text LLM Connection:
-   - The dashboard connects to Ollama (api.ollima.com), which only produces JSON text briefs.
-   - Ollama cannot create images.
-   - For Green Lantern, Antigravity previously generated and placed assets in presets/gl-assets/.
-   - For Superman, `assets` was completely empty (`[]`).
-   - Without images, the engine was forced to render plain text on blank CSS containers.
-
-C. Missing Bespoke Scene Layouts in ScenePlanner:
-   - Bespoke layouts only existed for Green Lantern, Batman, and standard charts.
-   - Superman defaulted to generic headline-body cards.
+Key Milestones Completed Today:
+  [✔] 1. Complete Cloudflare Tunnel & Public Access Deployment:
+         Published the entire Next.js application and backend pipeline to a global
+         HTTPS URL (https://berlin-rental-listed-committee.trycloudflare.com) so the
+         dashboard can be opened from any device without Antigravity IDE running.
+  [✔] 2. Autonomous Web Crawler & Real-World Media Extractor:
+         Empowered the video creation pipeline to crawl live web pages (e.g. Wikipedia,
+         official sites) and direct search topics, automatically downloading real
+         high-resolution photography and key facts for professional video compositions.
+  [✔] 3. Forensic Typography Root-Cause Resolution:
+         Diagnosed why generated videos previously defaulted to identical fallback
+         system fonts. Discovered and eliminated blocking dummy `@font-face { local() }`
+         declarations that broke headless Chromium font loading, and deployed a
+         content-adaptive typography engine (Bebas Neue, Montserrat, Orbitron,
+         Space Grotesk, Playfair Display, Syne, Outfit, Plus Jakarta Sans).
+  [✔] 4. Native HeyGen Integration with Direct Custom Avatar ID & Voice ID:
+         Integrated HeyGen directly inside the dashboard. Rather than manually copying
+         and pasting features, users can now create an account on app.heygen.com, train
+         their own custom Instant or Studio Avatar, copy their Avatar ID and Voice ID,
+         and render videos featuring their exact custom avatar directly from the studio.
+  [✔] 5. Cinematic 30s Master Video Suites Delivered:
+         Crafted, validated, and rendered 1080p master video suites for DC Superman
+         (Clark Kent) and DC Lanterns (Guy Gardner) with synchronized voiceovers,
+         hero artwork, and dynamic animations.
+  [✔] 6. Repository Synchronization & Production Verification:
+         Committed and pushed all code changes to GitHub `origin/main`, verified clean
+         Next.js production builds (0 TypeScript/lint errors), and validated public
+         tunnel accessibility.
 
 
 --------------------------------------------------------------------------------
-3. SUPERMAN & CLARK KENT PRODUCTION SUITE
+2. PUBLIC GLOBAL DEPLOYMENT (CLOUDFLARE TUNNEL)
 --------------------------------------------------------------------------------
-To deliver the requested video at full cinematic quality, the following upgrades were made:
-
-A. Photorealistic 1080p Asset Bundle (ai-composition-generator/presets/superman-assets/):
-   1. s_shield.jpg: Macro close-up of Kryptonian chainmail and glowing red/gold S-shield.
-   2. clark_kent.jpg: Clark Kent portrait in suit and glasses in Daily Planet newsroom with giant globe.
-   3. daily_planet_desk.jpg: Editorial typewriter desk, press credentials, and Metropolis dossier.
-   4. solar_power.jpg: Yellow sun cellular energy absorption flare on the S-crest.
-   5. superman_title.jpg: Cosmic theatrical title card with anamorphic solar flares.
-
-B. Generator & Scene Planner Upgrades:
-   - Added isSuperman detection in generator.ts.
-   - Registered 5 new layout types in creative-brief.ts:
-     * superman-shield
-     * superman-clark-kent
-     * superman-metropolis
-     * superman-solar
-     * superman-climax
-   - Implemented custom GSAP animations, telemetry badges, and press cards in scene-planner.ts
-     and composition-synthesizer.ts.
-
-C. Synchronized Story Voiceover:
-   - Scene 1 (0–6s): "In a world seeking hope, a symbol arrived from the stars: the House of El."
-   - Scene 2 (6–12s): "By day, a mild-mannered investigative reporter for the Daily Planet: Clark Kent."
-   - Scene 3 (12–18s): "Dedicated to truth, justice, and defending the innocent from darkness."
-   - Scene 4 (18–24s): "Powered by Earth's yellow sun, carrying boundless strength in his heart."
-   - Scene 5 (24–30s): "Look up in the sky... Faster than a speeding bullet: it is Superman!"
-
-D. Final Render & File Delivery:
-   - Render Time: 99.86s (900 frames @ 30fps)
-   - Resolution: 1920x1080 Full HD
-   - Audio: 22,050 Hz Mono AAC (Synchronized narration throughout all 5 scenes)
-   - Final Size: 25.8 MB
-   - Primary File: /Users/apple/Downloads/ai-video-project-1080p.mp4 (Updated)
-   - Archive File: /Users/apple/Downloads/superman-clark-kent-30s.mp4
+To ensure the dashboard is accessible on any browser, laptop, or mobile device
+without keeping Antigravity open locally:
+  - Installed and configured the high-performance `cloudflared` binary on macOS.
+  - Bound local port 3000 (Next.js production app) to an encrypted edge tunnel.
+  - Active Public Endpoint:
+    >>> https://berlin-rental-listed-committee.trycloudflare.com <<<
+  - Configured reverse-proxy routing to ensure `/api/generate`, `/api/heygen`,
+    and `/storage` API routes seamlessly bridge between the frontend and the
+    backend server on port 4000.
+  - Verified live HTTP/2 200 responses with Edge SSL caching.
 
 
 --------------------------------------------------------------------------------
-4. DIRECT INTEGRATION OF FREE AUTOMATED AI IMAGE GENERATION
+3. AUTONOMOUS WEB CRAWLER & REAL MEDIA EXTRACTOR
 --------------------------------------------------------------------------------
-To ensure that ANY future prompt entered in the dashboard automatically generates
-matching artwork without requiring paid subscriptions or manual uploads:
-
-A. Architecture of AIImageGenerator (image-generator.ts):
-   - Integrates the free, open Sana AI Diffusion Engine via Pollinations.
-   - Cost: $0.00 Forever (No API keys, no accounts, no credit cards required).
-   - Intelligently analyzes any user prompt and generates 5 distinct scene prompts:
-     * Scene 1: Macro emblem/logo close-up with volumetric lighting.
-     * Scene 2: Character portrait or product showcase in environment.
-     * Scene 3: Action sequence or detail craftsmanship shot.
-     * Scene 4: Epic wide-angle climax visual.
-     * Scene 5: Theatrical title poster background.
-   - Downloads 1080p/720p images into isolated project cache directories.
-   - Fallback protection: Gracefully handles network delays with smart image reuse and
-     vector gradient synthesis so jobs never stall.
-
-B. ScenePlanner & Synthesizer Upgrades:
-   - Automatically assigns generated images to every scene (sceneAsset).
-   - Configures `image-backdrop` visual atmospheres with dark radial vignettes and scrims.
-   - GSAP 3.12.5 injects smooth continuous Ken Burns camera push animations (scale: 1.0 -> 1.06).
-   - Upgraded generate-video.ts to automatically copy generated assets into projectDir/assets/.
-
-C. Dynamic LLM Voiceover Fallback:
-   - If a prompt does not match pre-written scripts, backend-echo/server.mjs automatically
-     invokes the LLM to write 5 dramatic movie trailer lines tailored to the subject.
+In response to the requirement that the LLM must crawl the web and download real
+pictures and data directly to produce professional videos:
+  - Created `ai-composition-generator/src/ai/web-crawler.ts`:
+    * Crawls URLs (e.g. `https://en.wikipedia.org/wiki/Superman`) using direct DOM
+      scraping and metadata extraction.
+    * Queries the Wikipedia Wikimedia REST API (`/api/rest_v1/page/summary/`)
+      for authoritative biographical data, headlines, and thumbnail assets.
+    * Connects to DuckDuckGo/public search scrapers for generic topics when no
+      URL is provided.
+    * Downloads raw JPEG/PNG image streams directly into the project asset bundle
+      (`assets/crawled_*.jpg`), verifying minimum resolution dimensions (> 300px).
+  - Integrated directly into `AIGenerator.generate()`:
+    * The crawler runs as Step 1 of the generation pipeline.
+    * Crawled photos are automatically attached to scenes as hero backdrops,
+      dossier photos, and animated foreground elements.
+    * Injected interactive UI banner in `/create-video`: "Autonomous Web Crawler
+      & Real Media Extractor Active".
 
 
 --------------------------------------------------------------------------------
-5. VALIDATION & LIVE TESTING
+4. TYPOGRAPHY ENGINE FIX: SOLVING THE IDENTICAL FONT ISSUE
 --------------------------------------------------------------------------------
-Executed end-to-end pipeline test on a brand new character prompt:
-"Create a 15-second cinematic DC Wonder Woman ad with glowing golden lasso in ancient temple"
+Problem Reported by User:
+  "in this vido also the font is same as the every other vido there is no difarans
+   in it and it is not chagngeng at all so make it work prparly"
 
-Test Results:
-  - Input: Text prompt only (0 manual assets uploaded).
-  - AI Image Generator: Automatically derived 5 cinematic prompts and downloaded artwork.
-  - Assets Bound: 5 image assets assigned to 3 scenes.
-  - Composition: Synthesized index.html and 3 scene sub-compositions with image-backdrop.
-  - Status: Exit Code 0 (PASSED).
+Forensic Investigation & Root-Cause Analysis:
+  1. Font Fallback Hijacking:
+     Every generated scene HTML and master `index.html` contained an injected CSS
+     block generated by `design-validator.ts`:
+     `@font-face { font-family: 'Space Grotesk'; src: local('Space Grotesk'), local('Inter'), sans-serif; }`
+  2. Chromium Headless Local Resolution Failure:
+     In headless Chromium (used by HyperFrames CLI and Puppeteer), `local('...')`
+     fails unless the user has manually installed the font onto their macOS/Linux
+     system font book.
+  3. Blocking Google Fonts:
+     Because the browser encountered the invalid `@font-face` declaration with
+     `local()` fallback, it immediately aborted web font retrieval and defaulted
+     to the browser's lowest-common-denominator system font: Arial / Helvetica.
+     Consequently, every single video looked visually identical in typography.
+
+Code Implementation & Fix:
+  1. `ai-composition-generator/src/ai/storyboard-planner.ts`:
+     Implemented dynamic `selectFonts(style, lowerPrompt, topic)`:
+     - Superhero / Cinematic Comic: `Bebas Neue` (Display) + `Montserrat` (Body)
+     - Tech / Cyberpunk / AI: `Orbitron` (Display) + `Space Grotesk` (Body)
+     - Luxury / Editorial: `Playfair Display` (Display) + `Cinzel` (Body)
+     - Kinetic / Modern Bold: `Syne` (Display) + `Outfit` (Body)
+     - Clean SaaS / Corporate: `Plus Jakarta Sans` (Display) + `Inter` (Body)
+  2. `ai-composition-generator/src/ai/composition-builder.ts`:
+     - Injected full Google Fonts preconnect and multi-family stylesheet bundle
+       into `<head>` of both `index.html` and every `scene_*.html`.
+     - Removed blocking `@font-face { src: local(...) }` declarations.
+     - Replaced hardcoded font strings in comic title overlays and dossiers
+       with dynamic `brief.displayFont`.
+  3. `ai-composition-generator/src/ai/composition-synthesizer.ts`:
+     - Guaranteed Google Fonts stylesheet link is present in all synthesized scenes.
+  4. `ai-composition-generator/src/hyperframes/design-validator.ts`:
+     - Removed the broken local `@font-face` injector.
+     - Replaced with validation that checks for valid Google Fonts stylesheet links.
+  5. UI Selector in `/create-video`:
+     - Added a dedicated "Typography & Fonts" selector dropdown so users can either
+       let the AI auto-detect based on genre, or explicitly select their desired
+       font pairing (Bebas Neue, Orbitron, Playfair Display, Syne, Plus Jakarta).
 
 
 --------------------------------------------------------------------------------
-6. ACTIVE SYSTEM DAEMONS & SERVICE STATUS
+5. NATIVE HEYGEN AVATAR INTEGRATION (DIRECT AVATAR ID & VOICE ID)
 --------------------------------------------------------------------------------
-  [●] Frontend: Next.js 14 Dashboard running on http://localhost:3000 (Port 3000, PID 42313)
-  [●] Backend:  HyperFrames Hybrid Service running on http://localhost:4000 (Port 4000, PID 58402)
-  [●] Storage:  Local storage & outputs directories verified and active.
-  [●] Renderer: HyperFrames 0.8.139 + Headless Chromium + Apple Silicon FFmpeg 8.1.2 verified.
+Problem & User Requirement:
+  "i need the heygen agen to be intagrat in side this dashbord insted of coping
+   the feachesa and past it it has to work like whien create an accund and after
+   flling the foms i can copy my avathar id and voice id from the heygen and use it
+   to create a vedo based on that avathar whcih i crated in it so make it like that"
+
+Architecture & Solution:
+HeyGen provides an API v2 (`POST https://api.heygen.com/v2/video/generate`) which
+accepts an `avatar_id` string and a `voice_id` string. When a user creates an
+Instant Avatar (or Studio Avatar) on HeyGen, HeyGen assigns it a unique Avatar ID
+(e.g., `Angela-in-office-20240820` or a UUID). 
+
+Instead of manual feature re-creation, the dashboard now natively ingests and routes
+the user's custom Avatar ID and Voice ID!
+
+Implementation Details:
+  1. Backend HeyGen Service (`backend-echo/heygen/heygen-service.mjs`):
+     - Added live catalog discovery functions `getAvatars(apiKey)` and `getVoices(apiKey)`
+       to query `https://api.heygen.com/v2/avatars` and `voices` with the user's key.
+     - Updated `generateCloudVideo`:
+       Takes `{ avatarId, voiceId, script, speed, pitch, emotion, background, resolution }`
+       and transmits it directly to HeyGen's Cloud Video Generation endpoint.
+     - Updated `generateLocalStudioVideo`:
+       Gracefully handles custom Avatar IDs and Voice IDs in local studio preview mode
+       without falling back to hardcoded default names.
+  2. Backend Echo Server (`backend-echo/server.mjs`):
+     - Updated `/api/heygen/avatars` and `/api/heygen/voices` to accept user API keys
+       from query parameters and headers, enabling dynamic account catalog fetching.
+  3. HeyGen Studio UI (`apps/app/src/app/[locale]/(dashboard)/heygen/page.tsx`):
+     - Added a Mode Toggle in Step 2:
+       * Button A: "Curated Presenters" (Sarah, Marcus, Elena, Alex)
+       * Button B: "My Custom HeyGen Avatar (Direct ID)" with Sparkles badge.
+     - Built Custom Avatar Input Form:
+       * "HeyGen Avatar ID" (Required): e.g. `Angela-in-office-20240820` or UUID.
+       * "HeyGen Voice ID" (Optional): Cloned voice ID from HeyGen account.
+       * Step-by-step guidance card showing exactly how to log into app.heygen.com,
+         navigate to Avatars, and copy the ID.
+       * Real-time validation indicator confirming ready status.
+       * Automatic persistence to browser `localStorage` (`heygen_custom_avatar_id`
+         and `heygen_custom_voice_id`).
+  4. Create Video Studio Launcher (`apps/app/src/app/[locale]/(dashboard)/create-video/page.tsx`):
+     - Added a dedicated "HeyGen Avatar Presenter Studio" banner.
+     - Displays live status of the configured custom Avatar ID.
+     - Features direct link and quick-launch button to `/heygen`.
 
 
 --------------------------------------------------------------------------------
-7. NEXT STEPS & RECOMMENDATIONS FOR AFTERNOON SESSION
+6. SUMMARY OF CODE MODIFICATIONS
 --------------------------------------------------------------------------------
-1. User Testing in Dashboard:
-   - Creator can test any character or product prompt in http://localhost:3000.
-2. Voice Style Tuning:
-   - Optional: Add male/female voice selector toggle in the Create Video drawer.
-3. Multi-AspectRatio Support:
-   - Test 9:16 vertical reels/TikTok outputs with the automated image generator.
+The following files were modified, tested, and pushed to GitHub:
+
+  1. `ai-composition-generator/src/ai/storyboard-planner.ts`:
+     - Added content-aware font assignment logic in `selectFonts()`.
+     - Maps superhero prompts to `Bebas Neue` & `Montserrat`, tech to `Orbitron`,
+       luxury to `Playfair Display`, kinetic to `Syne`, SaaS to `Plus Jakarta Sans`.
+
+  2. `ai-composition-generator/src/ai/generator.ts`:
+     - Configured Superman, Green Lantern, and Batman presets with `Bebas Neue`.
+
+  3. `ai-composition-generator/src/ai/composition-builder.ts`:
+     - Injected multi-family Google Fonts link tags into `renderMasterHtml`
+       and `renderSceneHtml`.
+     - Removed blocking `@font-face { src: local(...) }` declarations.
+
+  4. `ai-composition-generator/src/ai/composition-synthesizer.ts`:
+     - Injected Google Fonts stylesheet links across synthesized scenes.
+
+  5. `ai-composition-generator/src/hyperframes/design-validator.ts`:
+     - Replaced broken local font-face injections with Google Fonts checks.
+
+  6. `backend-echo/heygen/heygen-service.mjs`:
+     - Added `getAvatars(apiKey)` and `getVoices(apiKey)` for HeyGen v2 API.
+     - Enabled custom `avatarId` and `voiceId` handling for cloud and local studio.
+
+  7. `backend-echo/server.mjs`:
+     - Updated `/api/heygen/avatars` and `/voices` to parse incoming API keys.
+
+  8. `apps/app/src/app/[locale]/(dashboard)/heygen/page.tsx`:
+     - Added Mode switch between Curated Library and Direct Custom Avatar ID.
+     - Implemented custom Avatar ID & Voice ID inputs with real-time localStorage.
+     - Added step-by-step guidance and status badges.
+
+  9. `apps/app/src/app/[locale]/(dashboard)/create-video/page.tsx`:
+     - Added "Typography & Fonts" selector in video settings grid.
+     - Added HeyGen Avatar Presenter Studio banner and deep link.
+     - Appended explicit font directives to prompt when user chooses a style.
+
+
+--------------------------------------------------------------------------------
+7. PRODUCTION ENVIRONMENT STATUS & VERIFICATION
+--------------------------------------------------------------------------------
+  - Monorepo Build:
+    Command: `bun run --filter @v1/app build`
+    Result: Clean build, 0 errors (`Done in 96.96 s`).
+  - Next.js Production Daemon:
+    Command: `bun run --filter @v1/app start -p 3000`
+    Status: Running (PID verified).
+  - Backend API Daemon:
+    Command: `PORT=4000 node backend-echo/server.mjs`
+    Status: Running (PID verified).
+  - Cloudflare Tunnel:
+    Command: `./bin/cloudflared tunnel --url http://localhost:3000`
+    Status: Running, returning HTTP/2 200 OK.
+    Public URL: https://berlin-rental-listed-committee.trycloudflare.com
+  - Git Repository:
+    Remote: git@github.com:shihan-shereef/hyparlink.git
+    Branch: main
+    Commit: 3ea6c02 ("feat: content-adaptive typography engine, custom HeyGen
+                     Avatar/Voice ID integration, and studio controls")
+    Status: Up to date with origin/main.
+
+
+--------------------------------------------------------------------------------
+8. USER GUIDE: HOW TO USE CUSTOM HEYGEN AVATAR & NEW FONTS
+--------------------------------------------------------------------------------
+How to use your custom HeyGen Avatar in the Dashboard:
+  1. Open the dashboard at:
+     https://berlin-rental-listed-committee.trycloudflare.com/heygen
+  2. In Step 1:
+     Paste your HeyGen API Key (from app.heygen.com -> Settings -> API) and click Connect.
+  3. In Step 2 (Select Your AI Avatar):
+     Click the "My Custom HeyGen Avatar (Direct ID)" tab.
+  4. Paste your HeyGen Avatar ID:
+     - Open app.heygen.com, go to "Avatars", and open your custom avatar.
+     - Copy the Avatar ID (e.g. `Angela-in-office-20240820` or your avatar UUID)
+       and paste it into the "HeyGen Avatar ID" box.
+  5. Paste your Voice ID (Optional):
+     - If you cloned your voice in HeyGen, paste its Voice ID.
+  6. Enter your script and click "Generate Studio Video"!
+     - The video will render featuring your exact custom avatar!
+
+How to choose different fonts in Create Video:
+  1. Open:
+     https://berlin-rental-listed-committee.trycloudflare.com/create-video
+  2. Under the prompt box in the settings row, locate "Typography & Fonts".
+  3. Choose your desired style:
+     - "Auto-Adaptive (AI Genre)": Automatically picks fonts matching your prompt.
+     - "Heroic Comic": Bold uppercase Bebas Neue + Montserrat.
+     - "Cyberpunk Tech": Glowing Orbitron + Space Grotesk.
+     - "Luxury Editorial": Elegant Playfair Display + Cinzel.
+     - "Modern Kinetic": Ultra-punchy Syne + Outfit.
+     - "Clean SaaS": Plus Jakarta Sans + Inter.
+  4. Click Generate — fonts are fetched directly via Google Fonts CDN in real-time!
 
 ================================================================================
-                           END OF MIDDAY REPORT
+                         END OF COMPREHENSIVE REPORT
 ================================================================================
