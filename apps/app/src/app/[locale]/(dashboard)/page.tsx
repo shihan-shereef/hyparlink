@@ -69,6 +69,7 @@ export default function Home() {
       prompt: prompt.trim(),
       duration: String(duration),
       aspectRatio,
+      autoStart: "1",
     });
     router.push(`/create-video?${params.toString()}`);
   };

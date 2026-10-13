@@ -779,9 +779,10 @@ export default function CreateVideoPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!prompt.trim()) {
+  const handleSubmit = async (e?: React.FormEvent, explicitPrompt?: string) => {
+    if (e) e.preventDefault();
+    const promptValue = (explicitPrompt || prompt || "").trim();
+    if (!promptValue) {
       toast.error("Please enter a video prompt");
       return;
     }
@@ -803,7 +804,7 @@ export default function CreateVideoPage() {
       }
 
       let projectName = name.trim();
-      const pLower = prompt.trim().toLowerCase();
+      const pLower = promptValue.toLowerCase();
       const isPresetTitle =
         INSPIRATIONS.some(
           (i) => i.title.toLowerCase() === projectName.toLowerCase(),
@@ -820,8 +821,7 @@ export default function CreateVideoPage() {
         projectName.toLowerCase().includes("quarterly") ||
         isPresetTitle
       ) {
-        const stripped = prompt
-          .trim()
+        const stripped = promptValue
           .replace(
             /^create\s+(?:a\s+)?(?:\d+[- ]seconds?\s+)?(?:cinematic\s+)?(?:product\s+)?(?:advertisement|video|presentation)?\s*(?:of|for|about)?\s*/i,
             "",
@@ -837,29 +837,35 @@ export default function CreateVideoPage() {
       }
 
 
-      const promptDur = extractDuration(prompt.trim());
+      const promptDur = extractDuration(promptValue);
       const effectiveDuration = promptDur || duration;
       let projectId: any = null;
       try {
-        const res = await createProject({
-          workspaceId: targetWs,
-          name: projectName,
-          prompt: prompt.trim(),
-          duration: effectiveDuration,
-          width,
-          height,
-          fps,
-          assetIds: selectedAssetIds.length > 0 ? selectedAssetIds : undefined,
-          model: selectedModel,
-        });
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Convex connection timeout")), 2000),
+        );
+        const res: any = await Promise.race([
+          createProject({
+            workspaceId: targetWs,
+            name: projectName,
+            prompt: promptValue,
+            duration: effectiveDuration,
+            width,
+            height,
+            fps,
+            assetIds: selectedAssetIds.length > 0 ? selectedAssetIds : undefined,
+            model: selectedModel,
+          }),
+          timeoutPromise,
+        ]);
         projectId = res.projectId;
       } catch (convexErr: any) {
-        console.warn("[Convex Notice] Using direct /api/generate pipeline fallback:", convexErr.message);
+        console.warn("[Convex Notice] Using direct /api/generate pipeline fallback:", convexErr?.message || convexErr);
         const directRes = await fetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            prompt: prompt.trim(),
+            prompt: promptValue,
             duration: effectiveDuration,
             width,
             height,
@@ -875,7 +881,7 @@ export default function CreateVideoPage() {
         setPolledProject({
           _id: projectId,
           name: projectName,
-          prompt: prompt.trim(),
+          prompt: promptValue,
           status: "writing_composition",
           duration: effectiveDuration,
         });
@@ -888,6 +894,19 @@ export default function CreateVideoPage() {
       setIsSubmitting(false);
     }
   };
+
+  const hasAutoStartedRef = useRef(false);
+  useEffect(() => {
+    const auto = searchParams.get("autoStart");
+    const pParam = searchParams.get("prompt");
+    if (auto === "1" && pParam && !hasAutoStartedRef.current && !activeProjectId) {
+      hasAutoStartedRef.current = true;
+      const t = setTimeout(() => {
+        handleSubmit(undefined, pParam);
+      }, 300);
+      return () => clearTimeout(t);
+    }
+  }, [searchParams, activeProjectId]);
 
 
 
