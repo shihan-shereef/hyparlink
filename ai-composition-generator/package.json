@@ -5,14 +5,17 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
+    "build": "tsc",
     "generate": "tsx src/index.ts",
     "test:prompt": "tsx src/index.ts --prompt \"Create a 5-second 1080p landscape title card for HyperFrames Studio with a dark background, blue glowing text, a smooth fade-in animation and a camera push effect.\""
   },
-  "dependencies": {},
+  "dependencies": {
+    "hyperframes": "0.8.139"
+  },
   "devDependencies": {
+    "@types/node": "^20.14.0",
     "dotenv": "^16.4.5",
     "tsx": "^4.19.1",
-    "typescript": "^5.5.4",
-    "@types/node": "^20.14.0"
+    "typescript": "^5.5.4"
   }
 }

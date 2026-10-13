@@ -2,6 +2,7 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { EnvironmentChecker } from "../system/environment-checker.js";
 
 const execAsync = promisify(exec);
 
@@ -12,6 +13,9 @@ export interface ProbeMetadata {
   codec: string;
   bitrate: number;
   fps: number;
+  hasAudio: boolean;
+  audioCodec?: string;
+  audioChannels?: number;
 }
 
 export interface RenderOptions {
@@ -38,8 +42,21 @@ export interface RenderResult {
 }
 
 export class Renderer {
-  private static readonly VENDOR_FFMPEG_DIR =
-    "/Applications/HyperFrames.app/Contents/Resources/app.asar.unpacked/vendor/ffmpeg/darwin-arm64";
+  public static async getFfprobePath(): Promise<string> {
+    const status = await EnvironmentChecker.checkFfprobe();
+    if (status.installed && status.path) {
+      return status.path;
+    }
+    return "ffprobe";
+  }
+
+  public static async getFfmpegPath(): Promise<string> {
+    const status = await EnvironmentChecker.checkFfmpeg();
+    if (status.installed && status.path) {
+      return status.path;
+    }
+    return "ffmpeg";
+  }
 
   public static async render(options: RenderOptions): Promise<RenderResult> {
     const {
@@ -54,7 +71,9 @@ export class Renderer {
     // Ensure output directory exists
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-    const envPath = `${this.VENDOR_FFMPEG_DIR}:${process.env.PATH || ""}`;
+    const ffmpegPath = await this.getFfmpegPath();
+    const ffmpegDir = path.dirname(ffmpegPath);
+    const envPath = `${ffmpegDir}:${process.env.PATH || ""}`;
     const command = `npx --yes hyperframes@0.8.139 render --resolution ${resolution} --format ${format} -o "${outputPath}"`;
 
     console.log(`[Renderer] Render started...`);
@@ -157,28 +176,35 @@ export class Renderer {
    * Programmatic inspection of rendered MP4 via ffprobe.
    */
   public static async probeVideo(videoPath: string): Promise<ProbeMetadata> {
-    const ffprobePath = path.join(this.VENDOR_FFMPEG_DIR, "ffprobe");
-    const cmd = `"${ffprobePath}" -v error -show_entries format=duration,size,bit_rate:stream=codec_name,width,height,r_frame_rate -of json "${videoPath}"`;
+    const ffprobePath = await this.getFfprobePath();
+    const cmd = `"${ffprobePath}" -v error -show_entries format=duration,size,bit_rate:stream=codec_name,codec_type,width,height,r_frame_rate,channels -of json "${videoPath}"`;
 
     const { stdout } = await execAsync(cmd);
     const parsed = JSON.parse(stdout);
 
     const format = parsed.format || {};
-    const stream = parsed.streams?.[0] || {};
+    const videoStream =
+      parsed.streams?.find((s: any) => s.codec_type === "video") ||
+      parsed.streams?.[0] ||
+      {};
+    const audioStream = parsed.streams?.find((s: any) => s.codec_type === "audio");
 
     let fps = 30;
-    if (stream.r_frame_rate) {
-      const [num, den] = stream.r_frame_rate.split("/").map(Number);
+    if (videoStream.r_frame_rate) {
+      const [num, den] = videoStream.r_frame_rate.split("/").map(Number);
       if (den && num) fps = Math.round(num / den);
     }
 
     return {
       duration: parseFloat(format.duration || "0"),
-      width: parseInt(stream.width || "1920", 10),
-      height: parseInt(stream.height || "1080", 10),
-      codec: stream.codec_name || "h264",
+      width: parseInt(videoStream.width || "1920", 10),
+      height: parseInt(videoStream.height || "1080", 10),
+      codec: videoStream.codec_name || "h264",
       bitrate: parseInt(format.bit_rate || "0", 10),
       fps,
+      hasAudio: !!audioStream,
+      audioCodec: audioStream?.codec_name,
+      audioChannels: audioStream ? parseInt(audioStream.channels || "2", 10) : 0,
     };
   }
 
@@ -190,7 +216,7 @@ export class Renderer {
     projectDir: string,
     totalDuration: number,
   ): Promise<string[]> {
-    const ffmpegPath = path.join(this.VENDOR_FFMPEG_DIR, "ffmpeg");
+    const ffmpegPath = await this.getFfmpegPath();
     const inspectDir = path.join(projectDir, "inspect");
     await fs.mkdir(inspectDir, { recursive: true });
 

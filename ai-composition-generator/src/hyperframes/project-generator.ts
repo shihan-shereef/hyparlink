@@ -5,6 +5,7 @@ import { GeneratedProjectPayload } from "../ai/generator.js";
 export interface ProjectWriterOptions {
   baseDir: string;
   jobId: string;
+  assets?: Array<{ name: string; localPath?: string }>;
 }
 
 export class ProjectGenerator {
@@ -18,6 +19,25 @@ export class ProjectGenerator {
     await fs.mkdir(projectDir, { recursive: true });
     await fs.mkdir(path.join(projectDir, "compositions"), { recursive: true });
     await fs.mkdir(path.join(projectDir, "assets"), { recursive: true });
+
+    // Copy any provided assets into projectDir/assets
+    const assetsToCopy: Array<{ name?: string; originalFilename?: string; localPath?: string }> = [
+      ...(options.assets || []),
+      ...(payload.analyzedAssets || []),
+    ];
+    if (assetsToCopy.length > 0) {
+      const assetsDir = path.join(projectDir, "assets");
+      for (const asset of assetsToCopy) {
+        const targetFilename = asset.name || asset.originalFilename;
+        if (targetFilename && asset.localPath) {
+          try {
+            await fs.copyFile(asset.localPath, path.join(assetsDir, targetFilename));
+          } catch (err) {
+            // Ignore if already copied or inaccessible
+          }
+        }
+      }
+    }
 
     // 1. Write required package.json as specified
     const packageJson = {

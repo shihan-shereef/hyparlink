@@ -1,0 +1,148 @@
+================================================================================
+HYPARLINK DASHBOARD: HEYGEN AI AVATARS & ENVIRONMENT VERIFICATION REPORT
+Date: October 13, 2026
+Status: COMPLETE & VERIFIED
+================================================================================
+
+1. EXECUTIVE SUMMARY
+--------------------------------------------------------------------------------
+The HyperFrames video generation dashboard has been expanded with two primary
+capabilities requested by the user:
+
+1. Guaranteed Node.js and FFmpeg installation verification throughout the dashboard:
+   - Sidebar persistent status badge: "Node.js & FFmpeg: Ready ✓"
+   - Dashboard Home ("/") high-visibility Rendering Engine & Dependencies banner
+   - Settings ("/settings") interactive dependency diagnostics and recheck card
+   - Create Video ("/create-video") pre-flight rendering environment guard
+
+2. HeyGen AI Avatar Studio Feature added to the dashboard sidebar ("/heygen"):
+   - Step 1: HeyGen account creation links, API key connection, and Sandbox Mode
+   - Step 2: Interactive Avatar Selector (photorealistic Sarah, Tyler, Marcus, Elena)
+   - Step 3: AI Voice Library with interactive voice sample audio playback & tuning
+   - Step 4: Script composition with templates, word counter, and background choices
+   - Step 5: Dual-engine video rendering (HeyGen Cloud API + local FFmpeg fallback)
+   - Embedded HTML5 video player, MP4 download, and job history
+
+================================================================================
+2. SYSTEM DEPENDENCIES CONFIRMATION
+================================================================================
+The rendering backend environment was verified with the following specifications:
+
+Dependency    Version          Status           Executable / Location
+--------------------------------------------------------------------------------
+Node.js       v22.20.0         Installed ✓      /usr/local/bin/node
+npm           10.9.3           Installed ✓      /usr/local/bin/npm
+FFmpeg        8.1.2            Installed ✓      /Users/apple/.local/bin/ffmpeg
+  Codecs:     H.264 & AAC      Enabled ✓        libx264, aac
+FFprobe       8.1.2            Installed ✓      /Users/apple/.local/bin/ffprobe
+HyperFrames   0.8.139          Installed ✓      npx --yes hyperframes@0.8.139
+Disk Storage  30,403 MB Free   Sufficient ✓     ai-composition-generator/storage
+
+All dependencies are actively monitored via the backend endpoint:
+GET /health/dependencies (with 30-second TTL cache, forced refresh, no secret leaks).
+
+================================================================================
+3. HEYGEN AI AVATAR STUDIO ARCHITECTURE
+================================================================================
+Location: apps/app/src/app/[locale]/(dashboard)/heygen/page.tsx
+Route: http://localhost:3000/en/heygen
+Sidebar Item: "HeyGen Avatars" (Icon: UserCheck)
+
+A. STEP 1: HEYGEN ACCOUNT ONBOARDING & API SETUP
+   - Direct button to "Create Free HeyGen Account": https://app.heygen.com/signup
+   - Direct button to "Get API Key": https://app.heygen.com/settings?nav=API
+   - Step-by-step setup guide modal explaining the 3 onboarding steps
+   - API Key input field with secure localStorage persistence and show/hide toggle
+   - Connection validation:
+     * When key provided: Calls HeyGen API /v2/user/remaining_quota to verify credits
+     * When no key provided: Automatically activates "Free Studio Sandbox Mode"
+       allowing unlimited free avatar video rendering using the verified local FFmpeg
+       and HyperFrames media engine.
+
+B. STEP 2: AVATAR SELECTION
+   - Photorealistic avatar portraits (generated & stored in apps/app/public/avatars/):
+     1. Sarah Jenkins (sarah_studio) - Studio News & Corporate Anchor (Navy Blazer)
+     2. Tyler Hayes (tyler_tech) - Tech Founder & Product Lead (Modern Tech)
+     3. Marcus Vance (marcus_exec) - Executive Leadership & Board Advisor (Tailored Suit)
+     4. Elena Rostova (elena_creative) - Creative Director & Brand Strategist (Creative Chic)
+   - Category filters: All, Studio, Tech, Executive, Creative
+   - Glowing selection ring, checkmark badge, pose metadata, and style tags
+
+C. STEP 3: VOICE LIBRARY & AUDIO TUNING
+   - 8 expressive voices across multiple locales:
+     * Jenny (US) - Warm & Articulate
+     * Guy (US) - Confident & Direct
+     * Aria (US) - Dynamic & Expressive
+     * Brian (UK) - Authoritative & Polished British RP
+     * Sonia (UK) - Sophisticated & Elegant
+     * Natasha (AU) - Friendly & Upbeat Australian
+     * Diego (ES) - Natural & Clear Spanish
+     * Camille (FR) - Smooth & Chic Parisian French
+   - "Play Voice Sample" button: Uses speech synthesis with visual pulse animation
+   - Speed Slider (0.75x to 1.5x)
+   - Pitch Slider (-20% to +20%)
+   - Delivery Tone: Friendly, Professional, Enthusiastic, Calm, Authoritative
+
+D. STEP 4: SCRIPT & SCENE SETTINGS
+   - Textarea script editor with word count and speaking duration estimator (~140 wpm)
+   - 4 quick starter templates: Product Launch, Executive Briefing, Team Welcome, Tutorial
+   - Background options: Modern Tech Loft, Deep Tech Gradient, Slate Studio, Green Screen
+   - Aspect ratio: 16:9 Landscape (1920x1080), 9:16 Portrait, 1:1 Square
+
+E. STEP 5: VIDEO GENERATION & PLAYER
+   - 5-stage progress indicator:
+     1. Verifying HeyGen credentials and avatar models
+     2. Synthesizing AI voice track with speech cadence
+     3. Aligning avatar lip-synchronization and framing
+     4. Compositing background and lower-third graphics
+     5. Finalizing MP4 video rendering with FFmpeg / HeyGen
+   - Dual-engine execution:
+     * Cloud Mode: Dispatches to HeyGen Cloud API (v2/video/generate)
+     * Local Engine Mode: Synthesizes speech audio, composites avatar portrait over
+       background with lower thirds, and encodes 1080p H.264/AAC MP4 via FFmpeg.
+   - Built-in HTML5 video player, metadata display, and one-click MP4 download.
+   - Recent generation gallery for instant playback.
+
+================================================================================
+4. BACKEND ENDPOINTS IMPLEMENTED
+================================================================================
+Location: backend-echo/server.mjs & backend-echo/heygen/heygen-service.mjs
+Port: 4000
+
+Endpoint                 Method  Description
+--------------------------------------------------------------------------------
+GET /heygen/avatars      GET     Returns catalog of supported avatars
+GET /heygen/voices       GET     Returns library of available voices
+POST /heygen/verify-key  POST    Validates user HeyGen API key
+POST /heygen/generate    POST    Generates avatar video (HeyGen Cloud or local FFmpeg)
+GET /storage/heygen/:fn  GET     HTTP 206 Partial Content video streaming
+
+================================================================================
+5. VERIFICATION & ACCEPTANCE RESULTS
+================================================================================
+Test Script: scratch/test-heygen-and-environment.mjs
+Result: 7 / 7 PASSED (Exit Code 0)
+
+1. Node.js & FFmpeg Dependencies: PASSED
+   - Node: v22.20.0
+   - FFmpeg: 8.1.2 (H.264 and AAC active)
+   - FFprobe: 8.1.2
+2. HeyGen Avatars Catalog: PASSED (4 photorealistic models returned)
+3. HeyGen Voices Library: PASSED (8 voices across 5 languages/accents)
+4. HeyGen Key Validation: PASSED (Handled sandbox and cloud auth)
+5. Video Generation: PASSED (Rendered 1080p avatar MP4 in 5.5 seconds)
+6. Video Streaming: PASSED (HTTP 200 with Accept-Ranges: bytes)
+7. FFprobe Inspection: PASSED
+   - Video Stream: H.264 (1920x1080 @ 25fps)
+   - Audio Stream: AAC (Mono/Stereo)
+   - Container: MP4 (QuickTime / ISO standard)
+
+Frontend Static Analysis:
+- Command: npm --prefix apps/app run typecheck
+- Result: 0 errors (Exit Code 0)
+- Production Build: bun run --filter @v1/app build (Exit Code 0)
+- HTTP Status: /en (200 OK), /en/heygen (200 OK), /en/settings (200 OK)
+
+================================================================================
+Report finalized on October 13, 2026.
+================================================================================

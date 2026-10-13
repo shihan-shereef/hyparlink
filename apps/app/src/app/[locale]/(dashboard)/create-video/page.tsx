@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useWorkspace } from "@/lib/useWorkspace";
 import { api } from "@v1/backend/convex/_generated/api";
@@ -35,9 +35,15 @@ import {
   ArrowUp,
   Sliders,
   Eye,
+  Search,
+  Cpu,
+  Activity,
+  CheckCheck,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { DependencyStatusCard } from "@/components/dependency-status-card";
 
 interface InspirationItem {
   id: string;
@@ -175,6 +181,67 @@ const CATEGORIES = [
   "Shaders",
 ] as const;
 
+const PIPELINE_STAGES = [
+  {
+    id: "writing_composition",
+    label: "Writing composition",
+    desc: "Understanding prompt intent, creative brief & visual layouts",
+  },
+  {
+    id: "timing_clips",
+    label: "Timing clips",
+    desc: "Planning frame-accurate timeline & scene boundaries",
+  },
+  {
+    id: "animating_elements",
+    label: "Animating elements",
+    desc: "Synthesizing GPU transforms & GSAP motion rigs",
+  },
+  {
+    id: "checking_composition",
+    label: "Checking its own work",
+    desc: "Auditing compliance, HyperFrames linting & self-repair",
+  },
+  {
+    id: "rendering_video",
+    label: "Rendering the video",
+    desc: "Headless 1080p rendering & FFprobe stream verification",
+  },
+];
+
+const getStageIndex = (statusStr: string): number => {
+  const s = (statusStr || "").toLowerCase();
+  switch (s) {
+    case "writing_composition":
+    case "understanding_prompt":
+    case "preparing_brief":
+    case "analyzing_assets":
+      return 0;
+    case "timing_clips":
+    case "planning_scenes":
+      return 1;
+    case "animating_elements":
+    case "generating":
+    case "generating_composition":
+      return 2;
+    case "checking_composition":
+    case "checking_own_work":
+    case "validating":
+    case "validating_project":
+    case "correcting_errors":
+      return 3;
+    case "rendering":
+    case "rendering_video":
+    case "uploading":
+    case "verifying_output":
+      return 4;
+    case "completed":
+      return 5;
+    default:
+      return 0;
+  }
+};
+
 export default function CreateVideoPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -192,10 +259,13 @@ export default function CreateVideoPage() {
 
   const createProject = useMutation(api.projects.create);
   const createAsset = useMutation(api.assets.create);
+  const removeAsset = useMutation(api.assets.remove);
 
   const [prompt, setPrompt] = useState("");
   const [name, setName] = useState("");
   const [duration, setDuration] = useState<number>(5);
+  const [isCustomDuration, setIsCustomDuration] = useState<boolean>(false);
+  const [promptDetectedDuration, setPromptDetectedDuration] = useState<number | null>(null);
   const [resolution, setResolution] = useState<string>("1080p");
   const [aspectRatio, setAspectRatio] = useState<string>("16:9");
   const [fps, setFps] = useState<number>(30);
@@ -204,15 +274,50 @@ export default function CreateVideoPage() {
     null,
   );
   const [selectedAssetIds, setSelectedAssetIds] = useState<Id<"assets">[]>([]);
-  const [selectedInspirationId, setSelectedInspirationId] = useState<string | null>(
-    null,
-  );
+  const [selectedInspirationIds, setSelectedInspirationIds] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [assetFilter, setAssetFilter] = useState<"all" | "video" | "image">(
     "all",
   );
   const [showStepByStep, setShowStepByStep] = useState(false);
+  const [showEnvCard, setShowEnvCard] = useState(false);
+
+  // Helper: Extract authoritative duration from prompt
+  const extractDuration = (text: string): number | null => {
+    if (!text) return null;
+    const p = text.toLowerCase();
+    const secMatch = p.match(/\b(\d{1,3})\s*(?:-|–)?\s*(?:seconds?|secs?|sec|s)\b/i);
+    if (secMatch && secMatch[1]) {
+      const s = parseInt(secMatch[1], 10);
+      if (s >= 3 && s <= 300) return s;
+    }
+    const minMatch = p.match(/\b(\d{1,2})\s*(?:-|–)?\s*(?:minutes?|mins?|min)\b/i);
+    if (minMatch && minMatch[1]) {
+      const m = parseInt(minMatch[1], 10);
+      if (m >= 1 && m <= 10) return m * 60;
+    }
+    const colonMatch = p.match(/\b(\d{1,2}):(\d{2})\b/);
+    if (colonMatch && colonMatch[1] && colonMatch[2]) {
+      const mins = parseInt(colonMatch[1], 10);
+      const secs = parseInt(colonMatch[2], 10);
+      const total = mins * 60 + secs;
+      if (total >= 3 && total <= 300) return total;
+    }
+    return null;
+  };
+
+  // Sync duration whenever prompt mentions a time (authoritative priority over UI setting)
+  useEffect(() => {
+    const detected = extractDuration(prompt);
+    if (detected) {
+      setPromptDetectedDuration(detected);
+      setDuration(detected);
+      setIsCustomDuration(![5, 10, 15, 20, 30, 45, 60].includes(detected));
+    } else {
+      setPromptDetectedDuration(null);
+    }
+  }, [prompt]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -258,9 +363,97 @@ export default function CreateVideoPage() {
     }
   };
 
+  const [models, setModels] = useState<Array<{
+    id: string;
+    name: string;
+    owned_by: string;
+    created?: number;
+    isVerifiedFree?: boolean;
+  }>>([]);
+  const [selectedModel, setSelectedModel] = useState<string>("gemini-3-flash");
+  const [modelSearch, setModelSearch] = useState<string>("");
+  const [isLoadingModels, setIsLoadingModels] = useState<boolean>(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [testResult, setTestResult] = useState<{
+    latencyMs?: number;
+    message?: string;
+    error?: string;
+    errorCategory?: string;
+  } | null>(null);
+
+  const fetchModels = async () => {
+    setIsLoadingModels(true);
+    setModelError(null);
+    try {
+      const res = await fetch("/api/ai/models");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.models)) {
+          setModels(data.models);
+          if (data.defaultModel && (!selectedModel || selectedModel === "default-model")) {
+            setSelectedModel(data.defaultModel);
+          }
+        } else {
+          setModelError(data.error || "Failed to load models");
+        }
+      } else {
+        setModelError(`HTTP ${res.status}: Failed to reach models endpoint`);
+      }
+    } catch (err: any) {
+      setModelError(err.message || "Network error loading models");
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    if (!selectedModel) return;
+    setTestStatus("testing");
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/ai/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: selectedModel }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTestStatus("success");
+        setTestResult({
+          latencyMs: data.latencyMs,
+          message: data.message || `Connected (${data.latencyMs}ms)`,
+        });
+        toast.success(`Connected to ${selectedModel} (${data.latencyMs}ms)`);
+      } else {
+        setTestStatus("error");
+        setTestResult({
+          latencyMs: data.latencyMs,
+          error: data.error || "Connection test failed",
+          errorCategory: data.errorCategory || "ERROR",
+        });
+        toast.error(data.error || `Connection test failed for ${selectedModel}`);
+      }
+    } catch (err: any) {
+      setTestStatus("error");
+      setTestResult({
+        error: err.message || "Failed to test connection",
+        errorCategory: "NETWORK_ERROR",
+      });
+      toast.error(err.message || "Failed to test connection");
+    }
+  };
+
   useEffect(() => {
     fetchAiStatus();
+    fetchModels();
   }, []);
+
+  const filteredModels = models.filter((m) => {
+    if (!modelSearch.trim()) return true;
+    const q = modelSearch.toLowerCase();
+    return (m.id && m.id.toLowerCase().includes(q)) || (m.name && m.name.toLowerCase().includes(q));
+  });
 
   // Query workspace assets
   const workspaceAssets = useQuery(
@@ -279,10 +472,81 @@ export default function CreateVideoPage() {
   }, [searchParams]);
 
   // Reactive subscription to active project status
-  const activeProject = useQuery(
+  const liveActiveProject = useQuery(
     api.projects.get,
     activeProjectId ? { projectId: activeProjectId } : "skip",
   );
+
+  const [polledProject, setPolledProject] = useState<any>(null);
+
+  // Resilient fallback polling to guarantee the 5 stages advance smoothly even if WebSockets experience drops
+  useEffect(() => {
+    if (!activeProjectId) {
+      setPolledProject(null);
+      return;
+    }
+
+    let isMounted = true;
+    const pollStatus = async () => {
+      try {
+        const convexUrl =
+          (typeof window !== "undefined" &&
+            document
+              .querySelector('meta[name="convex-url"]')
+              ?.getAttribute("content")) ||
+          process.env.NEXT_PUBLIC_CONVEX_URL ||
+          "http://127.0.0.1:3210";
+
+        const res = await fetch(`${convexUrl}/api/query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            path: "projects:get",
+            args: { projectId: activeProjectId },
+            format: "json",
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data?.value) {
+            setPolledProject(data.value);
+            if (
+              data.value.status === "completed" ||
+              data.value.status === "failed"
+            ) {
+              setIsSubmitting(false);
+            }
+          }
+        }
+      } catch (err) {
+        // Silently retry on next interval
+      }
+    };
+
+    pollStatus();
+    const interval = setInterval(pollStatus, 1500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [activeProjectId]);
+
+  // Merge live query and polled state so the UI continuously advances through all 5 stages
+  const activeProject = useMemo(() => {
+    if (!liveActiveProject && !polledProject) return null;
+    if (!liveActiveProject) return polledProject;
+    if (!polledProject) return liveActiveProject;
+
+    const liveStage = getStageIndex(liveActiveProject.status || "");
+    const polledStage = getStageIndex(polledProject.status || "");
+
+    if (polledStage >= liveStage) {
+      return { ...liveActiveProject, ...polledProject };
+    }
+    return { ...polledProject, ...liveActiveProject };
+  }, [liveActiveProject, polledProject]);
 
   const toggleAsset = (assetId: Id<"assets">) => {
     setSelectedAssetIds((prev) =>
@@ -293,110 +557,186 @@ export default function CreateVideoPage() {
   };
 
   const handleSelectInspiration = (item: InspirationItem) => {
-    setSelectedInspirationId(item.id);
-    setPrompt(item.prompt);
-    setName(item.title);
-    setDuration(item.duration);
-    setAspectRatio(item.aspectRatio);
-    toast.success(`Loaded inspiration: ${item.title}`);
+    setSelectedInspirationIds((prev) => {
+      const isAlready = prev.includes(item.id);
+      const next = isAlready
+        ? prev.filter((id) => id !== item.id)
+        : [...prev, item.id];
+
+      const selectedItems = INSPIRATIONS.filter((i) => next.includes(i.id));
+
+      if (selectedItems.length === 0) {
+        setPrompt("");
+        setName("");
+      } else if (selectedItems.length === 1 && selectedItems[0]) {
+        const item = selectedItems[0];
+        setPrompt(item.prompt);
+        setName(item.title);
+        setDuration(item.duration);
+        setAspectRatio(item.aspectRatio);
+        toast.success(`Selected: ${item.title}`);
+      } else {
+        const combinedTitle =
+          selectedItems.map((i) => i.title.split(" ")[0]).join(" + ") +
+          " Hybrid";
+        const combinedPrompt =
+          `Create an advanced multi-scene video composition combining the following concepts and styles:\n\n` +
+          selectedItems
+            .map((i, idx) => `Part ${idx + 1} (${i.title}):\n${i.prompt}`)
+            .join("\n\n") +
+          `\n\nEnsure a fluid transition between all scenes with unified modern typography, consistent ambient lighting, and cinematic motion graphics.`;
+        setPrompt(combinedPrompt);
+        setName(combinedTitle);
+        const combinedDuration = Math.min(
+          60,
+          Math.max(30, selectedItems.length * 10),
+        );
+        setDuration(combinedDuration);
+        toast.success(
+          `Combined ${selectedItems.length} inspirations into your prompt!`,
+        );
+      }
+
+      return next;
+    });
   };
 
   const handleClearInspiration = () => {
-    setSelectedInspirationId(null);
+    setSelectedInspirationIds([]);
+    setPrompt("");
+    setName("");
+    toast("Inspirations cleared");
   };
 
-  // Direct Video & Media Upload Handler
+  // Direct Video & Media Upload Handler (Supports multiple files simultaneously)
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     const targetWs = current || activeWorkspaceId;
 
-    let assetType = "image";
-    if (file.type.startsWith("video/") || /\.(mp4|webm|mov|m4v)$/i.test(file.name)) {
-      assetType = "video";
-    } else if (file.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac)$/i.test(file.name)) {
-      assetType = "audio";
-    }
-
-    const maxMb = assetType === "video" ? 500 : 25;
-    if (file.size > maxMb * 1024 * 1024) {
-      toast.error(`File exceeds ${maxMb}MB limit for ${assetType}s`);
-      return;
-    }
-
     setIsUploadingMedia(true);
-    const toastId = toast.loading(`Uploading reference ${assetType}: ${file.name}...`);
+    const toastId = toast.loading(
+      files.length === 1
+        ? `Uploading reference media: ${files[0]?.name || "file"}...`
+        : `Uploading ${files.length} reference assets...`,
+    );
 
     try {
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const res = reader.result as string;
-          const base64 = res.split(",")[1];
-          resolve(base64 || "");
-        };
-        reader.onerror = reject;
-      });
-      reader.readAsDataURL(file);
-      const data = await base64Promise;
+      const uploadedIds: Id<"assets">[] = [];
 
-      const backendBase = "";
-      const uploadRes = await fetch(`${backendBase}/assets/upload`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          workspaceId: current,
+      for (const file of files) {
+        let assetType = "image";
+        if (
+          file.type.startsWith("video/") ||
+          /\.(mp4|webm|mov|m4v)$/i.test(file.name)
+        ) {
+          assetType = "video";
+        } else if (
+          file.type.startsWith("audio/") ||
+          /\.(mp3|wav|m4a|aac)$/i.test(file.name)
+        ) {
+          assetType = "audio";
+        }
+
+        const maxMb = assetType === "video" ? 500 : 25;
+        if (file.size > maxMb * 1024 * 1024) {
+          toast.error(`File ${file.name} exceeds ${maxMb}MB limit for ${assetType}s`);
+          continue;
+        }
+
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve, reject) => {
+          reader.onload = () => {
+            const res = reader.result as string;
+            const base64 = res.split(",")[1];
+            resolve(base64 || "");
+          };
+          reader.onerror = reject;
+        });
+        reader.readAsDataURL(file);
+        const data = await base64Promise;
+
+        const uploadRes = await fetch(`/assets/upload`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            workspaceId: current,
+            name: file.name,
+            originalFilename: file.name,
+            type: assetType,
+            mimeType:
+              file.type ||
+              (assetType === "video" ? "video/mp4" : "image/jpeg"),
+            data,
+          }),
+        });
+
+        if (!uploadRes.ok) {
+          const errJson = await uploadRes.json().catch(() => ({}));
+          throw new Error(
+            errJson.error || `Upload failed with status ${uploadRes.status}`,
+          );
+        }
+
+        const uploadData = await uploadRes.json();
+
+        const newAssetId = await createAsset({
+          workspaceId: targetWs,
           name: file.name,
           originalFilename: file.name,
           type: assetType,
-          mimeType: file.type || (assetType === "video" ? "video/mp4" : "image/jpeg"),
-          data,
-        }),
-      });
-
-      if (!uploadRes.ok) {
-        const errJson = await uploadRes.json().catch(() => ({}));
-        throw new Error(errJson.error || `Upload failed with status ${uploadRes.status}`);
-      }
-
-      const uploadData = await uploadRes.json();
-
-      const newAssetId = await createAsset({
-        workspaceId: targetWs,
-        name: file.name,
-        originalFilename: file.name,
-        type: assetType,
-        mimeType: uploadData.mimeType,
-        size: uploadData.size,
-        storageProvider: uploadData.storageProvider || "local",
-        storageKey: uploadData.storageKey,
-        storageUrl: uploadData.storageUrl,
-        cdnUrl: uploadData.cdnUrl,
-      });
-
-      // Automatically select the new asset
-      if (newAssetId) {
-        setSelectedAssetIds((prev) => [...prev, newAssetId as Id<"assets">]);
-      }
-
-      // Auto-append reference text to prompt if prompt is empty or asks for it
-      if (!prompt.trim()) {
-        setPrompt(
-          `Create a professional video composition inspired by the attached ${assetType} '${file.name}', recreating its visual rhythm, modern typography, and smooth camera motion.`,
-        );
-      } else if (!prompt.includes(file.name)) {
-        toast("Attached reference media to video plan", {
-          description: `Asset ${file.name} will be utilized in composition scenes.`,
+          mimeType: uploadData.mimeType,
+          size: uploadData.size,
+          storageProvider: uploadData.storageProvider || "local",
+          storageKey: uploadData.storageKey,
+          storageUrl: uploadData.storageUrl,
+          cdnUrl: uploadData.cdnUrl,
         });
+
+        if (newAssetId) {
+          uploadedIds.push(newAssetId as Id<"assets">);
+        }
       }
 
-      toast.success(`${file.name} uploaded and attached!`, { id: toastId });
+      if (uploadedIds.length > 0) {
+        setSelectedAssetIds((prev) => [...prev, ...uploadedIds]);
+        toast.success(
+          files.length === 1
+            ? `${files[0]?.name || "Asset"} uploaded & attached!`
+            : `${uploadedIds.length} assets uploaded & attached to video!`,
+          { id: toastId },
+        );
+      }
     } catch (err: any) {
       console.error("Media upload error:", err);
-      toast.error(err.message || "Failed to upload reference media", { id: toastId });
+      toast.error(err.message || "Failed to upload reference media", {
+        id: toastId,
+      });
     } finally {
       setIsUploadingMedia(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Delete Workspace Asset Handler
+  const handleDeleteAsset = async (
+    e: React.MouseEvent,
+    assetId: Id<"assets">,
+    name: string,
+    storageKey?: string,
+  ) => {
+    e.stopPropagation();
+    if (!confirm(`Are you sure you want to delete ${name}?`)) return;
+    try {
+      await removeAsset({ assetId });
+      if (storageKey) {
+        fetch(`/storage/${storageKey}`, { method: "DELETE" }).catch(() => {});
+        fetch(`/backend-api/assets/${storageKey}`, { method: "DELETE" }).catch(() => {});
+      }
+      setSelectedAssetIds((prev) => prev.filter((id) => id !== assetId));
+      toast.success(`Deleted ${name}`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete asset");
     }
   };
 
@@ -433,7 +773,7 @@ export default function CreateVideoPage() {
         projectName.toLowerCase() === "cinematic product video";
 
       if (pLower.includes("ollima")) {
-        projectName = "Ollama Commercial";
+        projectName = "Ollima Commercial";
       } else if (pLower.includes("networks home")) {
         projectName = "Networks Home";
       } else if (
@@ -458,15 +798,19 @@ export default function CreateVideoPage() {
       }
 
 
+      const promptDur = extractDuration(prompt.trim());
+      const effectiveDuration = promptDur || duration;
+
       const res = await createProject({
         workspaceId: targetWs,
         name: projectName,
         prompt: prompt.trim(),
-        duration,
+        duration: effectiveDuration,
         width,
         height,
         fps,
         assetIds: selectedAssetIds.length > 0 ? selectedAssetIds : undefined,
+        model: selectedModel,
       });
 
       setActiveProjectId(res.projectId);
@@ -477,53 +821,37 @@ export default function CreateVideoPage() {
     }
   };
 
-  const getStepStatus = (step: number) => {
-    if (!activeProject) return "pending";
-    const status = activeProject.status.toLowerCase();
-    if (status === "failed") return "failed";
-    if (status === "completed") return "done";
 
-    if (status === "uploading") {
-      if (step <= 5) return "done";
-      if (step === 6) return "active";
-      return "pending";
+
+  const getStepStatus = (
+    stepIndex: number,
+  ): "waiting" | "in_progress" | "completed" | "failed" => {
+    if (!activeProject) return "waiting";
+    const status = activeProject.status.toLowerCase();
+    const currentIdx = getStageIndex(status);
+
+    if (status === "failed") {
+      if (stepIndex === currentIdx) return "failed";
+      if (stepIndex < currentIdx) return "completed";
+      return "waiting";
     }
-    if (status === "rendering") {
-      if (step <= 4) return "done";
-      if (step === 5) return "active";
-      return "pending";
-    }
-    if (status === "validating") {
-      if (step <= 3) return "done";
-      if (step === 4) return "active";
-      return "pending";
-    }
-    if (status === "generating") {
-      if (step <= 1) return "done";
-      if (step === 2 || step === 3) return "active";
-      return "pending";
-    }
-    return "pending";
+
+    if (status === "completed") return "completed";
+
+    if (stepIndex < currentIdx) return "completed";
+    if (stepIndex === currentIdx) return "in_progress";
+    return "waiting";
   };
 
   const calculateProgressPercent = () => {
-    if (!activeProject) return 10;
-    switch (activeProject.status.toLowerCase()) {
-      case "generating":
-        return 25;
-      case "validating":
-        return 50;
-      case "rendering":
-        return 75;
-      case "uploading":
-        return 90;
-      case "completed":
-        return 100;
-      case "failed":
-        return 100;
-      default:
-        return 15;
-    }
+    if (!activeProject) return 5;
+    const status = activeProject.status.toLowerCase();
+    if (status === "completed") return 100;
+    if (status === "failed") return 100;
+
+    const idx = getStageIndex(status);
+    const progressMap = [20, 40, 60, 80, 92, 100];
+    return progressMap[idx] || 15;
   };
 
   const filteredInspirations =
@@ -531,8 +859,8 @@ export default function CreateVideoPage() {
       ? INSPIRATIONS
       : INSPIRATIONS.filter((item) => item.category === activeCategory);
 
-  const selectedInspiration = INSPIRATIONS.find(
-    (i) => i.id === selectedInspirationId,
+  const selectedInspirations = INSPIRATIONS.filter((i) =>
+    selectedInspirationIds.includes(i.id),
   );
 
   const attachedAssets = (workspaceAssets || []).filter((a: any) =>
@@ -569,12 +897,32 @@ export default function CreateVideoPage() {
               </svg>
               <span>Talk to the team</span>
             </a>
-            <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-400">
+            <button
+              type="button"
+              onClick={() => setShowEnvCard(!showEnvCard)}
+              className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs text-emerald-400 hover:bg-emerald-500/20 transition cursor-pointer"
+              title="Click to view server rendering dependencies & system health"
+            >
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>HyperFrames v0.8.139</span>
-            </div>
+              <span>Rendering Environment Ready ✓</span>
+            </button>
           </div>
         </div>
+
+        {/* SERVER RENDERING DEPENDENCY STATUS PANEL */}
+        {showEnvCard && (
+          <div className="relative animate-in fade-in slide-in-from-top-2 duration-200">
+            <button
+              type="button"
+              onClick={() => setShowEnvCard(false)}
+              className="absolute top-6 right-6 z-10 text-neutral-400 hover:text-white transition"
+              title="Close panel"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <DependencyStatusCard />
+          </div>
+        )}
 
         {/* ACTIVE JOB PROGRESS OVERLAY / CARD */}
         {activeProjectId && activeProject && (
@@ -599,9 +947,9 @@ export default function CreateVideoPage() {
                         : "Generating HyperFrames Composition..."}
                   </h3>
                   <p className="text-xs text-neutral-400">
-                    Status:{" "}
+                    Stage:{" "}
                     <span className="font-mono uppercase font-bold text-neutral-200">
-                      {activeProject.status}
+                      {activeProject.status.replace(/_/g, " ")}
                     </span>
                   </p>
                 </div>
@@ -626,71 +974,80 @@ export default function CreateVideoPage() {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 py-2 text-xs">
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                <span className="text-neutral-200">Prompt & inspirations parsed</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                {getStepStatus(2) === "done" ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                ) : getStepStatus(2) === "active" ? (
-                  <RefreshCw className="h-4 w-4 animate-spin text-blue-400" />
-                ) : (
-                  <Clock className="h-4 w-4 text-neutral-500" />
-                )}
-                <span className={getStepStatus(2) === "pending" ? "text-neutral-500" : "text-neutral-200"}>
-                  Storyboard & scene timing synthesized
-                </span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                {getStepStatus(3) === "done" ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                ) : getStepStatus(3) === "active" ? (
-                  <RefreshCw className="h-4 w-4 animate-spin text-blue-400" />
-                ) : (
-                  <Clock className="h-4 w-4 text-neutral-500" />
-                )}
-                <span className={getStepStatus(3) === "pending" ? "text-neutral-500" : "text-neutral-200"}>
-                  HyperFrames 0.8.139 project files written
-                </span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                {getStepStatus(4) === "done" ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                ) : getStepStatus(4) === "active" ? (
-                  <RefreshCw className="h-4 w-4 animate-spin text-blue-400" />
-                ) : (
-                  <Clock className="h-4 w-4 text-neutral-500" />
-                )}
-                <span className={getStepStatus(4) === "pending" ? "text-neutral-500" : "text-neutral-200"}>
-                  Timeline & asset validator verified
-                </span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                {getStepStatus(5) === "done" ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                ) : getStepStatus(5) === "active" ? (
-                  <RefreshCw className="h-4 w-4 animate-spin text-blue-400" />
-                ) : (
-                  <Clock className="h-4 w-4 text-neutral-500" />
-                )}
-                <span className={getStepStatus(5) === "pending" ? "text-neutral-500" : "text-neutral-200"}>
-                  Metal GPU & FFmpeg rendering video
-                </span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                {getStepStatus(6) === "done" ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                ) : getStepStatus(6) === "active" ? (
-                  <RefreshCw className="h-4 w-4 animate-spin text-blue-400" />
-                ) : (
-                  <Clock className="h-4 w-4 text-neutral-500" />
-                )}
-                <span className={getStepStatus(6) === "pending" ? "text-neutral-500" : "text-neutral-200"}>
-                  Cloud storage upload & CDN streaming
-                </span>
-              </div>
+            <div className="flex flex-col gap-2.5 py-2">
+              {PIPELINE_STAGES.map((st, sIdx) => {
+                const sState = getStepStatus(sIdx);
+                const isCorrection =
+                  st.id === "checking_composition" &&
+                  activeProject.status?.toLowerCase().includes("correcting");
+
+                return (
+                  <div
+                    key={st.id}
+                    className={`flex items-center justify-between rounded-xl px-4 py-3 border transition-colors ${
+                      sState === "in_progress"
+                        ? "border-blue-500/40 bg-blue-500/10 shadow-sm"
+                        : sState === "completed"
+                          ? "border-white/10 bg-white/5"
+                          : sState === "failed"
+                            ? "border-rose-500/30 bg-rose-500/10"
+                            : "border-white/5 bg-transparent opacity-60"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {sState === "completed" ? (
+                        <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                      ) : sState === "in_progress" ? (
+                        <RefreshCw className="h-5 w-5 animate-spin text-blue-400 shrink-0" />
+                      ) : sState === "failed" ? (
+                        <AlertCircle className="h-5 w-5 text-rose-400 shrink-0" />
+                      ) : (
+                        <Clock className="h-5 w-5 text-neutral-500 shrink-0" />
+                      )}
+                      <div>
+                        <span
+                          className={`font-semibold text-sm ${
+                            sState === "in_progress"
+                              ? "text-blue-200"
+                              : sState === "completed"
+                                ? "text-white"
+                                : sState === "failed"
+                                  ? "text-rose-200"
+                                  : "text-neutral-400"
+                          }`}
+                        >
+                          {st.label}
+                        </span>
+                        <p className="text-xs text-neutral-400">{st.desc}</p>
+                      </div>
+                    </div>
+
+                    <div>
+                      {sState === "completed" && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300 border border-emerald-500/30">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Completed
+                        </span>
+                      )}
+                      {sState === "in_progress" && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-300 border border-blue-500/30">
+                          <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+                          {isCorrection ? "Self-repairing" : "In progress"}
+                        </span>
+                      )}
+                      {sState === "failed" && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/15 px-3 py-1 text-xs font-semibold text-rose-300 border border-rose-500/30">
+                          <AlertCircle className="h-3.5 w-3.5" /> Failed
+                        </span>
+                      )}
+                      {sState === "waiting" && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-neutral-400 border border-white/10">
+                          <span className="h-1.5 w-1.5 rounded-full bg-neutral-500" /> Waiting
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {activeProject.status === "completed" && (
@@ -787,26 +1144,44 @@ export default function CreateVideoPage() {
         {/* MAIN PROMPT CARD (Matching Image 2) */}
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="relative rounded-2xl border border-white/15 bg-neutral-900/60 p-5 shadow-2xl backdrop-blur-xl transition focus-within:border-white/30 focus-within:ring-2 focus-within:ring-white/10">
-            {/* Active Inspiration Badge */}
-            {selectedInspiration && (
-              <div className="mb-3 flex items-center justify-between rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: selectedInspiration.accentColor }}
-                  />
-                  <span className="text-neutral-400">Active Inspiration:</span>
-                  <strong className="text-white font-medium">{selectedInspiration.title}</strong>
-                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-neutral-300">
-                    {selectedInspiration.category}
+            {/* Active Inspirations Chips */}
+            {selectedInspirations.length > 0 && (
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  <span className="text-neutral-400">
+                    Active Inspiration{selectedInspirations.length > 1 ? `s (${selectedInspirations.length} combined)` : ""}:
                   </span>
+                  {selectedInspirations.map((item) => (
+                    <span
+                      key={item.id}
+                      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-white/10 text-white border border-white/10"
+                    >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ backgroundColor: item.accentColor }}
+                      />
+                      {item.title}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectInspiration(item);
+                        }}
+                        className="ml-0.5 rounded-full p-0.5 text-neutral-400 hover:text-white hover:bg-white/10 transition"
+                        title={`Remove ${item.title}`}
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </span>
+                  ))}
                 </div>
                 <button
                   type="button"
                   onClick={handleClearInspiration}
-                  className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-white transition"
+                  className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-white transition cursor-pointer"
                 >
-                  <X className="h-3.5 w-3.5" /> Clear
+                  <X className="h-3.5 w-3.5" /> Clear all
                 </button>
               </div>
             )}
@@ -863,7 +1238,7 @@ export default function CreateVideoPage() {
                     setPrompt(newPrompt);
                     const val = newPrompt.toLowerCase();
                     if (val.includes("ollima")) {
-                      setName("Ollama Commercial");
+                      setName("Ollima Commercial");
                     } else if (val.includes("networks home")) {
                       setName("Networks Home");
                     } else if (
@@ -899,12 +1274,13 @@ export default function CreateVideoPage() {
             {/* Bottom Actions inside Prompt Card */}
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3">
               <div className="flex flex-wrap items-center gap-2">
-                {/* Hidden File Input for Video/Media Upload */}
+                {/* Hidden File Input for Video/Media Upload (Supports multiple simultaneous file selection) */}
                 <input
                   type="file"
                   ref={fileInputRef}
                   onChange={handleMediaUpload}
                   accept="video/mp4,video/webm,video/quicktime,video/x-m4v,video/*,image/*"
+                  multiple
                   className="hidden"
                 />
 
@@ -967,23 +1343,211 @@ export default function CreateVideoPage() {
             </div>
           </div>
 
+          {/* AI MODEL SELECTOR (Ollima LLM Intelligence) */}
+          <div className="rounded-xl border border-cyan-500/20 bg-neutral-900/60 p-4 shadow-xl backdrop-blur-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                  <Cpu className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-white">AI LLM Model Selector</h3>
+                    <span className="rounded-full bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 text-[10px] font-semibold text-cyan-300">
+                      Ollima API
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-400">
+                    Select verified model for natural language prompt analysis &amp; scene storyboard planning.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-white/5 border border-white/10 px-2.5 py-1 text-[11px] font-mono text-neutral-300">
+                  {isLoadingModels ? "Loading models..." : `${models.length} models returned`}
+                </span>
+                <button
+                  type="button"
+                  onClick={fetchModels}
+                  disabled={isLoadingModels}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-neutral-300 hover:bg-white/10 hover:text-white transition disabled:opacity-50"
+                  title="Refresh models from Ollima API"
+                >
+                  <RefreshCw className={`h-3 w-3 ${isLoadingModels ? "animate-spin text-cyan-400" : ""}`} />
+                  <span>Refresh</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Model Selector Bar */}
+            <div className="mt-3.5 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+              {/* Filter search */}
+              <div className="md:col-span-4 relative">
+                <input
+                  type="text"
+                  value={modelSearch}
+                  onChange={(e) => setModelSearch(e.target.value)}
+                  placeholder={`Search ${models.length} models...`}
+                  className="w-full rounded-lg border border-white/10 bg-neutral-800/90 pl-8 pr-7 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+                />
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-neutral-500" />
+                {modelSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setModelSearch("")}
+                    className="absolute right-2 top-2.5 text-neutral-400 hover:text-white"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Dropdown Select */}
+              <div className="md:col-span-5">
+                <select
+                  value={selectedModel}
+                  onChange={(e) => {
+                    setSelectedModel(e.target.value);
+                    setTestStatus("idle");
+                    setTestResult(null);
+                  }}
+                  className="w-full rounded-lg border border-white/10 bg-neutral-800/90 px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 font-mono"
+                >
+                  {filteredModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name || m.id} {m.isVerifiedFree ? " ★ (Free Tier Verified)" : ""}
+                    </option>
+                  ))}
+                  {filteredModels.length === 0 && (
+                    <option disabled value="">
+                      No models matching &quot;{modelSearch}&quot;
+                    </option>
+                  )}
+                </select>
+              </div>
+
+              {/* Test Connection Button */}
+              <div className="md:col-span-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={testStatus === "testing" || !selectedModel}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/20 transition disabled:opacity-50"
+                >
+                  {testStatus === "testing" ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Activity className="h-3.5 w-3.5 text-cyan-400" />
+                  )}
+                  <span>{testStatus === "testing" ? "Testing..." : "Test Connection"}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Selected Model Status & Test Feedback Indicator */}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2.5 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-neutral-400 text-[11px]">Selected LLM:</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-mono font-semibold text-emerald-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {selectedModel}
+                </span>
+                {["deepseek-v4-flash", "gemma4", "gemini-3-flash"].includes(selectedModel) && (
+                  <span className="text-[10px] text-neutral-400">(Free Tier Verified)</span>
+                )}
+              </div>
+
+              {/* Live Test Diagnostic Result */}
+              {testStatus === "success" && testResult && (
+                <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[11px] text-emerald-300 font-medium">
+                  <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                  <span>{testResult.message}</span>
+                </div>
+              )}
+
+              {testStatus === "error" && testResult && (
+                <div className="flex items-center gap-1.5 rounded-full bg-rose-500/15 border border-rose-500/30 px-2.5 py-0.5 text-[11px] text-rose-300 font-medium">
+                  <AlertCircle className="h-3 w-3 text-rose-400 shrink-0" />
+                  <span className="max-w-[400px] truncate">{testResult.error}</span>
+                </div>
+              )}
+
+              {testStatus === "idle" && (
+                <span className="text-[11px] text-neutral-500">
+                  Click &apos;Test Connection&apos; to verify API latency &amp; model response.
+                </span>
+              )}
+            </div>
+
+            {/* Error banner if model test failed with details */}
+            {testStatus === "error" && testResult?.error && (
+              <div className="mt-2.5 rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs text-rose-300 flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold">{testResult.errorCategory === "PAID_PLAN_REQUIRED" ? "Paid Plan Required" : "Connection Error"}</p>
+                  <p className="mt-0.5 text-[11px] opacity-90">{testResult.error}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* ADVANCED VIDEO CONTROLS ACCORDION / BAR */}
           <div className="rounded-xl border border-white/10 bg-neutral-900/40 p-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-                  Duration (Authoritative)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400">
+                    Duration (Authoritative)
+                  </label>
+                  {promptDetectedDuration && (
+                    <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-0.5">
+                      <Check className="h-2.5 w-2.5" /> Prompt: {promptDetectedDuration}s
+                    </span>
+                  )}
+                </div>
                 <select
-                  value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value))}
+                  value={isCustomDuration ? "custom" : duration}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "custom") {
+                      setIsCustomDuration(true);
+                    } else {
+                      setIsCustomDuration(false);
+                      setDuration(Number(val));
+                    }
+                  }}
                   className="w-full rounded-lg border border-white/10 bg-neutral-800 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/20"
                 >
                   <option value={5}>5 seconds</option>
                   <option value={10}>10 seconds</option>
                   <option value={15}>15 seconds</option>
+                  <option value={20}>20 seconds</option>
                   <option value={30}>30 seconds</option>
+                  <option value={45}>45 seconds</option>
+                  <option value={60}>60 seconds (1 min)</option>
+                  <option value="custom">Custom duration...</option>
                 </select>
+
+                {isCustomDuration && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={3}
+                      max={300}
+                      value={duration}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setDuration(Math.max(1, Math.min(300, isNaN(val) ? 5 : val)));
+                      }}
+                      className="w-20 rounded-md border border-purple-500/40 bg-neutral-900 px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-400 font-mono"
+                      placeholder="Seconds"
+                    />
+                    <span className="text-[11px] text-neutral-400">
+                      sec ({duration * fps} frames)
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1051,7 +1615,23 @@ export default function CreateVideoPage() {
           {/* GET INSPIRED SECTION (Matching Image 2) */}
           <div className="space-y-4 pt-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h2 className="text-2xl font-bold tracking-tight text-white">Get inspired</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-bold tracking-tight text-white">Get inspired</h2>
+                {selectedInspirationIds.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
+                      {selectedInspirationIds.length} Combined
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleClearInspiration}
+                      className="text-xs text-neutral-400 hover:text-rose-400 underline transition cursor-pointer"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setShowStepByStep(true)}
@@ -1090,7 +1670,8 @@ export default function CreateVideoPage() {
             {/* Inspiration Cards Grid (Matching Image 2) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {filteredInspirations.map((item) => {
-                const isSelected = selectedInspirationId === item.id;
+                const isSelected = selectedInspirationIds.includes(item.id);
+                const selIndex = selectedInspirationIds.indexOf(item.id);
                 return (
                   <div
                     key={item.id}
@@ -1239,7 +1820,8 @@ export default function CreateVideoPage() {
                       {/* Selected Indicator Pill */}
                       {isSelected && (
                         <div className="absolute top-2 left-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold text-black flex items-center gap-1 shadow-lg">
-                          <Check className="h-3 w-3 stroke-[3]" /> Active
+                          <Check className="h-3 w-3 stroke-[3]" />
+                          {selectedInspirationIds.length > 1 ? `#${selIndex + 1} Selected` : "Active"}
                         </div>
                       )}
                     </div>
@@ -1278,7 +1860,22 @@ export default function CreateVideoPage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Upload Multiple Media Button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingMedia}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-purple-500/15 px-3 py-1.5 text-xs font-semibold text-purple-200 hover:bg-purple-500/25 transition disabled:opacity-50 cursor-pointer"
+                >
+                  {isUploadingMedia ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="h-3.5 w-3.5 text-purple-300" />
+                  )}
+                  <span>{isUploadingMedia ? "Uploading..." : "Add Multiple Images / Media"}</span>
+                </button>
+
                 {/* Type Filter Buttons */}
                 <div className="flex rounded-lg border border-white/10 bg-white/5 p-0.5 text-xs">
                   <button
@@ -1319,53 +1916,122 @@ export default function CreateVideoPage() {
               </div>
             </div>
 
+            {/* Clickable Multi-Upload Dropzone Banner */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="group flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-dashed border-purple-500/30 bg-purple-950/20 hover:border-purple-500/60 hover:bg-purple-950/35 p-3 cursor-pointer transition"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-500/20 text-purple-300 group-hover:scale-105 transition">
+                  <Upload className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-white group-hover:text-purple-300 transition">
+                    Tap here to select multiple images or videos at once
+                  </p>
+                  <p className="text-[11px] text-neutral-400">
+                    Hold Shift / Cmd to pick multiple images simultaneously • Auto-previews images & embeds in video scenes
+                  </p>
+                </div>
+              </div>
+              <span className="rounded-md border border-purple-500/30 bg-purple-500/20 px-3 py-1.5 text-xs font-semibold text-purple-200 shrink-0 group-hover:bg-purple-500/30 transition">
+                Browse Files
+              </span>
+            </div>
+
             {/* Asset Items */}
             {!workspaceAssets || workspaceAssets.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-white/10 p-6 text-center">
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="rounded-xl border border-dashed border-white/10 p-6 text-center cursor-pointer hover:border-purple-500/40 hover:bg-white/[0.02] transition"
+              >
                 <Video className="mx-auto h-8 w-8 text-neutral-500 mb-2" />
-                <p className="text-xs text-neutral-400">
-                  No assets uploaded yet in this workspace. Click{" "}
-                  <strong className="text-white">"Add Reference Video / Media"</strong> above to upload a video or logo.
+                <p className="text-xs text-neutral-300 font-medium">
+                  No assets in this workspace yet.
+                </p>
+                <p className="text-xs text-neutral-400 mt-1">
+                  Click here or tap <strong className="text-purple-300">"Add Multiple Images / Media"</strong> above to select and upload multiple files at once.
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {visibleAssets.map((asset: any) => {
                   const selected = selectedAssetIds.includes(asset._id);
                   const isVideo = asset.type === "video";
+                  const isImage = asset.type === "image";
+                  const previewUrl =
+                    asset.cdnUrl ||
+                    asset.storageUrl ||
+                    (asset.storageKey ? `/storage/${asset.storageKey}` : "");
+
                   return (
-                    <button
+                    <div
                       key={asset._id}
-                      type="button"
                       onClick={() => toggleAsset(asset._id)}
-                      className={`flex items-center justify-between rounded-xl border p-2.5 text-left text-xs transition ${
+                      className={`group flex items-center justify-between rounded-xl border p-2.5 text-left text-xs transition cursor-pointer ${
                         selected
-                          ? "border-purple-500 bg-purple-500/10 text-white font-medium"
-                          : "border-white/10 bg-neutral-900/80 text-neutral-300 hover:border-white/20"
+                          ? "border-purple-500 bg-purple-500/10 text-white font-medium shadow-sm"
+                          : "border-white/10 bg-neutral-900/80 text-neutral-300 hover:border-white/20 hover:bg-neutral-900"
                       }`}
                     >
-                      <div className="flex items-center gap-2.5 truncate">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <input
                           type="checkbox"
                           checked={selected}
                           onChange={() => {}}
-                          className="rounded border-white/20 bg-neutral-800 text-purple-500 focus:ring-0"
+                          className="rounded border-white/20 bg-neutral-800 text-purple-500 focus:ring-0 shrink-0"
                         />
-                        {isVideo ? (
-                          <FileVideo className="h-4 w-4 text-purple-400 shrink-0" />
-                        ) : asset.type === "image" ? (
-                          <FileImage className="h-4 w-4 text-blue-400 shrink-0" />
+                        {/* Thumbnail Preview for Images */}
+                        {isImage && previewUrl ? (
+                          <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-white/15 bg-neutral-950">
+                            <img
+                              src={previewUrl}
+                              alt={asset.name}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                        ) : isVideo ? (
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-purple-500/15 border border-purple-500/25 text-purple-400">
+                            <FileVideo className="h-5 w-5" />
+                          </div>
+                        ) : isImage ? (
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-500/15 border border-blue-500/25 text-blue-400">
+                            <FileImage className="h-5 w-5" />
+                          </div>
                         ) : (
-                          <FileAudio className="h-4 w-4 text-amber-400 shrink-0" />
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 border border-amber-500/25 text-amber-400">
+                            <FileAudio className="h-5 w-5" />
+                          </div>
                         )}
-                        <span className="truncate" title={asset.name}>
-                          {asset.name}
-                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs text-white font-medium" title={asset.name}>
+                            {asset.name}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-neutral-400">
+                            <span className="uppercase font-mono text-[9px] px-1 py-0.2 rounded bg-white/5 border border-white/10">
+                              {asset.type}
+                            </span>
+                            {asset.size ? (
+                              <span>
+                                {asset.size < 1024 * 1024
+                                  ? `${(asset.size / 1024).toFixed(0)} KB`
+                                  : `${(asset.size / (1024 * 1024)).toFixed(1)} MB`}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-[10px] text-neutral-500 shrink-0 ml-2 uppercase font-mono">
-                        {asset.type}
-                      </span>
-                    </button>
+
+                      {/* Delete Action Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteAsset(e, asset._id, asset.name, asset.storageKey)}
+                        className="ml-2 p-1.5 rounded-lg text-neutral-400 hover:text-rose-400 hover:bg-rose-500/10 transition shrink-0"
+                        title={`Delete ${asset.name}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   );
                 })}
               </div>

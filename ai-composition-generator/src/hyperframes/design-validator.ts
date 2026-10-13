@@ -236,6 +236,19 @@ export class DesignValidator {
           });
         }
 
+        // C2. Normalize parent traversal in asset paths (../assets/ -> assets/)
+        if (content.includes("../assets/")) {
+          content = content.replace(/\.\.\/assets\//g, "assets/");
+          modified = true;
+          repairedCount++;
+          issues.push({
+            type: "repaired",
+            code: "PARENT_TRAVERSAL_IN_ASSET_PATH_NORMALIZED",
+            file,
+            message: `Normalized parent traversal '../assets/' to root-relative 'assets/' in ${file}.`,
+          });
+        }
+
         // D. Check for empty scenes
         const textOnly = content.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
         if (textOnly.length < 10) {

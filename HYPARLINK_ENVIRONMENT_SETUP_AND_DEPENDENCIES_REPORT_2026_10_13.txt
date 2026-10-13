@@ -1,0 +1,124 @@
+================================================================================
+HYPARLINK DASHBOARD — AUTOMATIC ENVIRONMENT SETUP & DEPENDENCY VERIFICATION REPORT
+Date: October 13, 2026
+Scope: Server-Side Node.js, npm, FFmpeg, FFprobe, and HyperFrames Environment
+Status: COMPLETE & VERIFIED (32/32 ENVIRONMENT + 49/49 REGRESSION TESTS PASSED)
+================================================================================
+
+1. EXECUTIVE SUMMARY
+--------------------------------------------------------------------------------
+The HyperFrames video creation and rendering platform now features comprehensive,
+automated system dependency checking, configuration, verification, and pre-flight
+enforcement across all deployment environments (Local macOS/Linux and Docker).
+
+Dependencies Inspected & Verified:
+  1. Node.js (>= 18.0.0): v22.20.0 (Installed ✓, /usr/local/bin/node)
+  2. npm (>= 8.0.0): 10.9.3 (Installed ✓)
+  3. FFmpeg: 8.1.2 (Installed ✓, /Users/apple/.local/bin/ffmpeg, H.264 & AAC enabled)
+  4. FFprobe: 8.1.2 (Installed ✓, /Users/apple/.local/bin/ffprobe)
+  5. HyperFrames CLI: 0.8.139 (Installed & Pinned in node_modules ✓)
+  6. Workspace Storage: 30.5 GB available, writable directory verified.
+
+Key Accomplishments:
+- Created reusable EnvironmentChecker backend service (ai-composition-generator/src/system/environment-checker.ts).
+- Exposed GET /health/dependencies and GET /api/health/dependencies with 30s TTL caching and ?recheck=true support.
+- Built automated installation and symlink setup script: scripts/setup-environment.sh.
+- Authored production-ready Dockerfile pre-baking Node.js 20, npm, FFmpeg, FFprobe, and HyperFrames into rendering container.
+- Integrated interactive DependencyStatusCard component into Dashboard Settings (settings/page.tsx) and Create Video header (create-video/page.tsx).
+- Enforced strict pre-flight readiness checks in VideoGenerationPipeline.run() and backend-echo /jobs/run before expensive generation or rendering starts.
+- Executed 100% non-browser automated tests verifying detection, API responses, live rendering, and FFprobe media inspection.
+
+
+2. ARCHITECTURE OF THE ENVIRONMENT & DEPENDENCY SYSTEM
+--------------------------------------------------------------------------------
+
+A. DETECTION SERVICE (EnvironmentChecker)
+   - Location: ai-composition-generator/src/system/environment-checker.ts
+   - Features:
+     * Node.js: Validates process.version >= 18.
+     * npm: Validates npm --version >= 8.
+     * FFmpeg: Resolves path dynamically prioritizing process.env.FFMPEG_PATH, PATH,
+       and vendor bundle (/Applications/HyperFrames.app/.../vendor/ffmpeg/darwin-arm64).
+       Validates H.264 video encoding and AAC audio encoding capabilities.
+     * FFprobe: Dynamically locates and verifies executable.
+     * HyperFrames: Inspects local node_modules/hyperframes/package.json for instant
+       (0.05s) offline verification, with npx --prefer-offline fallback.
+     * Storage: Performs read/write/delete checks and queries free disk space (df -k).
+     * TTL Caching: Caches result for 30 seconds to prevent unnecessary subprocess
+       spawns during rapid UI interaction.
+
+B. BACKEND REST API ENDPOINT
+   - Location: backend-echo/server.mjs
+   - Routes:
+     * GET /health/dependencies (and /api/health/dependencies)
+       Returns structured JSON with dependency versions, codec status, and readiness.
+       Supports ?recheck=true to bypass cache.
+     * POST /health/dependencies/setup (and /api/health/dependencies/setup)
+       Executes safe, whitelisted environment setup script (scripts/setup-environment.sh)
+       and returns fresh dependency status.
+     * Zero secret leakage: API keys, tokens, and internal credentials are never exposed.
+
+C. PRE-FLIGHT READINESS ENFORCEMENT
+   - Location:
+     * ai-composition-generator/src/pipeline/generate-video.ts
+     * backend-echo/server.mjs (/jobs/run)
+   - Functionality:
+     Before initiating AI composition synthesis or headless rendering, the pipeline
+     queries EnvironmentChecker.checkEnvironment(). If renderingReady is false, the job
+     is aborted immediately with an actionable error message and marked "failed" in Convex,
+     preventing failed rendering jobs from appearing as successes.
+
+D. DASHBOARD USER INTERFACE
+   - Component: apps/app/src/components/dependency-status-card.tsx
+   - Integrations:
+     1. apps/app/src/app/[locale]/(dashboard)/settings/page.tsx
+        Displays persistent "Video Rendering Environment" card showing Node.js, npm,
+        FFmpeg, FFprobe, HyperFrames, and Storage statuses with "Recheck" and "Auto-Setup" buttons.
+     2. apps/app/src/app/[locale]/(dashboard)/create-video/page.tsx
+        Header features interactive "Rendering Environment Ready ✓" badge with pulse
+        indicator that expands the DependencyStatusCard on demand.
+
+E. DOCKER & LOCAL INSTALLATION WORKFLOWS
+   - Local Setup: scripts/setup-environment.sh detects macOS vs Linux, installs or
+     symlinks FFmpeg/FFprobe into ~/.local/bin, verifies H.264/AAC, and tests permissions.
+   - Container Build: Dockerfile uses node:20-bookworm-slim, installs system ffmpeg
+     and required font/graphics libraries, and pre-caches HyperFrames CLI 0.8.139.
+
+
+3. TEST EXECUTION AND VERIFICATION
+--------------------------------------------------------------------------------
+
+SUITE 1: DEPENDENCY READINESS & ACCEPTANCE TEST (scratch/test-environment-dependencies.mjs)
+- Test 1 (Direct EnvironmentChecker Inspection):
+    ✓ Environment status is 'ready'
+    ✓ renderingReady is true
+    ✓ Node.js v22.20.0 installed & compatible
+    ✓ npm 10.9.3 installed & compatible
+    ✓ FFmpeg 8.1.2 installed & compatible (/Users/apple/.local/bin/ffmpeg)
+    ✓ FFmpeg H.264 codec verified
+    ✓ FFprobe 8.1.2 installed & compatible (/Users/apple/.local/bin/ffprobe)
+    ✓ HyperFrames 0.8.139 verified
+    ✓ Storage writable (30.5 GB available)
+- Test 2 (Backend HTTP Endpoint /health/dependencies):
+    ✓ HTTP 200 returned
+    ✓ status: 'ready'
+    ✓ renderingReady: true
+    ✓ FFmpeg, FFprobe, HyperFrames confirmed
+    ✓ No secret leakage
+    ✓ Subsequent call returned cached: true
+- Test 3 (Real Video Generation, HyperFrames Render & FFprobe Verification):
+    ✓ Validation passed
+    ✓ Headless render succeeded in 32.52s
+    ✓ MP4 generated at storage/env-dep-runs/env-dep-test.mp4 (1060.5 KB)
+    ✓ FFprobe verified 1920x1080 @ 30fps and exact 6.00s duration
+Result: 32/32 ASSERTIONS PASSED (100% SUCCESS, EXIT CODE 0)
+
+SUITE 2: COMPLETE 12-SCENARIO AUTONOMOUS AGENT REGRESSION (scratch/test-autonomous-agent-12-suite.mjs)
+- Scenarios 1–12 (Cinematic, Tree, Chart, Explainer, Silent, Assets, Malformed LLM,
+  Validation failure, API failure, Render failure, Custom duration, Auto-repair loop):
+    ✓ All 12 scenarios passed
+    ✓ Live end-to-end 10s yellow tree render verified with FFprobe
+Result: 49/49 ASSERTIONS PASSED (100% SUCCESS, EXIT CODE 0)
+
+TOTAL COMBINED TEST COVERAGE: 81/81 ASSERTIONS PASSED WITH ZERO BROWSER AUTOMATION.
+================================================================================

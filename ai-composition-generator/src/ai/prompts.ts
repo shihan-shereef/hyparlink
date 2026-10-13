@@ -38,6 +38,7 @@ export interface CompositionPlan {
 export type SceneLayoutType =
   | "cinematic-title"
   | "animated-typography"
+  | "animated-bar-chart"
   | "split-diagram"
   | "metrics-grid"
   | "process-flow"
@@ -69,7 +70,7 @@ export interface StoryboardScene {
   diagramSpec?: {
     type: "flow" | "architecture" | "network" | "cycle" | "bars" | "donut";
     nodes?: Array<{ label: string; sub?: string; icon?: string }>;
-    bars?: Array<{ label: string; value: number; color?: string }>;
+    bars?: Array<{ label: string; value: number; formattedValue?: string; color?: string }>;
   };
   comparisonData?: {
     leftTitle: string;
@@ -375,6 +376,7 @@ Different prompts MUST produce substantially different compositions, color schem
 3. SUPPORTED SCENE LAYOUT TYPES:
 Every scene in the storyboard must choose one of the following exact layout identifiers:
 - "cinematic-title": Hero badge, bold headline, subtitle, ambient glow
+- "animated-bar-chart": Headline + subtitle + dynamic animated revenue or metrics bar chart with growing bars, values, and time labels
 - "split-diagram": Headline + SVG diagram flow nodes or architecture chart
 - "metrics-grid": Headline + 2 to 4 data metric cards with labels, values, and trends
 - "process-flow": Step-by-step sequential progression with numbered badges

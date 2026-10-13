@@ -18,9 +18,10 @@ import {
   CheckCircle2,
   Video,
   SlidersHorizontal,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -64,10 +65,12 @@ function computeDownloadFilename(project: any, selectedResolution: string): stri
 
 export default function ProjectDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const projectId = params.id as Id<"projects">;
   const { current } = useWorkspace();
   const [selectedResolution, setSelectedResolution] = useState<string>("1080p");
   const retryProject = useMutation(api.projects.retry);
+  const removeProject = useMutation(api.projects.remove);
 
   const project = useQuery(
     api.projects.get,
@@ -75,6 +78,17 @@ export default function ProjectDetailPage() {
   );
 
   const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirm("Are you sure you want to delete this project?")) return;
+    try {
+      await removeProject({ projectId });
+      toast.success("Project deleted successfully");
+      router.push("/projects");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete project");
+    }
+  };
 
   const handleDownload = async () => {
     if (!activeVideoUrl) {
@@ -207,6 +221,16 @@ export default function ProjectDetailPage() {
                 Download {selectedResolution} MP4
               </Button>
             )}
+
+            {/* Top Bar Delete Button */}
+            <Button
+              onClick={handleDelete}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs text-rose-400 border-rose-500/20 hover:bg-rose-500/10 hover:text-rose-300"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Delete
+            </Button>
           </div>
         </div>
 

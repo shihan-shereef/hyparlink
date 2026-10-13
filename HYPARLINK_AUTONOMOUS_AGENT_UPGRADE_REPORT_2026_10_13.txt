@@ -1,0 +1,176 @@
+================================================================================
+HYPARLINK DASHBOARD — AUTONOMOUS HYPERFRAMES VIDEO CREATION AGENT UPGRADE REPORT
+Date: October 13, 2026
+System: HyperFrames Next.js Dashboard + Convex + Ollima (gemma4) Pipeline
+Status: COMPLETE & VERIFIED (49/49 TEST ASSERTIONS PASSED)
+================================================================================
+
+1. EXECUTIVE OVERVIEW
+--------------------------------------------------------------------------------
+The HyperFrames video-generation dashboard has been upgraded into a fully autonomous 
+5-stage video creation agent. The integrated LLM (Ollama gemma4) reasons over the user's
+prompt, planned timing, visual motion, self-audit, and rendering pipeline without relying
+on hardcoded generic corporate templates.
+
+THE FIVE AUTONOMOUS AGENT STAGES:
+  [STAGE 1] Writes a composition: Creates creative brief, visual layout, and HyperFrames compositions.
+  [STAGE 2] Times the clips: Plans frame-accurate timelines conforming to user durations.
+  [STAGE 3] Animates the elements: Generates deterministic GSAP timelines and SVG morphs.
+  [STAGE 4] Checks its own work: Autonomous self-auditor + bounded auto-repair loop (max 3 retries).
+  [STAGE 5] Renders the video: Headless HyperFrames render + FFprobe media verification.
+
+All operations strictly obey the environment restrictions:
+- ZERO browser automation, Puppeteer, Playwright, or Selenium.
+- Completely headless CLI execution, Node.js scripts, FFmpeg, and FFprobe.
+- Convex database jobs and Next.js dashboard UI state remain fully preserved.
+
+
+2. ARCHITECTURE OF THE 5 AGENT STAGES
+--------------------------------------------------------------------------------
+
+STAGE 1: WRITES A COMPOSITION
+- Location: ai-composition-generator/src/ai/generator.ts & creative-brief.ts
+- Operation:
+  1. Ingests user prompt, requested duration, aspect ratio, resolution, and selected assets.
+  2. Generates a structured Creative Brief via LLM (route, spec, beats, copy, techniques, negatives).
+  3. Classifies video into tailored aesthetic categories (cinematic, nature growth, data viz, network architecture, abstract geometric, architectural showcase, or asset ad).
+  4. Synthesizes bespoke HTML/CSS layouts, typography hierarchy, and SVG elements reflecting the prompt.
+
+STAGE 2: TIMES THE CLIPS
+- Location: ai-composition-generator/src/ai/scene-planner.ts
+- Operation:
+  1. Computes mathematical pacing dividing user duration into logical narrative beats.
+  2. Calculates non-zero, strictly positive scene start, duration, end, startFrame, and endFrame.
+  3. Propagates duration through metadata, root index.html (data-duration="XX.XX"), and scene files.
+  4. Guarantees no negative durations, no unintentional gaps, and exact sum of scene durations.
+
+STAGE 3: ANIMATES THE ELEMENTS
+- Location: ai-composition-generator/src/ai/composition-synthesizer.ts
+- Operation:
+  1. Emits deterministic GSAP timelines (gsap.timeline({ paused: true })) indexed in window.__timelines.
+  2. Uses GPU-accelerated CSS transforms (scale, opacity, transform) avoiding layout reflow (left, top).
+  3. Tailors motion to concept: botanical SVG growth for trees, dynamic bar scaling for charts, glowing packet pulses for network explainers, and camera zooms for cinematic teasers.
+  4. Ensures animations seek deterministically at exact timestamps for headless frame capture.
+
+STAGE 4: CHECKS ITS OWN WORK (AUTONOMOUS AUDIT & SELF-REPAIR)
+- Location: ai-composition-generator/src/ai/composition-auditor.ts
+- Operation:
+  1. Evaluates 5 pillars: Prompt Compliance, Composition Structure, Timing Rigor, Visual Quality, and Audio Contract.
+  2. Runs programmatic checks on files, metadata, HTML tags (hyper-scene or data-composition-id), and GSAP properties.
+  3. Evaluates prompt compliance via LLM semantic scoring (target threshold >= 75/100).
+  4. Auto-Repair Loop: If audit fails or lint issues occur, AIGenerator.correctProject() submits the precise error diagnostics back to the LLM to patch affected files (up to 3 bounded correction attempts).
+
+STAGE 5: RENDERS THE VIDEO & FFPROBE VERIFICATION
+- Location: ai-composition-generator/src/hyperframes/renderer.ts & pipeline/generate-video.ts
+- Operation:
+  1. Invokes headless `hyperframes render` CLI in the isolated project directory.
+  2. Captures real-time CLI stderr/stdout progress.
+  3. Automatically runs FFprobe on the rendered MP4 verifying file readability, resolution (e.g. 1920x1080), framerate (30fps), duration (within frame tolerance), and audio stream presence/absence.
+  4. Stores final media via storage abstraction (local/R2/S3) and updates Convex job record.
+
+
+3. DASHBOARD PROGRESS INDICATOR UPGRADE
+--------------------------------------------------------------------------------
+- Location: apps/app/src/app/[locale]/(dashboard)/create-video/page.tsx
+- Replaced previous generic progress steps with the exact 5-stage agent UI:
+  1. Writing composition      [Waiting / In progress / Completed / Failed]
+  2. Timing clips             [Waiting / In progress / Completed / Failed]
+  3. Animating elements       [Waiting / In progress / Completed / Failed]
+  4. Checking composition     [Waiting / In progress (Self-repairing) / Completed / Failed]
+  5. Rendering video          [Waiting / In progress / Completed / Failed]
+- Real-time updates driven by Convex job status mutations:
+  writing_composition -> timing_clips -> animating_elements -> checking_composition -> rendering_video -> completed.
+
+
+4. COMPREHENSIVE 12-SCENARIO TEST SUITE RESULTS
+--------------------------------------------------------------------------------
+Test Runner: node --env-file=.env scratch/test-autonomous-agent-12-suite.mjs
+Total Assertions: 49/49 PASSED (100% SUCCESS RATE, EXIT CODE 0)
+
+[SCENARIO 1] 15-Second Cinematic Animation
+- Prompt: "Create a 15-second cinematic Batman-inspired superhero animation..."
+- Results: Target 15s verified, videoType=cinematic_animation, Gotham/Batman elements present, Audit Score 100/100. -> PASSED
+
+[SCENARIO 2] 10-Second Animated Tree
+- Prompt: "Create a 10-second animation of a small yellow tree growing from a seed into a full tree..."
+- Results: Target 10s verified, videoType=nature_growth_animation, botanical SVG tree growth elements present, Audit Score 100/100. -> PASSED
+
+[SCENARIO 3] 20-Second Animated Chart
+- Prompt: "Create a 20-second professional revenue-growth animation using an animated bar chart with Q1: $12M, Q2: $18M, Q3: $25M, Q4: $34M."
+- Results: Target 20s verified, videoType=data_visualization, user metrics Q1/Q2/Q3/Q4 ($12M..$34M) rendered in SVG, no hardcoded figures, Audit Score 95/100. -> PASSED
+
+[SCENARIO 4] 30-Second Educational Explainer
+- Prompt: "Create a 30-second educational explainer showing how an HTTP request travels from a client to a server..."
+- Results: Target 30s verified, videoType=network_architecture_explainer, client/server nodes and request packets rendered, Audit Score 100/100. -> PASSED
+
+[SCENARIO 5] Silent Motion-Graphics Video
+- Prompt: "Create a 12-second abstract motion-graphics video using white geometric shapes on a black background. No audio."
+- Results: Audio plan isSilent=true, #000000 black background, Audit Score 100/100, Silent contract verified. -> PASSED
+
+[SCENARIO 6] Video Using User-Selected Image
+- Prompt: "Create a 15-second advertisement using the image I selected as the main visual..."
+- Results: Composition references hero-device.png, no fallback image, physical asset file copied into project assets directory. -> PASSED
+
+[SCENARIO 7] Malformed LLM Response
+- Simulation: Mock LLM returning invalid non-JSON corrupted text.
+- Results: Handled without crashing, safely flagged offline-synthesizer fallback, preserved requested 15s duration. -> PASSED
+
+[SCENARIO 8] HyperFrames Validation Failure
+- Simulation: Project directory with invalid index.html lacking required HyperFrames attributes.
+- Results: Validator correctly flagged project as invalid, captured 3 specific error messages. -> PASSED
+
+[SCENARIO 9] LLM API Failure
+- Simulation: Upstream HTTP 500 error from LLM provider.
+- Results: Generator survived API error without crashing, gracefully fell back to offline synthesizer with proper attribution. -> PASSED
+
+[SCENARIO 10] Rendering Failure
+- Simulation: Rendering called on invalid directory.
+- Results: Renderer reported success=false, captured diagnostic error message (`spawn /bin/sh ENOENT`). -> PASSED
+
+[SCENARIO 11] Duration Other Than 5 Seconds
+- Prompt: "Create an 18-second futuristic technology announcement."
+- Results: Extracted 18s from prompt, timeline totalDuration=18s, index.html data-duration="18.00", did not default to 5s. -> PASSED
+
+[SCENARIO 12] Correction Attempt After Validation Fails
+- Simulation: Project with missing data-duration and non-GPU motion.
+- Results: CorrectProject returned repaired files with data-duration restored. -> PASSED
+
+[LIVE END-TO-END RENDER & FFPROBE VERIFICATION]
+- Project: 10-second yellow tree growth animation
+- HyperFrames Validation: PASSED
+- Headless Render: Completed in 29.32s
+- Output File: storage/test-suite-runs/autonomous-agent-e2e.mp4 (926.9 KB)
+- FFprobe Verification:
+    * Resolution: 1920x1080 (PASSED)
+    * Framerate: 30 fps (PASSED)
+    * Duration: 10.00s (PASSED)
+    * Audio: No audio tracks (silent contract verified) (PASSED)
+
+
+5. FILES MODIFIED / CREATED
+--------------------------------------------------------------------------------
+- ai-composition-generator/src/ai/composition-auditor.ts (NEW)
+  Implements the Stage 4 autonomous self-audit engine inspecting 5 compliance pillars.
+- ai-composition-generator/src/ai/scene-planner.ts (UPDATED)
+  Disambiguates business/revenue growth from botanical tree growth; dynamically incorporates user chart metrics.
+- ai-composition-generator/src/ai/generator.ts (UPDATED)
+  Unifies progress events into the 5 agent stages: writing_composition, timing_clips, animating_elements, checking_composition, rendering_video.
+- ai-composition-generator/src/pipeline/generate-video.ts (UPDATED)
+  Integrates CompositionAuditor.audit() prior to rendering; passes stage updates to Convex.
+- ai-composition-generator/src/hyperframes/project-generator.ts (UPDATED)
+  Ensures user-selected and analyzed workspace assets are physically copied into project/assets.
+- backend-echo/server.mjs (UPDATED)
+  Initializes kickoff job status as 'writing_composition' rather than 'validating'.
+- apps/app/src/app/[locale]/(dashboard)/create-video/page.tsx (UPDATED)
+  Renders the 5 autonomous agent stages with real statuses ('Waiting', 'In progress', 'Completed', 'Failed').
+- scratch/test-autonomous-agent-12-suite.mjs (NEW)
+  Comprehensive test suite covering all 12 scenarios and end-to-end FFprobe verification.
+
+
+6. VERIFICATION SUMMARY
+--------------------------------------------------------------------------------
+- Real LLM Provider: Verified active connection to Ollima (gemma4) at https://api.ollima.com/v1.
+- Headless Render: Verified real HyperFrames CLI render creating valid MP4 video.
+- Media Inspection: FFprobe confirmed 1920x1080 @ 30fps and exact 10.00s duration.
+- UI Consistency: TypeScript compilation verified across apps/app (0 errors).
+================================================================================

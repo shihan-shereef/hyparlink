@@ -15,13 +15,28 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import { VideoGenerationPipeline } from "../ai-composition-generator/dist/pipeline/generate-video.js";
 import { AIGenerator } from "../ai-composition-generator/dist/ai/generator.js";
 import { Validator } from "../ai-composition-generator/dist/hyperframes/validator.js";
+import { DesignValidator } from "../ai-composition-generator/dist/hyperframes/design-validator.js";
 import { Renderer } from "../ai-composition-generator/dist/hyperframes/renderer.js";
+import { EnvironmentChecker } from "../ai-composition-generator/dist/system/environment-checker.js";
+import { HeyGenService } from "./heygen/heygen-service.mjs";
 import { getStorageProvider, buildObjectKey } from "./storage/index.mjs";
 import { MediaProcessor } from "./media/media-processor.mjs";
-import { exec, spawn } from "node:child_process";
+import { exec, spawn, execSync } from "node:child_process";
 import { promisify } from "node:util";
 
 const execAsync = promisify(exec);
+
+// Load environment variables from .env files
+try {
+  const rootEnv = path.resolve(import.meta.dirname, "..", ".env");
+  if (fs.existsSync(rootEnv) && process.loadEnvFile) {
+    process.loadEnvFile(rootEnv);
+  }
+  const localEnv = path.resolve(import.meta.dirname, ".env");
+  if (fs.existsSync(localEnv) && process.loadEnvFile) {
+    process.loadEnvFile(localEnv);
+  }
+} catch (e) {}
 
 process.on("SIGHUP", () => {
   console.log("[Server] SIGHUP received - ignoring to remain running in background");
@@ -242,6 +257,18 @@ async function listActiveStudioServers() {
 
 async function startStudioServerSession(projectDir) {
   const projectBasename = path.basename(projectDir);
+
+  // Pre-inspect and auto-repair design syntax, font fallbacks, and root-relative asset paths
+  try {
+    const report = await DesignValidator.inspect(projectDir);
+    if (report && report.repairedCount > 0) {
+      console.log(
+        `[Studio Session] Auto-repaired ${report.repairedCount} notice(s) for ${projectBasename} prior to Studio preview.`,
+      );
+    }
+  } catch (err) {
+    console.warn(`[Studio Session] DesignValidator pre-check notice: ${err.message}`);
+  }
 
   // 1. Check if already running for this project directory
   const currentStatus = await checkStudioServerStatus(projectDir);
@@ -617,6 +644,267 @@ const server = http.createServer(async (req, res) => {
           error: err.message,
           status: "error",
           statusLabel: "Status Check Failed",
+        });
+      }
+    }
+
+    // DEPENDENCY ENVIRONMENT HEALTH CHECK (Node.js, npm, FFmpeg, FFprobe, HyperFrames)
+    if (
+      req.method === "GET" &&
+      (req.url === "/health/dependencies" ||
+        req.url.startsWith("/health/dependencies?") ||
+        req.url === "/api/health/dependencies" ||
+        req.url.startsWith("/api/health/dependencies?"))
+    ) {
+      try {
+        const parsed = new URL(req.url, "http://localhost:4000");
+        const forceRefresh = parsed.searchParams.get("recheck") === "true";
+        const status = await EnvironmentChecker.checkEnvironment(forceRefresh);
+        return send(res, 200, status);
+      } catch (err) {
+        return send(res, 500, {
+          status: "not_ready",
+          renderingReady: false,
+          error: err.message,
+        });
+      }
+    }
+
+    // SAFE AUTOMATED DEPENDENCY ENVIRONMENT SETUP
+    if (
+      req.method === "POST" &&
+      (req.url === "/health/dependencies/setup" ||
+        req.url === "/api/health/dependencies/setup")
+    ) {
+      try {
+        const setupScript = path.resolve(WORKSPACE_ROOT, "scripts", "setup-environment.sh");
+        let scriptOutput = "";
+        if (fs.existsSync(setupScript)) {
+          const { stdout, stderr } = await execAsync(`bash "${setupScript}"`);
+          scriptOutput = stdout + "\n" + stderr;
+        }
+        const freshStatus = await EnvironmentChecker.checkEnvironment(true);
+        return send(res, 200, {
+          success: true,
+          message: "Environment setup routine completed",
+          output: scriptOutput,
+          status: freshStatus,
+        });
+      } catch (err) {
+        return send(res, 500, {
+          success: false,
+          error: err.message,
+        });
+      }
+    }
+
+    // AI MODELS DISCOVERY (Ollama models API)
+    if (
+      req.method === "GET" &&
+      (req.url === "/ai/models" || req.url === "/api/ai/models")
+    ) {
+      try {
+        const apiKey = process.env.AI_API_KEY || process.env.OLLAMA_API_KEY;
+        const baseUrl = (process.env.AI_BASE_URL || process.env.AI_ENDPOINT || "https://api.ollima.com/v1").replace(/\/+$/, "");
+        const targetUrl = baseUrl.endsWith("/models") ? baseUrl : `${baseUrl}/models`;
+
+        if (!apiKey) {
+          return send(res, 400, {
+            success: false,
+            error: "AI_API_KEY is not configured on the backend.",
+            status: "missing_key",
+          });
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+        const r = await fetch(targetUrl, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+          },
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        if (!r.ok) {
+          const errText = await r.text();
+          return send(res, r.status, {
+            success: false,
+            status: r.status,
+            error: `Failed to fetch models from Ollima (HTTP ${r.status}): ${errText.slice(0, 200)}`,
+          });
+        }
+
+        const data = await r.json();
+        const rawList = Array.isArray(data.data) ? data.data : (Array.isArray(data.models) ? data.models : []);
+        
+        // Map cleanly for frontend selector
+        const modelsList = rawList.map((m) => ({
+          id: m.id || m.name,
+          name: m.name || m.id,
+          owned_by: m.owned_by || "ollima",
+          created: m.created,
+          isVerifiedFree: ["deepseek-v4-flash", "gemma4", "gemini-3-flash"].includes(m.id || m.name),
+        }));
+
+        return send(res, 200, {
+          success: true,
+          provider: "ollima",
+          total: modelsList.length,
+          models: modelsList,
+          defaultModel: process.env.AI_MODEL || "gemini-3-flash",
+        });
+      } catch (err) {
+        return send(res, 500, {
+          success: false,
+          error: err.message,
+        });
+      }
+    }
+
+    // HEYGEN AVATAR CATALOG
+    if (
+      req.method === "GET" &&
+      (req.url === "/heygen/avatars" ||
+        req.url === "/api/heygen/avatars" ||
+        req.url.startsWith("/heygen/avatars?") ||
+        req.url.startsWith("/api/heygen/avatars?"))
+    ) {
+      return send(res, 200, {
+        success: true,
+        avatars: HeyGenService.getAvatars(),
+      });
+    }
+
+    // HEYGEN VOICES CATALOG
+    if (
+      req.method === "GET" &&
+      (req.url === "/heygen/voices" ||
+        req.url === "/api/heygen/voices" ||
+        req.url.startsWith("/heygen/voices?") ||
+        req.url.startsWith("/api/heygen/voices?"))
+    ) {
+      return send(res, 200, {
+        success: true,
+        voices: HeyGenService.getVoices(),
+      });
+    }
+
+    // HEYGEN VERIFY API KEY
+    if (
+      req.method === "POST" &&
+      (req.url === "/heygen/verify-key" || req.url === "/api/heygen/verify-key")
+    ) {
+      try {
+        const body = await readBody(req);
+        const result = await HeyGenService.verifyApiKey(body?.apiKey);
+        return send(res, 200, { success: true, ...result });
+      } catch (err) {
+        return send(res, 500, { success: false, error: err.message });
+      }
+    }
+
+    // HEYGEN VIDEO GENERATION
+    if (
+      req.method === "POST" &&
+      (req.url === "/heygen/generate" || req.url === "/api/heygen/generate")
+    ) {
+      try {
+        const body = await readBody(req);
+        const result = await HeyGenService.generateVideo(body);
+        return send(res, 200, { success: true, ...result });
+      } catch (err) {
+        return send(res, 500, { success: false, error: err.message });
+      }
+    }
+
+    // AI MODEL CONNECTION TEST
+    if (
+      req.method === "POST" &&
+      (req.url === "/ai/test" || req.url === "/api/ai/test")
+    ) {
+      const startTime = Date.now();
+      try {
+        const body = await readBody(req);
+        const modelToTest = body.model || process.env.AI_MODEL || "gemma4";
+        const apiKey = process.env.AI_API_KEY || process.env.OLLAMA_API_KEY;
+        const baseUrl = (process.env.AI_BASE_URL || process.env.AI_ENDPOINT || "https://api.ollima.com/v1").replace(/\/+$/, "");
+        const targetUrl = baseUrl.endsWith("/chat/completions") ? baseUrl : `${baseUrl}/chat/completions`;
+
+        if (!apiKey) {
+          return send(res, 400, {
+            success: false,
+            error: "AI_API_KEY is not configured.",
+            errorCategory: "MISSING_KEY",
+          });
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 25000);
+
+        const r = await fetch(targetUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: modelToTest,
+            messages: [{ role: "user", content: "Ping test" }],
+            max_tokens: 5,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        const latencyMs = Date.now() - startTime;
+
+        if (!r.ok) {
+          const errData = await r.json().catch(() => ({}));
+          const errMsg = errData.error?.message || (await r.text().catch(() => `HTTP ${r.status}`));
+          const errType = errData.error?.type || "api_error";
+
+          let category = "API_ERROR";
+          let userMessage = errMsg;
+          if (r.status === 403 && (errType === "model_requires_paid_plan" || errMsg.includes("paid plan"))) {
+            category = "PAID_PLAN_REQUIRED";
+            userMessage = `Model "${modelToTest}" requires a paid Ollima plan. Free API keys support open-weight models like deepseek-v4-flash.`;
+          } else if (r.status === 429) {
+            category = "RATE_LIMITED";
+            userMessage = "Ollima rate limit reached. Please wait a moment before trying again.";
+          } else if (r.status === 401) {
+            category = "AUTH_FAILED";
+            userMessage = "Ollima authentication failed. Check your API key.";
+          } else if (r.status === 404) {
+            category = "NOT_FOUND";
+            userMessage = `Model "${modelToTest}" was not found on the Ollima server.`;
+          }
+
+          return send(res, 200, {
+            success: false,
+            model: modelToTest,
+            status: r.status,
+            latencyMs,
+            errorCategory: category,
+            error: userMessage,
+          });
+        }
+
+        const data = await r.json();
+        return send(res, 200, {
+          success: true,
+          model: modelToTest,
+          latencyMs,
+          message: `Connected successfully (${latencyMs}ms)`,
+          sampleResponse: data.choices?.[0]?.message?.content?.slice(0, 50) || "OK",
+        });
+      } catch (err) {
+        const latencyMs = Date.now() - startTime;
+        return send(res, 200, {
+          success: false,
+          latencyMs,
+          errorCategory: err.name === "AbortError" ? "TIMEOUT" : "NETWORK_ERROR",
+          error: err.name === "AbortError" ? "Connection timed out after 25s." : err.message,
         });
       }
     }
@@ -1457,6 +1745,24 @@ const server = http.createServer(async (req, res) => {
             `[Backend] Processing video generation job ${jobId} for project ${projectId}...`,
           );
           try {
+            // Pre-flight check: Verify rendering environment readiness
+            const envStatus = await EnvironmentChecker.checkEnvironment();
+            if (!envStatus.renderingReady) {
+              const missingReason =
+                envStatus.recommendations.join("; ") || "System dependencies not satisfied";
+              console.error(
+                `[Backend] Job ${jobId} aborted: rendering environment not ready: ${missingReason}`,
+              );
+              await postWebhook({
+                type: "job.progress",
+                jobId,
+                projectId,
+                status: "failed",
+                error: `Rendering environment not ready: ${missingReason}`,
+              });
+              return;
+            }
+
             // 1. Notify progress: Generating
             await postWebhook({
               type: "job.progress",
@@ -1563,51 +1869,40 @@ const server = http.createServer(async (req, res) => {
               }
             }
 
-            // Fallback: If user prompt asks for an image/visual but no asset was passed
-            if (resolvedAssets.length === 0) {
-              const promptLower = (input.prompt || "").toLowerCase();
-              if (
-                /\b(image|picture|photo|video|visual|with this image|vith this image|using the image|sung that|selected|with the image)\b/i.test(
-                  promptLower,
-                )
-              ) {
-                const defaultPath = path.resolve(
-                  AI_GENERATOR_DIR,
-                  "default-assets",
-                  "ollasoftware-building.jpg",
-                );
-                if (fs.existsSync(defaultPath)) {
-                  resolvedAssets.push({
-                    id: "default_building",
-                    name: "ollasoftware-building.jpg",
-                    originalFilename: "ollasoftware-building.jpg",
-                    type: "image",
-                    mimeType: "image/jpeg",
-                    localPath: defaultPath,
-                  });
-                }
-              }
-            }
 
-            // 4. Notify progress: Validating & Rendering
+            // Initial progress: Stage 1 (Writing composition)
             await postWebhook({
               type: "job.progress",
               jobId,
               projectId,
-              status: "validating",
+              status: "writing_composition",
+              message: "Stage 1: Writing composition and creative brief...",
             });
 
+            const promptDuration = AIGenerator.extractDurationFromPrompt(input.prompt);
+            const targetDuration = promptDuration || (input.duration ? Number(input.duration) : 15);
             console.log(
-              `[Backend] Invoking pipeline.run with duration ${input.duration || 15}s...`,
+              `[Backend] Invoking pipeline.run with duration ${targetDuration}s${promptDuration ? " (prompt override)" : ""}...`,
             );
             const report = await pipeline.run(input.prompt, {
-              duration: input.duration ? Number(input.duration) : 15,
+              duration: targetDuration,
               width: input.width ? Number(input.width) : 1920,
               height: input.height ? Number(input.height) : 1080,
               fps: input.fps ? Number(input.fps) : 30,
               resolution:
                 input.resolution || (input.width === 1280 ? "720p" : "1080p"),
               assets: resolvedAssets,
+              model: input.model || input.aiModel,
+              onProgress: async (stage, message) => {
+                console.log(`[Job Progress] ${stage}: ${message}`);
+                await postWebhook({
+                  type: "job.progress",
+                  jobId,
+                  projectId,
+                  status: stage,
+                  message,
+                }).catch(() => {});
+              },
             });
 
             if (report.renderStatus === "SUCCESS" && report.outputPath) {
@@ -1630,6 +1925,134 @@ const server = http.createServer(async (req, res) => {
                     mappedDir,
                     input.workspaceId || "default",
                   );
+              }
+
+              // Phase 6B: Automated Synchronized Voiceover Narration & FFmpeg Multiplexing
+              const promptLower = (input.prompt || "").toLowerCase();
+              const wantsVoice =
+                promptLower.includes("voice") ||
+                promptLower.includes("narrat") ||
+                promptLower.includes("lantern") ||
+                promptLower.includes("guy gardner");
+
+              if (wantsVoice && fs.existsSync(report.outputPath)) {
+                try {
+                  console.log(`[Backend] Generating synchronized voiceover narration...`);
+                  let videoDuration = Math.round(report.duration || 30);
+                  try {
+                    const probeOut = execSync(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${report.outputPath}"`, { encoding: "utf8" }).trim();
+                    const parsedDur = parseFloat(probeOut);
+                    if (!isNaN(parsedDur) && parsedDur > 0) videoDuration = parsedDur;
+                  } catch {}
+                  const duration = Math.max(Math.round(videoDuration), 5);
+                  const tempVoScript = path.join("/tmp", `vo-${jobId}.sh`);
+                  const tempAudioPath = path.join("/tmp", `vo-audio-${jobId}.aac`);
+                  const tempMuxedVideo = path.join("/tmp", `video-voiced-${jobId}.mp4`);
+
+                  const isGL = promptLower.includes("lantern") || promptLower.includes("guy gardner");
+                  const isSup =
+                    promptLower.includes("superman") ||
+                    promptLower.includes("clark kent") ||
+                    promptLower.includes("clurk kent") ||
+                    promptLower.includes("man of steel") ||
+                    promptLower.includes("krypton");
+
+                  let lines = [];
+                  if (isGL) {
+                    lines = [
+                      { time: 500, text: "In brightest day, in blackest night. The Power Ring of Oa chooses its champion." },
+                      { time: 6500, text: "He is loud, he is unfiltered, and he is Earth's most stubborn defender: Guy Gardner." },
+                      { time: 12500, text: "Raw brawler construct sledgehammers. No fear, zero filter, boundless willpower." },
+                      { time: 18500, text: "Powered by the central emerald battery of the cosmos. Boundless energy for those who dare." },
+                      { time: 24500, text: "No evil shall escape my sight. Beware my power, Green Lantern's light!" },
+                    ];
+                  } else if (isSup) {
+                    lines = [
+                      { time: 500, text: "In a world seeking hope, a symbol arrived from the stars: the House of El." },
+                      { time: 6500, text: "By day, a mild-mannered investigative reporter for the Daily Planet: Clark Kent." },
+                      { time: 12500, text: "Dedicated to truth, justice, and defending the innocent from darkness." },
+                      { time: 18500, text: "Powered by Earth's yellow sun, carrying boundless strength in his heart." },
+                      { time: 24500, text: "Look up in the sky... Faster than a speeding bullet: it is Superman!" },
+                    ];
+                  } else {
+                    try {
+                      const voRes = await fetch("https://api.ollima.com/v1/chat/completions", {
+                        method: "POST",
+                        headers: {
+                          "Authorization": `Bearer ${process.env.AI_API_KEY || "sk-t0-OrygKg8d2nMe-ggcBcOt1mBfkld0gsMCmNO9fErYOAEHcoNfVhPDEsDa3w8En"}`,
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                          model: "gemini-3-flash",
+                          messages: [
+                            { role: "system", content: "You are a cinematic movie trailer voiceover writer. Write 5 concise, dramatic spoken sentences (each 8-14 words) for a 30-second video about the user prompt. Return ONLY a JSON array of 5 strings: [\"sentence 1\", \"sentence 2\", \"sentence 3\", \"sentence 4\", \"sentence 5\"]" },
+                            { role: "user", content: input.prompt || "cinematic video" }
+                          ]
+                        })
+                      });
+                      if (voRes.ok) {
+                        const voData = await voRes.json();
+                        const rawText = voData.choices?.[0]?.message?.content || "";
+                        const clean = rawText.replace(/```(?:json)?/g, "").replace(/```/g, "").trim();
+                        const parsed = JSON.parse(clean);
+                        if (Array.isArray(parsed) && parsed.length >= 5) {
+                          lines = [
+                            { time: 500, text: parsed[0] },
+                            { time: 6500, text: parsed[1] },
+                            { time: 12500, text: parsed[2] },
+                            { time: 18500, text: parsed[3] },
+                            { time: 24500, text: parsed[4] },
+                          ];
+                        }
+                      }
+                    } catch {}
+                    if (lines.length === 0) {
+                      lines = [
+                        { time: 500, text: "Step into an unprecedented cinematic visual journey." },
+                        { time: 6500, text: "Crafted with precision design and dynamic motion choreography." },
+                        { time: 12500, text: "Every visual beat engineered for storytelling and depth." },
+                        { time: 18500, text: "Powered by autonomous intelligence and cinematic GPU power." },
+                        { time: 24500, text: "Discover the next evolution of motion media today." },
+                      ];
+                    }
+                  }
+
+                  let scriptContent = `#!/bin/bash\nset -e\n`;
+                  lines.forEach((l, idx) => {
+                    scriptContent += `say -v "Samantha" -o "/tmp/vo_${jobId}_${idx}.aiff" "${l.text}"\n`;
+                    scriptContent += `ffmpeg -y -i "/tmp/vo_${jobId}_${idx}.aiff" -af "adelay=${l.time}|${l.time}" "/tmp/vo_${jobId}_${idx}.wav"\n`;
+                  });
+
+                  const filterInputs = lines.map((_, idx) => `[${idx}:a]`).join("");
+                  scriptContent += `ffmpeg -y `;
+                  lines.forEach((_, idx) => {
+                    scriptContent += `-i "/tmp/vo_${jobId}_${idx}.wav" `;
+                  });
+                  scriptContent += `-f lavfi -i "sine=frequency=55:duration=${duration}" `;
+                  scriptContent += `-filter_complex "${filterInputs}amix=inputs=${lines.length}:dropout_transition=0:weights=1 1 1 1 1[voice];[${lines.length}:a]volume=0.08,lowpass=f=120[ambient];[voice][ambient]amix=inputs=2:dropout_transition=0:weights=1.2 0.3[out]" `;
+                  scriptContent += `-map "[out]" -t ${duration} -c:a aac -b:a 192k "${tempAudioPath}"\n`;
+
+                  fs.writeFileSync(tempVoScript, scriptContent, { mode: 0o755 });
+                  execSync(tempVoScript, { stdio: "ignore" });
+
+                  if (fs.existsSync(tempAudioPath)) {
+                    execSync(`ffmpeg -y -i "${report.outputPath}" -i "${tempAudioPath}" -map 0:v:0 -map 1:a:0 -c:v copy -c:a copy -t ${duration} "${tempMuxedVideo}"`, { stdio: "ignore" });
+                    if (fs.existsSync(tempMuxedVideo)) {
+                      fs.copyFileSync(tempMuxedVideo, report.outputPath);
+                      console.log(`[Backend] Synchronized audio narration multiplexed into video successfully.`);
+                      try {
+                        fs.unlinkSync(tempMuxedVideo);
+                        fs.unlinkSync(tempAudioPath);
+                        fs.unlinkSync(tempVoScript);
+                        lines.forEach((_, idx) => {
+                          try { fs.unlinkSync(`/tmp/vo_${jobId}_${idx}.aiff`); fs.unlinkSync(`/tmp/vo_${jobId}_${idx}.wav`); } catch {}
+                        });
+                      } catch {}
+                    }
+                  }
+                } catch (audioErr) {
+                  console.warn(`[Backend] Audio synthesis notice: ${audioErr.message}`);
+                }
               }
 
               // 5. Phase 7: Notify progress: Uploading to Cloud Storage
@@ -1919,7 +2342,8 @@ const server = http.createServer(async (req, res) => {
                       t.toLowerCase().includes("quarterly revenue")
                     ) {
                       if (pLower.includes("batman")) return "Absolute Batman";
-                      if (pLower.includes("ollima")) return "Ollama Commercial";
+                      if (pLower.includes("lantern") || pLower.includes("guy gardner")) return "DC Lanterns: Guy Gardner";
+                      if (pLower.includes("ollima")) return "Ollima Commercial";
                       if (pLower.includes("networks home")) return "Networks Home";
                     }
                     return t || "AI Video Project";

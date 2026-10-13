@@ -328,7 +328,7 @@ ${sceneTags}
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      padding: 80px 100px;
+      padding: ${layout === "animated-bar-chart" ? "40px 60px" : "70px 90px"};
     }
 
     /* Ambient background grid & lighting */
@@ -499,6 +499,9 @@ ${sceneTags}
         ${this.escapeHtml(subtitleText)}
       </p>
     </div>`;
+
+      case "animated-bar-chart":
+        return this.renderBarChartLayout(scene);
 
       case "split-diagram":
       case "process-flow":
@@ -677,6 +680,103 @@ ${sceneTags}
 
       <div class="metrics-row" style="display: flex; gap: 28px; width: 100%;">
         ${cardsHtml}
+      </div>
+    </div>`;
+  }
+
+  /**
+   * Layout for Animated Financial / Revenue Bar Charts.
+   */
+  private static renderBarChartLayout(scene: StoryboardScene): string {
+    const { palette, typography, diagramSpec, metricData } = scene;
+    const subtitleText = typography.subtitle || "";
+
+    // Determine bars from diagramSpec.bars, metricData, or realistic trajectory
+    let bars: Array<{ label: string; value: number; formattedValue: string; color?: string }> = [];
+
+    if (diagramSpec?.bars && diagramSpec.bars.length > 0) {
+      bars = diagramSpec.bars.map((b) => ({
+        label: b.label,
+        value: typeof b.value === "number" ? b.value : parseFloat(String(b.value)) || 50,
+        formattedValue: (b as any).formattedValue || (typeof b.value === "number" ? `$${b.value}M` : String(b.value)),
+        color: b.color || palette.accent,
+      }));
+    } else if (metricData && metricData.length > 0) {
+      bars = metricData.map((m, idx) => ({
+        label: m.label,
+        value: 30 + idx * 25,
+        formattedValue: m.value,
+        color: palette.accent,
+      }));
+    } else {
+      bars = [
+        { label: "Q1 2024", value: 35, formattedValue: "$1.4M", color: palette.primary },
+        { label: "Q2 2024", value: 55, formattedValue: "$2.8M", color: palette.secondary },
+        { label: "Q3 2024", value: 78, formattedValue: "$4.5M", color: palette.accent },
+        { label: "Q4 2024", value: 98, formattedValue: "$7.2M", color: "#10b981" },
+      ];
+    }
+
+    const maxValue = Math.max(...bars.map((b) => b.value), 100);
+
+    const barsHtml = bars
+      .map((bar, i) => {
+        const heightPct = Math.max(18, Math.min(100, Math.round((bar.value / maxValue) * 100)));
+        const barGradient = `linear-gradient(180deg, ${bar.color || palette.accent} 0%, ${palette.primary} 100%)`;
+
+        return `
+        <div class="chart-col" style="flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; position: relative; max-width: 170px;">
+          <!-- Floating Value Number -->
+          <div class="anim-bar-val" id="barVal-${i}" style="margin-bottom: 14px; font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 800; color: ${palette.textColor}; text-shadow: 0 4px 14px rgba(0,0,0,0.6); letter-spacing: -0.02em;">
+            ${this.escapeHtml(bar.formattedValue)}
+          </div>
+
+          <!-- Bar Outer Track & Growing Fill -->
+          <div style="width: 100%; max-width: 120px; height: 250px; display: flex; align-items: flex-end; justify-content: center; position: relative;">
+            <div class="anim-chart-bar" id="chartBar-${i}" style="width: 100%; height: ${heightPct}%; background: ${barGradient}; border-radius: 12px 12px 4px 4px; box-shadow: 0 12px 32px ${palette.accent ? `${palette.accent}45` : "rgba(0, 212, 255, 0.35)"}; border: 1px solid rgba(255,255,255,0.22); transform-origin: bottom center; position: relative; overflow: hidden;">
+              <!-- Glossy Bar Highlight -->
+              <div style="position: absolute; top: 0; left: 0; right: 0; height: 35%; background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, transparent 100%);"></div>
+            </div>
+          </div>
+
+          <!-- Bottom Label -->
+          <div class="anim-bar-label" id="barLbl-${i}" style="margin-top: 16px; font-size: 14px; font-weight: 700; color: ${palette.subtextColor}; text-transform: uppercase; letter-spacing: 0.08em; text-align: center;">
+            ${this.escapeHtml(bar.label)}
+          </div>
+        </div>`;
+      })
+      .join("\n");
+
+    return `
+    <div class="bar-chart-layout" style="width: 100%; max-width: 1380px; z-index: 10;">
+      <!-- Header Section -->
+      <div style="text-align: center; margin-bottom: 22px;">
+        <div class="badge-tag anim-elem" id="chartBadge" style="margin-bottom: 12px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${palette.accent}" stroke-width="3"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          ${this.escapeHtml(typography.badge || "REVENUE & GROWTH METRICS")}
+        </div>
+        <h1 class="headline anim-elem" id="chartTitle" style="font-size: 48px; margin-bottom: 8px;">
+          ${this.formatHighlightedHeadline(typography.headline)}
+        </h1>
+        <p class="subtitle anim-elem" id="chartSub" style="margin: 0 auto; max-width: 860px; font-size: 20px;">
+          ${this.escapeHtml(subtitleText)}
+        </p>
+      </div>
+
+      <!-- Chart Glass Card Canvas (no anim-elem to prevent double-tween opacity conflict) -->
+      <div class="glass-card" id="barChartCanvas" style="padding: 28px 44px 22px; position: relative; background: ${palette.textColor === "#000000" ? "rgba(255,255,255,0.92)" : "rgba(10, 16, 32, 0.75)"}; border: 1px solid ${palette.borderColor}; border-radius: 20px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);">
+        <!-- Background Gridlines -->
+        <div style="position: absolute; inset: 28px 44px 48px; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; opacity: 0.18; border-bottom: 2px solid ${palette.borderColor};">
+          <div style="border-top: 1px dashed ${palette.textColor}; width: 100%;"></div>
+          <div style="border-top: 1px dashed ${palette.textColor}; width: 100%;"></div>
+          <div style="border-top: 1px dashed ${palette.textColor}; width: 100%;"></div>
+          <div style="border-top: 1px dashed ${palette.textColor}; width: 100%;"></div>
+        </div>
+
+        <!-- Bars Flex Container -->
+        <div style="display: flex; align-items: flex-end; justify-content: space-around; gap: 20px; height: 330px; position: relative; z-index: 2;">
+          ${barsHtml}
+        </div>
       </div>
     </div>`;
   }
@@ -1276,6 +1376,26 @@ ${sceneTags}
       duration: 0.9,
       ease: "back.out(1.7)"
     }, 0.5);
+    `
+        : ""
+    }
+
+    ${
+      layout === "animated-bar-chart"
+        ? `
+    // Bar chart container entrance
+    tl.fromTo("#barChartCanvas", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.75, ease: "power2.out" }, 0.25);
+
+    // Staggered bars growing upwards from zero using transform scaleY
+    tl.fromTo(".anim-chart-bar",
+      { scaleY: 0, transformOrigin: "bottom center" },
+      { scaleY: 1, duration: 1.2, stagger: 0.12, ease: "power3.out" },
+      0.5
+    );
+
+    // Staggered bar value numbers and labels fade in with pop
+    tl.fromTo(".anim-bar-val", { opacity: 0, y: -10, scale: 0.8 }, { opacity: 1, y: 0, scale: 1, stagger: 0.12, duration: 0.5, ease: "back.out(1.5)" }, 0.8);
+    tl.fromTo(".anim-bar-label", { opacity: 0 }, { opacity: 1, stagger: 0.12, duration: 0.5, ease: "power2.out" }, 0.7);
     `
         : ""
     }

@@ -18,6 +18,7 @@ import {
   Settings,
   Sparkles,
   SlidersHorizontal,
+  UserCheck,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -29,6 +30,7 @@ import { ThemeSwitcher } from "./theme-switcher";
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/create-video", label: "Create Video", icon: Sparkles },
+  { href: "/heygen", label: "HeyGen Avatars", icon: UserCheck },
   { href: "/editor", label: "Live Editor", icon: SlidersHorizontal },
   { href: "/projects", label: "Projects", icon: Film },
   { href: "/assets", label: "Assets", icon: FolderKanban },
@@ -93,6 +95,26 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      <div className="mx-3 mb-2 rounded-lg border border-border/70 bg-secondary/50 p-2.5 transition-colors hover:bg-secondary/80">
+        <Link href="/settings" className="block">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              Node.js & FFmpeg
+            </span>
+            <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+              Ready ✓
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] text-primary/50">
+            Node v22 • FFmpeg 8.1 (H.264/AAC)
+          </p>
+        </Link>
+      </div>
 
       <div className="border-t border-border p-3">
         <div className="mb-2 flex items-center gap-2">

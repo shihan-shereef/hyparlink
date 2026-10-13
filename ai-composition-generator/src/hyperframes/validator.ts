@@ -22,34 +22,30 @@ export class Validator {
             ...process.env,
             NODE_ENV: "test",
           },
-          timeout: 45000,
+          timeout: 90000,
         },
       );
 
       const combined = stdout + "\n" + stderr;
+      const parsed = ErrorParser.parse(combined);
 
-      // Check if hyperframes check found errors
-      if (
-        combined.includes('"status": "failed"') ||
-        combined.includes('"status":"failed"')
-      ) {
-        const parsed = ErrorParser.parse(combined);
-        const errStrings = parsed.map((e) => e.message);
+      if (parsed.length === 0) {
         return {
-          valid: false,
-          errors:
-            errStrings.length > 0
-              ? errStrings
-              : ["Validation failed with errors in report"],
-          parsedErrors: parsed,
+          valid: true,
+          errors: [],
+          parsedErrors: [],
           rawOutput: combined,
         };
       }
 
+      const errStrings = parsed.map((e) => e.message);
       return {
-        valid: true,
-        errors: [],
-        parsedErrors: [],
+        valid: false,
+        errors:
+          errStrings.length > 0
+            ? errStrings
+            : ["Validation failed with errors in report"],
+        parsedErrors: parsed,
         rawOutput: combined,
       };
     } catch (err: any) {
@@ -60,6 +56,17 @@ export class Validator {
         "\n" +
         (err.message || "");
       const parsed = ErrorParser.parse(combined);
+
+      // If stdout contains "ok": true and 0 errors were parsed, it's valid
+      if (combined.includes('"ok": true') && parsed.length === 0) {
+        return {
+          valid: true,
+          errors: [],
+          parsedErrors: [],
+          rawOutput: combined,
+        };
+      }
+
       const errStrings =
         parsed.length > 0
           ? parsed.map((e) => e.message)

@@ -210,7 +210,7 @@ export class StoryboardPlanner {
       return "Networks Home";
     }
     if (/\bollima\b/i.test(raw)) {
-      return "Ollama";
+      return "Ollima";
     }
     if (/\bhyperframes\b/i.test(raw)) {
       return "HyperFrames Studio";
@@ -471,6 +471,19 @@ export class StoryboardPlanner {
         return ["comic-ad-hook", "comic-trailer-cta"];
       }
       return ["comic-ad-hook"];
+    }
+
+    // When bar chart is requested, feature animated-bar-chart!
+    const hasBarChart = Boolean(
+      prompt &&
+      /\b(bar\s*chart|revenue\s*chart|growth\s*chart|animated\s*revenue|revenue\s*bar)\b/i.test(prompt),
+    );
+    if (hasBarChart) {
+      if (count === 1) return ["animated-bar-chart"];
+      if (count === 2) return ["cinematic-title", "animated-bar-chart"];
+      if (count === 3) return ["cinematic-title", "animated-bar-chart", "closing-summary"];
+      if (count === 4) return ["cinematic-title", "animated-bar-chart", hasAssets ? "image-showcase" : "metrics-grid", "closing-summary"];
+      return ["cinematic-title", "animated-bar-chart", hasAssets ? "image-showcase" : "metrics-grid", "split-diagram", "closing-summary"];
     }
 
     // When assets are provided, ALWAYS guarantee image-showcase is prominently featured!
@@ -851,7 +864,7 @@ export class StoryboardPlanner {
           ? "LOCAL AI ENGINE"
           : "CINEMATIC PRODUCT SHOWCASE";
       purpose = "Cinematic Opening Title & Hook";
-      mainHeading = isBatman ? "Absolute Batman" : isOllama ? "Ollama" : topic;
+      mainHeading = isBatman ? "Absolute Batman" : isOllama ? "Ollima" : topic;
       supportingText = isBatman
         ? "No billions. No mansion. Pure unrelenting grit, massive brute force, and lethal tactical engineering."
         : isOllama
@@ -874,6 +887,20 @@ export class StoryboardPlanner {
         : isOllama
           ? "Get started in seconds. Fast, private, open-source AI for everyone."
           : "Step into effortless connectivity, superior performance, and unmatched peace of mind.";
+    } else if (layout === "animated-bar-chart") {
+      badgeText = "REVENUE & GROWTH TRAJECTORY";
+      purpose = "Animated Revenue & Performance Chart";
+      mainHeading = `${topic} Revenue Surge`;
+      supportingText = "Accelerating quarter-over-quarter revenue expansion and rapid commercial adoption.";
+      diagramSpec = {
+        type: "bars",
+        bars: [
+          { label: "Q1 2024", value: 35, formattedValue: "$1.4M", color: p.primary },
+          { label: "Q2 2024", value: 55, formattedValue: "$2.8M", color: p.secondary },
+          { label: "Q3 2024", value: 78, formattedValue: "$4.5M", color: p.accent },
+          { label: "Q4 2024", value: 98, formattedValue: "$7.2M", color: "#10b981" },
+        ],
+      };
     } else if (layout === "image-showcase") {
       badgeText = isBatman
         ? "URBAN BATTLEGROUND SPOTLIGHT"
@@ -912,12 +939,12 @@ export class StoryboardPlanner {
           caption: isBatman
             ? "Absolute Batman Tactical Ground"
             : isOllama
-              ? "Ollama AI Local Infrastructure"
+              ? "Ollima AI Local Infrastructure"
               : `${topic} Featured Experience`,
           overlayText: isBatman
             ? "Absolute Batman • DC Comics"
             : isOllama
-              ? "Ollama Ultra Edition"
+              ? "Ollima Ultra Edition"
               : `${topic} High-Performance Edition`,
         };
       }

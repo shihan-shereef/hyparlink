@@ -1,6 +1,7 @@
 "use client";
 
 import { SessionsCard } from "@/components/sessions-card";
+import { DependencyStatusCard } from "@/components/dependency-status-card";
 import { useScopedI18n } from "@/locales/client";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useForm } from "@tanstack/react-form";
@@ -171,6 +172,9 @@ export default function DashboardSettings() {
 
       {/* Security: active sessions */}
       <SessionsCard />
+
+      {/* Video Rendering System Environment & Dependencies */}
+      <DependencyStatusCard />
 
       {/* Delete Account */}
       <div className="flex w-full flex-col items-start rounded-lg border border-destructive bg-card">

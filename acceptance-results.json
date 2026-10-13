@@ -1,0 +1,1237 @@
+{
+  "testA": {
+    "status": "PASSED",
+    "report": {
+      "prompt": "Create a 30-second cinematic Batman advertisement with a dramatic full-screen Batman image, animated yellow typography, moving shadows, a Gotham City atmosphere, custom transitions, and a powerful final reveal.",
+      "aiProvider": "ollima",
+      "aiModel": "deepseek-v4-flash",
+      "projectPath": "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796811444-f74855e0",
+      "validationStatus": "PASSED",
+      "correctionAttempts": 0,
+      "designIssues": [
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_01.html",
+          "message": "Injected required @font-face local fallback declaration for 'Syne' in scene_01.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_02.html",
+          "message": "Injected required @font-face local fallback declaration for 'Syne' in scene_02.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_03.html",
+          "message": "Injected required @font-face local fallback declaration for 'Syne' in scene_03.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_04.html",
+          "message": "Injected required @font-face local fallback declaration for 'Syne' in scene_04.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_05.html",
+          "message": "Injected required @font-face local fallback declaration for 'Syne' in scene_05.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_06.html",
+          "message": "Injected required @font-face local fallback declaration for 'Syne' in scene_06.html."
+        }
+      ],
+      "renderStatus": "SUCCESS",
+      "outputPath": "/Users/apple/Desktop/hyparlink dashbord/outputs/output-1791796811444-f74855e0.mp4",
+      "duration": 30,
+      "resolution": "1920x1080",
+      "fps": 30,
+      "fileSize": "8741.7 KB",
+      "renderTimeSeconds": 53.57,
+      "creativeBrief": {
+        "title": "THE DARK KNIGHT — GOTHAM PROTOCOL",
+        "subject": "A 30-second cinematic Batman advertisement that opens on a rain-soaked Gotham skyline, reveals the full-screen Batman hero artwork through a sweeping bat-signal light, escalates through animated amber HUD crime analytics and shadow-driven typography, and climaxes on a hard-cut final reveal of the Bat emblem with a powerful call to action.",
+        "category": "cinematic-trailer",
+        "intendedAudience": "Comic-book and superhero film fans aged 16–45, premium streaming/platform subscribers, gaming and entertainment audiences who respond to dark, high-contrast, blockbuster-style trailers.",
+        "visualAtmosphere": "Oppressive, rain-drenched Gotham noir. Near-black navy depths layered with volumetric fog, drifting smoke and slow-moving shadow silhouettes that crawl across the frame. A single amber bat-signal beam cuts through the haze, rim-lighting the Batman figure in gold. Wet asphalt reflections, distant skyscraper window grids, flickering neon signage and airborne searchlight cones create depth. Heavy vignette, film grain, subtle chromatic aberration and anamorphic lens flares push a 35mm blockbuster feel. Contrast is extreme: crushed blacks against glowing amber typography.",
+        "colorPalette": {
+          "primary": "#FFE600",
+          "secondary": "#FF9E00",
+          "accent": "#4FC3F7",
+          "backgroundColor": "#05070C",
+          "surfaceColor": "rgba(12, 16, 24, 0.72)",
+          "textColor": "#FFFFFF",
+          "textMutedColor": "#8A94A6",
+          "glowColor": "rgba(255, 230, 0, 0.38)",
+          "borderColor": "rgba(255, 230, 0, 0.24)"
+        },
+        "typography": {
+          "displayFont": "Syne",
+          "bodyFont": "Inter",
+          "weights": [
+            "400",
+            "700",
+            "900"
+          ],
+          "headlineTransform": "uppercase"
+        },
+        "narrativeProgression": [
+          "Scene 1 (0.0s–4.0s): Hook — Rain-lashed Gotham skyline in near-darkness, distant siren glow, a single amber searchlight sweeps the clouds and the title 'GOTHAM' flickers into being with a letter-by-letter glitch reveal.",
+          "Scene 2 (4.0s–9.0s): Hero Reveal — The bat-signal beam lands on the full-screen Batman artwork; slow Ken Burns push-in as shadow silhouettes drift across the frame and 'THE DARK KNIGHT' stamps in with a heavy amber glow and impact shake.",
+          "Scene 3 (9.0s–15.0s): Crime Analytics HUD — Animated amber bar charts, a rotating radar sweep and a Gotham district heatmap track crime-rate collapse; numerical counters spin from 100% down to 12% with scanline overlays and ticking data readouts.",
+          "Scene 4 (15.0s–20.0s): Shadow & Threat — Rapid montage of moving shadow shapes, cape-like silhouettes and whip-pan transitions; kinetic typography flashes 'FEAR' / 'DISCIPLINE' / 'JUSTICE' in staggered amber slabs over the darkened hero image.",
+          "Scene 5 (20.0s–26.0s): Impact Proof — Full-bleed Batman hero at maximum contrast with parallax depth layers, glowing KPI cards ('CRIME RATE −88%', 'CITY RESPONSE 0.4s', 'THREATS NEUTRALIZED 1,247') animating in with fluid GSAP easing and amber light bloom.",
+          "Scene 6 (26.0s–30.0s): Climax & Final Reveal — Hard cut to black, a single heartbeat of silence, then the Bat emblem ignites in searing amber with the tagline 'THE NIGHT BELONGS TO HIM' and the CTA button snapping into frame before a final fade to black."
+        ],
+        "sceneCount": 6,
+        "totalDuration": 30,
+        "requiredImages": [
+          "batman-animated-3840x2160-18273.jpeg"
+        ],
+        "chartAndDataRequirements": "Animated amber SVG bar chart tracking Gotham crime rate across six districts with staggered grow-in and glow tips; a rotating radar sweep with concentric rings and blip pings; a district heatmap grid that shifts from red-hot to cold blue as crime drops; three numerical counters (crime rate 100%→12%, response time 4.2s→0.4s, threats neutralized 0→1,247) with monospace digit roll and amber flash on settle; thin HUD ticker lines and scanning progress bars framing the data panels.",
+        "animationStyle": "Cinematic Ken Burns push-ins and pull-outs, volumetric bat-signal light sweeps, drifting shadow-silhouette layers, rain and ember particle systems, GSAP-driven staggered typography with amber glow bloom, glitch/scanline and hard-cut whip-pan transitions, radar sweep rotation, fluid data-bar growth, digit-roll counters, and a final emblem ignition flash with radial light burst.",
+        "cameraMovement": "Slow push-in from scale 1.0 to 1.08 on the hero artwork, multi-layer parallax drift between skyline, fog and Batman figure, subtle handheld micro-shake on impact beats, whip-pan wipes between scenes, and a rapid 1.15 scale punch-in on the final Bat emblem reveal.",
+        "closingMessage": "In a city that never sleeps, one shadow keeps it safe. THE NIGHT BELONGS TO HIM.",
+        "callToAction": "WATCH THE FULL TRAILER"
+      },
+      "timeline": {
+        "totalDuration": 30,
+        "fps": 30,
+        "totalFrames": 900,
+        "scenes": [
+          {
+            "id": "scene-01",
+            "index": 0,
+            "name": "The Dark Knight Awakens",
+            "objective": "Dramatic full-screen hero reveal with Gotham dusk atmosphere",
+            "start": 0,
+            "duration": 5,
+            "end": 5,
+            "startFrame": 0,
+            "endFrame": 150,
+            "sceneType": "cinematic-hero-intro",
+            "headline": "JUSTICE IN THE SHADOWS",
+            "highlightedWord": "JUSTICE",
+            "subtitle": "From Gotham's high rooftops to the darkest streets, the Bat stands watch.",
+            "badge": "GOTHAM SURVEILLANCE • LIVE INTEL",
+            "assetToFeature": {
+              "id": "asset-batman",
+              "name": "batman-animated-3840x2160-18273.jpeg",
+              "originalFilename": "batman-animated-3840x2160-18273.jpeg",
+              "type": "image",
+              "mimeType": "image/jpeg",
+              "localPath": "/Users/apple/Desktop/hyparlink dashbord/ai-composition-generator/default-assets/batman-animated-3840x2160-18273.jpeg",
+              "url": "/assets/batman-animated-3840x2160-18273.jpeg",
+              "role": "fullscreen-hero-background",
+              "textPlacement": "bottom-left",
+              "scrimGradient": "linear-gradient(180deg, rgba(5,5,8,0.75) 0%, rgba(5,5,8,0.2) 35%, rgba(5,5,8,0.4) 65%, rgba(5,5,8,0.95) 100%)",
+              "cameraMovement": "subtle-zoom-in",
+              "dimensions": {
+                "width": 3840,
+                "height": 2160,
+                "aspectRatio": "16:9"
+              }
+            },
+            "visualAtmosphere": {
+              "backgroundType": "image-backdrop",
+              "scrimGradient": "linear-gradient(180deg, rgba(8,10,18,0.7) 0%, rgba(8,10,18,0.2) 35%, rgba(8,10,18,0.4) 65%, rgba(8,10,18,0.95) 100%)",
+              "ambientGlowColor": "rgba(255, 230, 0, 0.25)"
+            }
+          },
+          {
+            "id": "scene-02",
+            "index": 1,
+            "name": "Batcomputer Radar & Surveillance",
+            "objective": "Tactical HUD scanning systems and threat assessment",
+            "start": 5,
+            "duration": 5,
+            "end": 10,
+            "startFrame": 150,
+            "endFrame": 300,
+            "sceneType": "metrics-counter-hud",
+            "headline": "GOTHAM THREAT MATRIX",
+            "highlightedWord": "THREAT MATRIX",
+            "subtitle": "High-frequency radar tracking criminal activity across all five boroughs.",
+            "badge": "BATCOMPUTER SYS // V4.9",
+            "assetToFeature": {
+              "id": "asset-batman",
+              "name": "batman-animated-3840x2160-18273.jpeg",
+              "originalFilename": "batman-animated-3840x2160-18273.jpeg",
+              "type": "image",
+              "mimeType": "image/jpeg",
+              "localPath": "/Users/apple/Desktop/hyparlink dashbord/ai-composition-generator/default-assets/batman-animated-3840x2160-18273.jpeg",
+              "url": "/assets/batman-animated-3840x2160-18273.jpeg",
+              "role": "fullscreen-hero-background",
+              "textPlacement": "bottom-left",
+              "scrimGradient": "linear-gradient(180deg, rgba(5,5,8,0.75) 0%, rgba(5,5,8,0.2) 35%, rgba(5,5,8,0.4) 65%, rgba(5,5,8,0.95) 100%)",
+              "cameraMovement": "subtle-zoom-in",
+              "dimensions": {
+                "width": 3840,
+                "height": 2160,
+                "aspectRatio": "16:9"
+              }
+            },
+            "dataVisualization": {
+              "type": "radar-hud",
+              "metrics": [
+                {
+                  "label": "Crime Drop Rate",
+                  "value": "-68%",
+                  "trend": "down"
+                },
+                {
+                  "label": "Active Patrols",
+                  "value": "24/7",
+                  "trend": "up"
+                },
+                {
+                  "label": "Arkham Secure",
+                  "value": "99.9%",
+                  "trend": "up"
+                }
+              ]
+            },
+            "visualAtmosphere": {
+              "backgroundType": "cyber-hud",
+              "ambientGlowColor": "rgba(255, 170, 0, 0.3)"
+            }
+          },
+          {
+            "id": "scene-03",
+            "index": 2,
+            "name": "Crime Analytics & Intelligence",
+            "objective": "Animated bar chart displaying rapid crime reduction across Gotham",
+            "start": 10,
+            "duration": 5,
+            "end": 15,
+            "startFrame": 300,
+            "endFrame": 450,
+            "sceneType": "animated-bar-chart",
+            "headline": "CRIMINAL INCIDENT REDUCTION",
+            "highlightedWord": "REDUCTION",
+            "subtitle": "Year-over-year crime incident decline following Batman tactical intervention.",
+            "badge": "GCPD STATISTICAL REPORT",
+            "dataVisualization": {
+              "type": "bar-chart",
+              "bars": [
+                {
+                  "label": "Q1",
+                  "value": 92,
+                  "formattedValue": "9,200",
+                  "color": "#FF3344"
+                },
+                {
+                  "label": "Q2",
+                  "value": 64,
+                  "formattedValue": "6,400",
+                  "color": "#FFAA00"
+                },
+                {
+                  "label": "Q3",
+                  "value": 38,
+                  "formattedValue": "3,800",
+                  "color": "#FFE600"
+                },
+                {
+                  "label": "Q4",
+                  "value": 14,
+                  "formattedValue": "1,400",
+                  "color": "#00F5FF"
+                }
+              ]
+            },
+            "visualAtmosphere": {
+              "backgroundType": "minimal-dark",
+              "ambientGlowColor": "rgba(255, 230, 0, 0.2)"
+            }
+          },
+          {
+            "id": "scene-04",
+            "index": 3,
+            "name": "Tactical Intervention Metrics",
+            "objective": "Dynamic numerical counters showing neutralized threats and response time",
+            "start": 15,
+            "duration": 5,
+            "end": 20,
+            "startFrame": 450,
+            "endFrame": 600,
+            "sceneType": "metrics-counter-hud",
+            "headline": "TACTICAL PERFORMANCE",
+            "highlightedWord": "PERFORMANCE",
+            "subtitle": "Sub-second intervention and precision equipment keeping the innocent safe.",
+            "badge": "WAYNE ENTERPRISES DEFENSE",
+            "dataVisualization": {
+              "type": "metric-counter",
+              "metrics": [
+                {
+                  "label": "Incidents Neutralized",
+                  "value": "8,420+",
+                  "startValue": 0,
+                  "targetValue": 8420,
+                  "suffix": "+"
+                },
+                {
+                  "label": "Avg Response Speed",
+                  "value": "2.4 min",
+                  "startValue": 0,
+                  "targetValue": 2.4,
+                  "suffix": " min"
+                },
+                {
+                  "label": "Downtown Coverage",
+                  "value": "100%",
+                  "startValue": 0,
+                  "targetValue": 100,
+                  "suffix": "%"
+                }
+              ]
+            },
+            "visualAtmosphere": {
+              "backgroundType": "mesh-gradient",
+              "ambientGlowColor": "rgba(255, 230, 0, 0.25)"
+            }
+          },
+          {
+            "id": "scene-05",
+            "index": 4,
+            "name": "The Symbol of Fear",
+            "objective": "High-contrast kinetic typography highlighting the Batman ethos",
+            "start": 20,
+            "duration": 5,
+            "end": 25,
+            "startFrame": 600,
+            "endFrame": 750,
+            "sceneType": "kinetic-typography",
+            "headline": "FEAR IS A TOOL. WHEN THAT LIGHT HITS THE SKY, IT’S A WARNING.",
+            "highlightedWord": "A WARNING",
+            "subtitle": "He is not just a protector. He is the night.",
+            "badge": "THE BAT-SIGNAL",
+            "assetToFeature": {
+              "id": "asset-batman",
+              "name": "batman-animated-3840x2160-18273.jpeg",
+              "originalFilename": "batman-animated-3840x2160-18273.jpeg",
+              "type": "image",
+              "mimeType": "image/jpeg",
+              "localPath": "/Users/apple/Desktop/hyparlink dashbord/ai-composition-generator/default-assets/batman-animated-3840x2160-18273.jpeg",
+              "url": "/assets/batman-animated-3840x2160-18273.jpeg",
+              "role": "fullscreen-hero-background",
+              "textPlacement": "bottom-left",
+              "scrimGradient": "linear-gradient(180deg, rgba(5,5,8,0.75) 0%, rgba(5,5,8,0.2) 35%, rgba(5,5,8,0.4) 65%, rgba(5,5,8,0.95) 100%)",
+              "cameraMovement": "subtle-zoom-in",
+              "dimensions": {
+                "width": 3840,
+                "height": 2160,
+                "aspectRatio": "16:9"
+              }
+            },
+            "visualAtmosphere": {
+              "backgroundType": "image-backdrop",
+              "scrimGradient": "linear-gradient(180deg, rgba(5,5,8,0.85) 0%, rgba(5,5,8,0.4) 40%, rgba(5,5,8,0.95) 100%)",
+              "ambientGlowColor": "rgba(255, 230, 0, 0.35)"
+            }
+          },
+          {
+            "id": "scene-06",
+            "index": 5,
+            "name": "The Legend Continues",
+            "objective": "Powerful cinematic reveal and final closing call to action",
+            "start": 25,
+            "duration": 5,
+            "end": 30,
+            "startFrame": 750,
+            "endFrame": 900,
+            "sceneType": "cinematic-climax-cta",
+            "headline": "BECOME THE NIGHT",
+            "highlightedWord": "THE NIGHT",
+            "subtitle": "Gotham City will always have a protector. Experience the cinematic legacy.",
+            "badge": "DC COMICS • THE DARK KNIGHT",
+            "ctaText": "DISCOVER THE LEGEND",
+            "assetToFeature": {
+              "id": "asset-batman",
+              "name": "batman-animated-3840x2160-18273.jpeg",
+              "originalFilename": "batman-animated-3840x2160-18273.jpeg",
+              "type": "image",
+              "mimeType": "image/jpeg",
+              "localPath": "/Users/apple/Desktop/hyparlink dashbord/ai-composition-generator/default-assets/batman-animated-3840x2160-18273.jpeg",
+              "url": "/assets/batman-animated-3840x2160-18273.jpeg",
+              "role": "fullscreen-hero-background",
+              "textPlacement": "bottom-left",
+              "scrimGradient": "linear-gradient(180deg, rgba(5,5,8,0.75) 0%, rgba(5,5,8,0.2) 35%, rgba(5,5,8,0.4) 65%, rgba(5,5,8,0.95) 100%)",
+              "cameraMovement": "subtle-zoom-in",
+              "dimensions": {
+                "width": 3840,
+                "height": 2160,
+                "aspectRatio": "16:9"
+              }
+            },
+            "visualAtmosphere": {
+              "backgroundType": "image-backdrop",
+              "scrimGradient": "linear-gradient(180deg, rgba(5,5,8,0.7) 0%, rgba(5,5,8,0.3) 30%, rgba(5,5,8,0.96) 100%)",
+              "ambientGlowColor": "rgba(255, 230, 0, 0.3)"
+            }
+          }
+        ]
+      },
+      "probeData": {
+        "duration": 30,
+        "width": 1920,
+        "height": 1080,
+        "codec": "h264",
+        "bitrate": 2387057,
+        "fps": 30
+      },
+      "extractedFrames": [
+        "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796811444-f74855e0/inspect/frame_01.jpg",
+        "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796811444-f74855e0/inspect/frame_02.jpg",
+        "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796811444-f74855e0/inspect/frame_03.jpg"
+      ],
+      "frameQualityReport": {
+        "inspectedFramesCount": 3,
+        "passed": true,
+        "issues": [],
+        "frameMetrics": [
+          {
+            "framePath": "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796811444-f74855e0/inspect/frame_01.jpg",
+            "timestamp": 1,
+            "fileSizeBytes": 122082,
+            "width": 1920,
+            "height": 1080,
+            "isDuplicate": false,
+            "isBlank": false
+          },
+          {
+            "framePath": "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796811444-f74855e0/inspect/frame_02.jpg",
+            "timestamp": 15,
+            "fileSizeBytes": 17573,
+            "width": 1920,
+            "height": 1080,
+            "isDuplicate": false,
+            "isBlank": false
+          },
+          {
+            "framePath": "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796811444-f74855e0/inspect/frame_03.jpg",
+            "timestamp": 28,
+            "fileSizeBytes": 102791,
+            "width": 1920,
+            "height": 1080,
+            "isDuplicate": false,
+            "isBlank": false
+          }
+        ]
+      }
+    },
+    "probe": {
+      "duration": 30,
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "codec": "h264",
+      "sizeBytes": 8951465,
+      "bitrate": 2387057
+    },
+    "progressStepsReported": 9
+  },
+  "testB": {
+    "status": "PASSED",
+    "report": {
+      "prompt": "Create a 30-second OllaSoftware advertisement featuring AI products, software development, a professionally animated bar chart, moving numerical counters, brand-aligned visuals, and a strong closing call to action.",
+      "aiProvider": "ollima",
+      "aiModel": "deepseek-v4-flash",
+      "projectPath": "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796885143-20ef98ce",
+      "validationStatus": "PASSED",
+      "correctionAttempts": 0,
+      "designIssues": [
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_01.html",
+          "message": "Injected required @font-face local fallback declaration for 'Space Grotesk' in scene_01.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_02.html",
+          "message": "Injected required @font-face local fallback declaration for 'Space Grotesk' in scene_02.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_03.html",
+          "message": "Injected required @font-face local fallback declaration for 'Space Grotesk' in scene_03.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_04.html",
+          "message": "Injected required @font-face local fallback declaration for 'Space Grotesk' in scene_04.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_05.html",
+          "message": "Injected required @font-face local fallback declaration for 'Space Grotesk' in scene_05.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_06.html",
+          "message": "Injected required @font-face local fallback declaration for 'Space Grotesk' in scene_06.html."
+        }
+      ],
+      "renderStatus": "SUCCESS",
+      "outputPath": "/Users/apple/Desktop/hyparlink dashbord/outputs/output-1791796885143-20ef98ce.mp4",
+      "duration": 30,
+      "resolution": "1920x1080",
+      "fps": 30,
+      "fileSize": "3296.9 KB",
+      "renderTimeSeconds": 50.73,
+      "creativeBrief": {
+        "title": "OllaSoftware — Intelligence Engineered",
+        "subject": "A 30-second high-tech brand advertisement for OllaSoftware, showcasing its AI product suite and end-to-end software development capability through a cinematic product reveal, an animated revenue/performance bar chart, live numerical counters, and a decisive closing call to action.",
+        "category": "advertisement",
+        "intendedAudience": "Enterprise decision-makers, CTOs, product leaders, and startup founders evaluating AI platforms and custom software engineering partners (28–55, tech-literate, B2B buyers).",
+        "visualAtmosphere": "Deep midnight-navy command-center aesthetic. Layered dark gradient backdrop (#071426 → #0A1B33) with a faint animated grid mesh, drifting volumetric light haze, and slow-moving particle dust. Glassmorphic UI panels with 1px luminous borders float in shallow 3D space, lit from behind by cool cyan rim light. Every data element emits a soft bloom. The mood is precise, confident, and futuristic — engineered rather than flashy — building from a quiet dark open into a bright, saturated climax where the brand mark ignites.",
+        "colorPalette": {
+          "primary": "#0866E8",
+          "secondary": "#62B5FF",
+          "accent": "#00F5FF",
+          "backgroundColor": "#071426",
+          "surfaceColor": "rgba(255, 255, 255, 0.045)",
+          "textColor": "#FFFFFF",
+          "textMutedColor": "#94A3B8",
+          "glowColor": "rgba(8, 102, 232, 0.45)",
+          "borderColor": "rgba(98, 181, 255, 0.18)"
+        },
+        "typography": {
+          "displayFont": "Space Grotesk",
+          "bodyFont": "Inter",
+          "weights": [
+            "400",
+            "700",
+            "900"
+          ],
+          "headlineTransform": "uppercase"
+        },
+        "narrativeProgression": [
+          "Scene 1 (0.0–5.0s): Hook & Brand Ignition — dark void, a single cyan scanline sweeps across the frame, the OllaSoftware wordmark resolves out of particle noise with a soft glow bloom and a subtle chromatic pulse.",
+          "Scene 2 (5.0–10.0s): The AI Product Suite — three glassmorphic product cards (AI Copilot, Vision Analytics, Automation Engine) fly in on a staggered 3D parallax, each with an animated icon, a one-line capability label, and a pulsing status dot.",
+          "Scene 3 (10.0–15.0s): Engineering Capability — a blueprint-style code/architecture layer draws itself: animated node graph, connecting data lines, and a terminal-style typing strip reading 'BUILD · DEPLOY · SCALE' with a progress bar filling to 100%.",
+          "Scene 4 (15.0–20.0s): Animated Bar Chart Analytics — a full-width glowing SVG bar chart rises from the baseline with staggered GSAP easing, gridlines and axis labels fading in, each bar capped with a luminous value tag; a trend line draws across the peaks.",
+          "Scene 5 (20.0–25.0s): Numerical Impact Counters — three oversized KPI counters roll up simultaneously (e.g. 98.7% model accuracy, 4.2x delivery velocity, 320+ enterprise deployments) with digit-roll animation, flanked by a rotating radar sweep and orbiting data rings.",
+          "Scene 6 (25.0–30.0s): Climax & Call to Action — camera pulls back, all UI elements collapse into a single glowing brand lockup, tagline 'INTELLIGENCE, ENGINEERED.' fades up, and a cyan CTA button scales in with a shimmer sweep and a persistent soft pulse."
+        ],
+        "sceneCount": 6,
+        "totalDuration": 30,
+        "requiredImages": [],
+        "chartAndDataRequirements": "One hero animated bar chart (Scene 4) rendered as inline SVG: 6 vertical bars with rounded caps, gradient fill from #0866E8 to #00F5FF, staggered rise animation (0.08s offset per bar, cubic-bezier ease-out, 0.9s duration), horizontal gridlines at 25/50/75/100% opacity 0.08, muted axis labels in #94A3B8, and a luminous value tag that fades in above each bar after it lands. A secondary trend polyline draws across bar tops using stroke-dasharray animation. Scene 5 requires three independent numerical counters animating from 0 to final value over 1.6s with digit-roll/odometer easing and a final 1.15x scale pop plus glow flash on settle: '98.7%' (AI model accuracy), '4.2x' (faster delivery velocity), '320+' (enterprise deployments). Scene 3 includes a 0→100% progress bar with a moving highlight and a live percentage readout.",
+        "animationStyle": "Premium motion-graphics language: GSAP-driven staggered entrances with cubic-bezier(0.22, 1, 0.36, 1) easing, glassmorphic card fly-ins with 3D rotateY parallax, glowing radar sweep and orbiting ring rotations, SVG stroke-dasharray line draws, odometer digit-roll counters, shimmer sweeps across CTA surfaces, particle drift and volumetric haze, and soft bloom/glow pulses on every data reveal. No hard cuts — all transitions use 0.4s cross-dissolves or light-wipe masks.",
+        "cameraMovement": "Continuous cinematic motion: slow push-in from scale 1.00 to 1.06 on Scenes 1 and 6, lateral parallax drift (translateX ±20px) with layered depth on Scenes 2 and 3, a gentle vertical tilt-up reveal on the bar chart in Scene 4, and a smooth pull-back dolly-out in Scene 6 that resolves into a locked, centered brand lockup.",
+        "closingMessage": "OllaSoftware builds the AI products and software systems that move enterprises forward — intelligence, engineered end to end.",
+        "callToAction": "START YOUR BUILD — Book a free AI strategy session at ollasoftware.com"
+      },
+      "timeline": {
+        "totalDuration": 30,
+        "fps": 30,
+        "totalFrames": 900,
+        "scenes": [
+          {
+            "id": "scene-01",
+            "index": 0,
+            "name": "Opening Hook & Hero Reveal",
+            "objective": "Bold opening hook and brand title card",
+            "start": 0,
+            "duration": 5,
+            "end": 5,
+            "startFrame": 0,
+            "endFrame": 150,
+            "sceneType": "cinematic-hero-intro",
+            "headline": "OLLASOFTWARE — INTELLIGENCE ENGINEERED",
+            "highlightedWord": "OLLASOFTWARE",
+            "subtitle": "A 30-second high-tech brand advertisement for OllaSoftware, showcasing its AI product suite and end-to-end software development capability through a cinematic product reveal, an animated revenue/performance bar chart, live numerical counters, and a decisive closing call to action.",
+            "badge": "NEXT-GEN PLATFORM // 2026",
+            "visualAtmosphere": {
+              "backgroundType": "mesh-gradient",
+              "scrimGradient": "linear-gradient(180deg, rgba(6,11,20,0.8) 0%, rgba(6,11,20,0.3) 40%, rgba(6,11,20,0.95) 100%)",
+              "ambientGlowColor": "#00F5FF"
+            }
+          },
+          {
+            "id": "scene-02",
+            "index": 1,
+            "name": "Quarterly Analytics & Growth",
+            "objective": "Animated bar chart displaying surging metrics and performance",
+            "start": 5,
+            "duration": 5,
+            "end": 10,
+            "startFrame": 150,
+            "endFrame": 300,
+            "sceneType": "animated-bar-chart",
+            "headline": "RAPID REVENUE & PLATFORM GROWTH",
+            "highlightedWord": "GROWTH",
+            "subtitle": "Consistent multi-quarter acceleration powered by intelligent automated workflows.",
+            "badge": "ANALYTICS & KPI METRICS",
+            "dataVisualization": {
+              "type": "bar-chart",
+              "bars": [
+                {
+                  "label": "Q1",
+                  "value": 35,
+                  "formattedValue": "$1.4M",
+                  "color": "#6366F1"
+                },
+                {
+                  "label": "Q2",
+                  "value": 58,
+                  "formattedValue": "$2.6M",
+                  "color": "#8B5CF6"
+                },
+                {
+                  "label": "Q3",
+                  "value": 82,
+                  "formattedValue": "$4.1M",
+                  "color": "#00D4FF"
+                },
+                {
+                  "label": "Q4",
+                  "value": 100,
+                  "formattedValue": "$5.8M",
+                  "color": "#00F5FF"
+                }
+              ]
+            },
+            "visualAtmosphere": {
+              "backgroundType": "minimal-dark",
+              "ambientGlowColor": "rgba(0, 212, 255, 0.25)"
+            }
+          },
+          {
+            "id": "scene-03",
+            "index": 2,
+            "name": "Platform Performance Counters",
+            "objective": "Dynamic numerical counters showing live milestones",
+            "start": 10,
+            "duration": 5,
+            "end": 15,
+            "startFrame": 300,
+            "endFrame": 450,
+            "sceneType": "metrics-counter-hud",
+            "headline": "TRUSTED AT ENTERPRISE SCALE",
+            "highlightedWord": "ENTERPRISE SCALE",
+            "subtitle": "Global teams building, deploying, and rendering mission-critical digital assets.",
+            "badge": "KEY MILESTONES",
+            "dataVisualization": {
+              "type": "metric-counter",
+              "metrics": [
+                {
+                  "label": "Global Developers",
+                  "value": "1,000,000+",
+                  "startValue": 0,
+                  "targetValue": 1000000,
+                  "suffix": "+"
+                },
+                {
+                  "label": "System Uptime",
+                  "value": "99.99%",
+                  "startValue": 0,
+                  "targetValue": 99.99,
+                  "suffix": "%"
+                },
+                {
+                  "label": "Render Acceleration",
+                  "value": "12x Faster",
+                  "startValue": 0,
+                  "targetValue": 12,
+                  "suffix": "x"
+                }
+              ]
+            },
+            "visualAtmosphere": {
+              "backgroundType": "mesh-gradient",
+              "ambientGlowColor": "rgba(99, 102, 241, 0.3)"
+            }
+          },
+          {
+            "id": "scene-04",
+            "index": 3,
+            "name": "Automated Workflow Engine",
+            "objective": "Connected process flow nodes with glowing pathways",
+            "start": 15,
+            "duration": 5,
+            "end": 20,
+            "startFrame": 450,
+            "endFrame": 600,
+            "sceneType": "process-flow-nodes",
+            "headline": "SEAMLESS AUTOMATED PIPELINE",
+            "highlightedWord": "AUTOMATED PIPELINE",
+            "subtitle": "From natural language prompt to validated, frame-accurate 4K composition in seconds.",
+            "badge": "CORE ARCHITECTURE",
+            "dataVisualization": {
+              "type": "flow-nodes",
+              "nodes": [
+                {
+                  "label": "Prompt Input",
+                  "sub": "Natural Language"
+                },
+                {
+                  "label": "AI Reasoning",
+                  "sub": "Scene Planning"
+                },
+                {
+                  "label": "GPU Render",
+                  "sub": "HyperFrames 0.8.139"
+                },
+                {
+                  "label": "Instant Delivery",
+                  "sub": "Global Edge CDN"
+                }
+              ]
+            },
+            "visualAtmosphere": {
+              "backgroundType": "minimal-dark",
+              "ambientGlowColor": "rgba(0, 245, 255, 0.25)"
+            }
+          },
+          {
+            "id": "scene-05",
+            "index": 4,
+            "name": "Competitive Performance Impact",
+            "objective": "Two-column comparison showing speed and efficiency gains",
+            "start": 20,
+            "duration": 5,
+            "end": 25,
+            "startFrame": 600,
+            "endFrame": 750,
+            "sceneType": "comparison-impact",
+            "headline": "REPLACING MANUAL TIMELINES",
+            "highlightedWord": "MANUAL TIMELINES",
+            "subtitle": "Eliminate repetitive boilerplate and render cinematic videos effortlessly.",
+            "badge": "WHY TEAMS SWITCH",
+            "visualAtmosphere": {
+              "backgroundType": "minimal-dark",
+              "ambientGlowColor": "rgba(139, 92, 246, 0.25)"
+            }
+          },
+          {
+            "id": "scene-06",
+            "index": 5,
+            "name": "Closing Summary & Call to Action",
+            "objective": "Strong brand payoff and actionable call to action",
+            "start": 25,
+            "duration": 5,
+            "end": 30,
+            "startFrame": 750,
+            "endFrame": 900,
+            "sceneType": "cinematic-climax-cta",
+            "headline": "OllaSoftware builds the AI products and software systems that move enterprises forward — intelligence, engineered end to end.",
+            "highlightedWord": "CREATING TODAY",
+            "subtitle": "Join over a million creators leveraging intelligent HyperFrames video generation.",
+            "badge": "GET STARTED",
+            "ctaText": "START YOUR BUILD — Book a free AI strategy session at ollasoftware.com",
+            "visualAtmosphere": {
+              "backgroundType": "mesh-gradient",
+              "scrimGradient": "linear-gradient(180deg, rgba(6,11,20,0.8) 0%, rgba(6,11,20,0.4) 35%, rgba(6,11,20,0.96) 100%)",
+              "ambientGlowColor": "#00F5FF"
+            }
+          }
+        ]
+      },
+      "probeData": {
+        "duration": 30,
+        "width": 1920,
+        "height": 1080,
+        "codec": "h264",
+        "bitrate": 900283,
+        "fps": 30
+      },
+      "extractedFrames": [
+        "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796885143-20ef98ce/inspect/frame_01.jpg",
+        "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796885143-20ef98ce/inspect/frame_02.jpg",
+        "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796885143-20ef98ce/inspect/frame_03.jpg"
+      ],
+      "frameQualityReport": {
+        "inspectedFramesCount": 3,
+        "passed": true,
+        "issues": [],
+        "frameMetrics": [
+          {
+            "framePath": "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796885143-20ef98ce/inspect/frame_01.jpg",
+            "timestamp": 1,
+            "fileSizeBytes": 102471,
+            "width": 1920,
+            "height": 1080,
+            "isDuplicate": false,
+            "isBlank": false
+          },
+          {
+            "framePath": "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796885143-20ef98ce/inspect/frame_02.jpg",
+            "timestamp": 15,
+            "fileSizeBytes": 18908,
+            "width": 1920,
+            "height": 1080,
+            "isDuplicate": false,
+            "isBlank": false
+          },
+          {
+            "framePath": "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796885143-20ef98ce/inspect/frame_03.jpg",
+            "timestamp": 28,
+            "fileSizeBytes": 152772,
+            "width": 1920,
+            "height": 1080,
+            "isDuplicate": false,
+            "isBlank": false
+          }
+        ]
+      }
+    },
+    "probe": {
+      "duration": 30,
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "codec": "h264",
+      "sizeBytes": 3376062,
+      "bitrate": 900283
+    },
+    "progressStepsReported": 9
+  },
+  "testC": {
+    "status": "PASSED",
+    "report": {
+      "prompt": "Create a 30-second architectural presentation using my selected building photograph, cinematic camera movement, architectural details, modern typography, and smooth transitions.",
+      "aiProvider": "ollima",
+      "aiModel": "deepseek-v4-flash",
+      "projectPath": "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796951652-a5bc0a35",
+      "validationStatus": "PASSED",
+      "correctionAttempts": 0,
+      "designIssues": [
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_01.html",
+          "message": "Injected required @font-face local fallback declaration for 'Syne' in scene_01.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_02.html",
+          "message": "Injected required @font-face local fallback declaration for 'Syne' in scene_02.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_03.html",
+          "message": "Injected required @font-face local fallback declaration for 'Syne' in scene_03.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_04.html",
+          "message": "Injected required @font-face local fallback declaration for 'Syne' in scene_04.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_05.html",
+          "message": "Injected required @font-face local fallback declaration for 'Syne' in scene_05.html."
+        },
+        {
+          "type": "repaired",
+          "code": "MISSING_FONT_FACE_REPAIRED",
+          "file": "scene_06.html",
+          "message": "Injected required @font-face local fallback declaration for 'Syne' in scene_06.html."
+        }
+      ],
+      "renderStatus": "SUCCESS",
+      "outputPath": "/Users/apple/Desktop/hyparlink dashbord/outputs/output-1791796951652-a5bc0a35.mp4",
+      "duration": 30,
+      "resolution": "1920x1080",
+      "fps": 30,
+      "fileSize": "8469.9 KB",
+      "renderTimeSeconds": 53.12,
+      "creativeBrief": {
+        "title": "OllaSoftware Building — Architectural Portrait",
+        "subject": "A cinematic 30-second architectural showcase of the selected building photograph (ollasoftware-building.jpg), treated as a hero architectural subject — revealing its massing, facade rhythm, structural detail, and material character through measured camera movement, blueprint-style annotation overlays, and refined modern typography.",
+        "category": "architectural-showcase",
+        "intendedAudience": "Architecture enthusiasts, real-estate and development stakeholders, design-conscious clients, and corporate brand audiences evaluating the OllaSoftware headquarters as a statement of modern engineering.",
+        "visualAtmosphere": "Gallery-grade architectural cinematography. The building photograph sits full-bleed as the hero plate, graded with a cool desaturated concrete base and warm brass highlights raking across the facade. Deep charcoal negative space frames the structure; thin blueprint grid lines and measurement ticks drift subtly across the frame like a drafting table overlay. Volumetric light haze and a soft vignette focus attention on the building's geometry. Dust motes and faint scan lines add a tactile, filmic texture. Mood: monumental, precise, quietly confident — an architectural monograph brought to motion.",
+        "colorPalette": {
+          "primary": "#C8A96A",
+          "secondary": "#6FD3FF",
+          "accent": "#FF7A45",
+          "backgroundColor": "#0B0D10",
+          "surfaceColor": "rgba(255, 255, 255, 0.045)",
+          "textColor": "#F5F3EF",
+          "textMutedColor": "#9AA3AD",
+          "glowColor": "rgba(111, 211, 255, 0.35)",
+          "borderColor": "rgba(255, 255, 255, 0.12)"
+        },
+        "typography": {
+          "displayFont": "Syne",
+          "bodyFont": "Inter",
+          "weights": [
+            "400",
+            "700",
+            "900"
+          ],
+          "headlineTransform": "uppercase"
+        },
+        "narrativeProgression": [
+          "Scene 1 (0.0–5.0s): Establishing Reveal — the building photograph fades up from black with a slow Ken Burns push-in; a single thin blueprint baseline draws across the frame and the title 'OLLASOFTWARE' letterspaces into place.",
+          "Scene 2 (5.0–10.0s): Massing & Form — camera drifts laterally across the facade; architectural spec cards slide in from the left edge with structural metadata (typology, storeys, facade system) and hairline measurement ticks.",
+          "Scene 3 (10.0–15.0s): Facade Rhythm & Detail — a tight crop pushes into the glazing and structural grid; blueprint annotation callouts with leader lines identify material and module rhythm, with a subtle parallax between the photo plate and overlay layer.",
+          "Scene 4 (15.0–20.0s): Light & Material Study — a warm brass light sweep rakes across the surface; animated spec bars and numeric counters quantify the building's performance metrics (floor area, glazing ratio, structural span).",
+          "Scene 5 (20.0–25.0s): Context & Skyline — the camera pulls back to a wide, elevated view; a faint site-plan grid and compass rose fade in, situating the building within its urban context.",
+          "Scene 6 (25.0–30.0s): Signature & Close — the frame settles into a composed hero lock-off, overlays dissolve away, and the closing wordmark and tagline resolve with a soft glow before fading to black."
+        ],
+        "sceneCount": 6,
+        "totalDuration": 30,
+        "requiredImages": [
+          "ollasoftware-building.jpg"
+        ],
+        "chartAndDataRequirements": "No conventional charts. Instead, architectural data is expressed as: (1) animated spec cards with hairline borders and monospaced metadata rows (Typology / Storeys / Facade System / Completion); (2) three glowing horizontal spec bars that fill from 0 to their target values with a 0.6s ease-out, labelled 'GLAZING RATIO 62%', 'STRUCTURAL SPAN 14.2 M', 'FLOOR AREA 8,400 M²'; (3) numerical counters that tick up rapidly and settle with a subtle overshoot; (4) a blueprint measurement overlay with dimension ticks and leader lines anchored to real features of the photograph; (5) a faint site-plan grid and compass rose in Scene 5. All data elements use the blueprint cyan accent with a soft glow and must never obscure the building's key architectural lines.",
+        "animationStyle": "Cinematic Ken Burns push-ins and lateral drifts on the hero photograph, layered with GSAP-driven blueprint line draws (stroke-dashoffset), staggered spec-card reveals with 0.08s offsets, glowing spec-bar fills, rapid numerical counters with overshoot settle, hairline measurement ticks that draw on and fade, a warm brass light-sweep gradient that rakes across the facade, and cross-dissolves with a 0.5s overlap between scenes. Overlay elements animate on a separate parallax layer at 0.85x the photo's movement for depth.",
+        "cameraMovement": "Scene 1: slow push-in scale 1.00 → 1.06 with a 2% upward drift. Scene 2: lateral pan left-to-right across the facade at 1.04 scale. Scene 3: tight push-in to 1.18 scale on the glazing detail with micro-parallax. Scene 4: near-static hold at 1.10 with a light-sweep pass. Scene 5: pull-back from 1.12 → 1.00 revealing the wider context. Scene 6: settle to a locked 1.02 hero composition. All moves use smooth ease-in-out curves with no abrupt stops.",
+        "closingMessage": "Structure, light, and precision — architecture that speaks for itself.",
+        "callToAction": "Explore the Project — ollasoftware.com"
+      },
+      "timeline": {
+        "totalDuration": 30,
+        "fps": 30,
+        "totalFrames": 900,
+        "scenes": [
+          {
+            "id": "scene-01",
+            "index": 0,
+            "name": "Architectural Vision",
+            "objective": "Full-screen photograph with architectural title treatment",
+            "start": 0,
+            "duration": 5,
+            "end": 5,
+            "startFrame": 0,
+            "endFrame": 150,
+            "sceneType": "cinematic-hero-intro",
+            "headline": "ARCHITECTURAL EXCELLENCE",
+            "highlightedWord": "EXCELLENCE",
+            "subtitle": "A modern landmark engineered for sustainability, elegance, and human connection.",
+            "badge": "ARCHITECTURAL SHOWCASE",
+            "assetToFeature": {
+              "id": "asset-building",
+              "name": "ollasoftware-building.jpg",
+              "originalFilename": "ollasoftware-building.jpg",
+              "type": "image",
+              "mimeType": "image/jpeg",
+              "localPath": "/Users/apple/Desktop/hyparlink dashbord/ai-composition-generator/default-assets/ollasoftware-building.jpg",
+              "url": "/assets/ollasoftware-building.jpg",
+              "role": "architectural-showcase",
+              "textPlacement": "top-left",
+              "scrimGradient": "linear-gradient(90deg, rgba(10,15,25,0.92) 0%, rgba(10,15,25,0.7) 45%, rgba(10,15,25,0.2) 100%)",
+              "cameraMovement": "subtle-zoom-in"
+            },
+            "visualAtmosphere": {
+              "backgroundType": "image-backdrop",
+              "scrimGradient": "linear-gradient(90deg, rgba(15,20,30,0.92) 0%, rgba(15,20,30,0.65) 45%, rgba(15,20,30,0.15) 100%)",
+              "ambientGlowColor": "rgba(200, 169, 126, 0.25)"
+            }
+          },
+          {
+            "id": "scene-02",
+            "index": 1,
+            "name": "Structural Blueprint & Specifications",
+            "objective": "Engineering dimensions and structural engineering grid",
+            "start": 5,
+            "duration": 5,
+            "end": 10,
+            "startFrame": 150,
+            "endFrame": 300,
+            "sceneType": "architectural-spec",
+            "headline": "STRUCTURAL SPECIFICATIONS",
+            "highlightedWord": "SPECIFICATIONS",
+            "subtitle": "Precision engineering combining high-tensile steel, low-iron glass, and acoustic insulation.",
+            "badge": "ENGINEERING DATA",
+            "dataVisualization": {
+              "type": "metric-counter",
+              "metrics": [
+                {
+                  "label": "Total Area",
+                  "value": "480,000 sq ft"
+                },
+                {
+                  "label": "Building Height",
+                  "value": "42 Stories"
+                },
+                {
+                  "label": "Efficiency Rating",
+                  "value": "LEED Platinum"
+                }
+              ]
+            },
+            "visualAtmosphere": {
+              "backgroundType": "architectural-blueprint",
+              "ambientGlowColor": "rgba(0, 212, 255, 0.25)"
+            }
+          },
+          {
+            "id": "scene-03",
+            "index": 2,
+            "name": "Energy Efficiency Analytics",
+            "objective": "Animated bar chart displaying reduced carbon footprint and power usage",
+            "start": 10,
+            "duration": 5,
+            "end": 15,
+            "startFrame": 300,
+            "endFrame": 450,
+            "sceneType": "animated-bar-chart",
+            "headline": "CARBON & ENERGY SAVINGS",
+            "highlightedWord": "SAVINGS",
+            "subtitle": "Solar integration and smart geothermal HVAC cutting operational overhead.",
+            "badge": "SUSTAINABILITY METRICS",
+            "dataVisualization": {
+              "type": "bar-chart",
+              "bars": [
+                {
+                  "label": "Traditional",
+                  "value": 100,
+                  "formattedValue": "100%",
+                  "color": "#94A3B8"
+                },
+                {
+                  "label": "Standard Green",
+                  "value": 72,
+                  "formattedValue": "72%",
+                  "color": "#60A5FA"
+                },
+                {
+                  "label": "Smart Design",
+                  "value": 45,
+                  "formattedValue": "45%",
+                  "color": "#34D399"
+                },
+                {
+                  "label": "This Project",
+                  "value": 24,
+                  "formattedValue": "24%",
+                  "color": "#10B981"
+                }
+              ]
+            },
+            "visualAtmosphere": {
+              "backgroundType": "minimal-dark",
+              "ambientGlowColor": "rgba(52, 211, 153, 0.25)"
+            }
+          },
+          {
+            "id": "scene-04",
+            "index": 3,
+            "name": "Spatial Experience & Light",
+            "objective": "Architectural focus on natural light, acoustic isolation, and workspace flow",
+            "start": 15,
+            "duration": 5,
+            "end": 20,
+            "startFrame": 450,
+            "endFrame": 600,
+            "sceneType": "kinetic-typography",
+            "headline": "DESIGNED FOR NATURAL LIGHT AND TIMELESS ELEVATION",
+            "highlightedWord": "TIMELESS ELEVATION",
+            "subtitle": "Floor-to-ceiling panoramic glass walls bringing outdoor vitality into executive interiors.",
+            "badge": "SPATIAL LUXURY",
+            "assetToFeature": {
+              "id": "asset-building",
+              "name": "ollasoftware-building.jpg",
+              "originalFilename": "ollasoftware-building.jpg",
+              "type": "image",
+              "mimeType": "image/jpeg",
+              "localPath": "/Users/apple/Desktop/hyparlink dashbord/ai-composition-generator/default-assets/ollasoftware-building.jpg",
+              "url": "/assets/ollasoftware-building.jpg",
+              "role": "architectural-showcase",
+              "textPlacement": "top-left",
+              "scrimGradient": "linear-gradient(90deg, rgba(10,15,25,0.92) 0%, rgba(10,15,25,0.7) 45%, rgba(10,15,25,0.2) 100%)",
+              "cameraMovement": "subtle-zoom-in"
+            },
+            "visualAtmosphere": {
+              "backgroundType": "image-backdrop",
+              "scrimGradient": "linear-gradient(180deg, rgba(15,20,30,0.85) 0%, rgba(15,20,30,0.35) 45%, rgba(15,20,30,0.95) 100%)",
+              "ambientGlowColor": "rgba(200, 169, 126, 0.3)"
+            }
+          },
+          {
+            "id": "scene-05",
+            "index": 4,
+            "name": "Milestone Construction Numbers",
+            "objective": "Animated counters highlighting investment and delivery milestones",
+            "start": 20,
+            "duration": 5,
+            "end": 25,
+            "startFrame": 600,
+            "endFrame": 750,
+            "sceneType": "metrics-counter-hud",
+            "headline": "PROJECT MILESTONES",
+            "highlightedWord": "MILESTONES",
+            "subtitle": "Completed on schedule, with zero lost-time incidents and world-class safety.",
+            "badge": "DELIVERY REPORT",
+            "dataVisualization": {
+              "type": "metric-counter",
+              "metrics": [
+                {
+                  "label": "Project Value",
+                  "value": "$320M",
+                  "startValue": 0,
+                  "targetValue": 320,
+                  "prefix": "$",
+                  "suffix": "M"
+                },
+                {
+                  "label": "Pre-Leased",
+                  "value": "88%",
+                  "startValue": 0,
+                  "targetValue": 88,
+                  "suffix": "%"
+                },
+                {
+                  "label": "Safety Score",
+                  "value": "100%",
+                  "startValue": 0,
+                  "targetValue": 100,
+                  "suffix": "%"
+                }
+              ]
+            },
+            "visualAtmosphere": {
+              "backgroundType": "minimal-dark",
+              "ambientGlowColor": "rgba(200, 169, 126, 0.25)"
+            }
+          },
+          {
+            "id": "scene-06",
+            "index": 5,
+            "name": "Private Inquiries & Pre-Leasing",
+            "objective": "Architectural closing reveal and call to action",
+            "start": 25,
+            "duration": 5,
+            "end": 30,
+            "startFrame": 750,
+            "endFrame": 900,
+            "sceneType": "cinematic-climax-cta",
+            "headline": "SCHEDULE A PRIVATE TOUR",
+            "highlightedWord": "PRIVATE TOUR",
+            "subtitle": "Exclusive executive suites and retail spaces currently accepting reservations.",
+            "badge": "LEASING OFFICE NOW OPEN",
+            "ctaText": "RESERVE YOUR SPACE",
+            "assetToFeature": {
+              "id": "asset-building",
+              "name": "ollasoftware-building.jpg",
+              "originalFilename": "ollasoftware-building.jpg",
+              "type": "image",
+              "mimeType": "image/jpeg",
+              "localPath": "/Users/apple/Desktop/hyparlink dashbord/ai-composition-generator/default-assets/ollasoftware-building.jpg",
+              "url": "/assets/ollasoftware-building.jpg",
+              "role": "architectural-showcase",
+              "textPlacement": "top-left",
+              "scrimGradient": "linear-gradient(90deg, rgba(10,15,25,0.92) 0%, rgba(10,15,25,0.7) 45%, rgba(10,15,25,0.2) 100%)",
+              "cameraMovement": "subtle-zoom-in"
+            },
+            "visualAtmosphere": {
+              "backgroundType": "image-backdrop",
+              "scrimGradient": "linear-gradient(180deg, rgba(15,20,30,0.8) 0%, rgba(15,20,30,0.35) 35%, rgba(15,20,30,0.96) 100%)",
+              "ambientGlowColor": "rgba(200, 169, 126, 0.3)"
+            }
+          }
+        ]
+      },
+      "probeData": {
+        "duration": 30,
+        "width": 1920,
+        "height": 1080,
+        "codec": "h264",
+        "bitrate": 2312859,
+        "fps": 30
+      },
+      "extractedFrames": [
+        "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796951652-a5bc0a35/inspect/frame_01.jpg",
+        "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796951652-a5bc0a35/inspect/frame_02.jpg",
+        "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796951652-a5bc0a35/inspect/frame_03.jpg"
+      ],
+      "frameQualityReport": {
+        "inspectedFramesCount": 3,
+        "passed": true,
+        "issues": [],
+        "frameMetrics": [
+          {
+            "framePath": "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796951652-a5bc0a35/inspect/frame_01.jpg",
+            "timestamp": 1,
+            "fileSizeBytes": 150015,
+            "width": 1920,
+            "height": 1080,
+            "isDuplicate": false,
+            "isBlank": false
+          },
+          {
+            "framePath": "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796951652-a5bc0a35/inspect/frame_02.jpg",
+            "timestamp": 15,
+            "fileSizeBytes": 110290,
+            "width": 1920,
+            "height": 1080,
+            "isDuplicate": false,
+            "isBlank": false
+          },
+          {
+            "framePath": "/Users/apple/Desktop/hyparlink dashbord/generated-projects/job-1791796951652-a5bc0a35/inspect/frame_03.jpg",
+            "timestamp": 28,
+            "fileSizeBytes": 142962,
+            "width": 1920,
+            "height": 1080,
+            "isDuplicate": false,
+            "isBlank": false
+          }
+        ]
+      }
+    },
+    "probe": {
+      "duration": 30,
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "codec": "h264",
+      "sizeBytes": 8673223,
+      "bitrate": 2312859
+    },
+    "progressStepsReported": 9
+  },
+  "testD": {
+    "status": "PASSED",
+    "isDifferentAtmosphere": true,
+    "isDifferentPalette": true,
+    "isDifferentCategory": true,
+    "categories": [
+      "cinematic-trailer",
+      "advertisement",
+      "architectural-showcase"
+    ],
+    "palettes": [
+      "#FFE600",
+      "#0866E8",
+      "#C8A96A"
+    ]
+  },
+  "testE": {
+    "status": "PASSED",
+    "subtests": {
+      "invalidKey": {
+        "passed": true,
+        "errorReported": "Ollima Authentication Error (HTTP 401): Unauthorized. Invalid API key or access denied for endpoint \"https://api.ollima.com/v1/chat/completions\". Details: {\"error\":{\"message\":\"TensorZero authentication error: Invalid format for TensorZero API key: API key must start with `sk-t0-`\"}}"
+      },
+      "unavailableModel": {
+        "passed": true,
+        "errorReported": "Ollima API Error (HTTP 502): Request failed at \"https://api.ollima.com/v1/chat/completions\". Details: {\"error\":{\"message\":\"All variants failed with errors: openai::gpt-4o-mini: All model providers failed to infer with errors: openai: Error 401 Unauthorized from openai client: {\\n  \\\"error\\\": {\\n    \\\""
+      },
+      "missingAsset": {
+        "passed": true,
+        "message": "Properly reported without silent crash"
+      }
+    }
+  }
+}

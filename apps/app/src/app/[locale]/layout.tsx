@@ -21,7 +21,7 @@ function getLiveConvexUrl(): string {
       if (match && match[1]) return match[1].trim();
     }
   } catch {}
-  return "https://partial-incidence-briefly-documentation.trycloudflare.com";
+  return process.env.NEXT_PUBLIC_CONVEX_URL || "http://127.0.0.1:3210";
 }
 
 export const metadata: Metadata = {

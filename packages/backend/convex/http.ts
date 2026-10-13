@@ -34,6 +34,28 @@ http.route({
         result: payload.result,
         error: typeof payload.error === "string" ? payload.error : undefined,
       });
+    } else if (type === "project.result" && typeof payload.projectId === "string") {
+      await ctx.runMutation(internal.projects.updateProjectResult, {
+        // biome-ignore lint/suspicious/noExplicitAny: id validated by Convex
+        projectId: payload.projectId as any,
+        status: typeof payload.status === "string" ? payload.status : "completed",
+        outputUrl: typeof payload.outputUrl === "string" ? payload.outputUrl : undefined,
+        cdnUrl: typeof payload.cdnUrl === "string" ? payload.cdnUrl : undefined,
+        storageUrl: typeof payload.storageUrl === "string" ? payload.storageUrl : undefined,
+        storageKey: typeof payload.storageKey === "string" ? payload.storageKey : undefined,
+        storageProvider: typeof payload.storageProvider === "string" ? payload.storageProvider : undefined,
+        storageBucket: typeof payload.storageBucket === "string" ? payload.storageBucket : undefined,
+        fileSize: typeof payload.fileSize === "number" ? payload.fileSize : undefined,
+        mimeType: typeof payload.mimeType === "string" ? payload.mimeType : undefined,
+        validationStatus: typeof payload.validationStatus === "string" ? payload.validationStatus : "PASSED",
+        renderTimeSeconds: typeof payload.renderTimeSeconds === "number" ? payload.renderTimeSeconds : undefined,
+        thumbnailUrl: typeof payload.thumbnailUrl === "string" ? payload.thumbnailUrl : undefined,
+        thumbnailCdnUrl: typeof payload.thumbnailCdnUrl === "string" ? payload.thumbnailCdnUrl : undefined,
+        thumbnailStorageKey: typeof payload.thumbnailStorageKey === "string" ? payload.thumbnailStorageKey : undefined,
+        thumbnailStatus: typeof payload.thumbnailStatus === "string" ? payload.thumbnailStatus : undefined,
+        thumbnailFileSize: typeof payload.thumbnailFileSize === "number" ? payload.thumbnailFileSize : undefined,
+        renders: Array.isArray(payload.renders) ? (payload.renders as any) : undefined,
+      });
     } else if (type === "job.progress" && typeof payload.jobId === "string") {
       const status =
         typeof payload.status === "string" ? payload.status : "running";

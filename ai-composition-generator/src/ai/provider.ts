@@ -144,7 +144,7 @@ export class AIProvider {
               configured: true,
               hasKey: !!apiKey,
               status: "connected",
-              statusLabel: `Ollama (${model}) Connected`,
+              statusLabel: `Ollima (${model}) Connected`,
               lastChecked: new Date().toISOString(),
               message: `Successfully connected to Ollima at ${endpoint}.`,
             };
@@ -155,10 +155,10 @@ export class AIProvider {
               configured: true,
               hasKey: !!apiKey,
               status: "authentication_failed",
-              statusLabel: "Ollama Authentication Failed",
+              statusLabel: "Ollima Authentication Failed",
               lastChecked: new Date().toISOString(),
               errorCategory: "AUTH_FAILED",
-              message: `Ollama authentication failed (HTTP ${response.status}). Verify your Ollima API key.`,
+              message: `Ollima authentication failed (HTTP ${response.status}). Verify your Ollima API key.`,
             };
           } else {
             result = {
@@ -167,9 +167,9 @@ export class AIProvider {
               configured: true,
               hasKey: !!apiKey,
               status: "configured_unverified",
-              statusLabel: `Ollama (${model}) Status ${response.status}`,
+              statusLabel: `Ollima (${model}) Status ${response.status}`,
               lastChecked: new Date().toISOString(),
-              message: `Ollama responded with HTTP ${response.status}.`,
+              message: `Ollima responded with HTTP ${response.status}.`,
             };
           }
         } catch (err: any) {
@@ -179,7 +179,7 @@ export class AIProvider {
             configured: true,
             hasKey: !!apiKey,
             status: "unavailable",
-            statusLabel: "Ollama Unavailable",
+            statusLabel: "Ollima Unavailable",
             lastChecked: new Date().toISOString(),
             errorCategory: "CONNECTION_FAILED",
             message: `Could not reach Ollima at ${endpoint}: ${err.message}`,
@@ -235,8 +235,10 @@ export class AIProvider {
   public async complete(
     messages: ChatMessage[],
     temperature: number = 0.2,
+    modelOverride?: string,
   ): Promise<string> {
     const { provider, model, apiKey } = this.config;
+    const activeModel = modelOverride || model;
 
     // Check for missing keys when an external provider is explicitly configured
     if (
@@ -261,21 +263,21 @@ export class AIProvider {
           `AI Configuration Error: Missing AI_API_KEY or OLLAMA_API_KEY for remote Ollima endpoint "${endpoint}".`,
         );
       }
-      return this.callOllama(messages, model, apiKey, endpoint, temperature);
+      return this.callOllama(messages, activeModel, apiKey, endpoint, temperature);
     }
 
     switch (provider) {
       case "openai":
-        return this.callOpenAI(messages, model, apiKey!, temperature);
+        return this.callOpenAI(messages, activeModel, apiKey!, temperature);
 
       case "anthropic":
-        return this.callAnthropic(messages, model, apiKey!, temperature);
+        return this.callAnthropic(messages, activeModel, apiKey!, temperature);
 
       case "huggingface":
-        return this.callHuggingFace(messages, model, apiKey!, temperature);
+        return this.callHuggingFace(messages, activeModel, apiKey!, temperature);
 
       case "gemini":
-        return this.callGemini(messages, model, apiKey!, temperature);
+        return this.callGemini(messages, activeModel, apiKey!, temperature);
 
       case "deterministic":
       case "mock":
@@ -541,20 +543,25 @@ export class AIProvider {
         const status = response.status;
         const errText = await response.text();
         if (status === 401 || status === 403) {
+          if (errText.includes("model_requires_paid_plan") || errText.includes("paid plan")) {
+            throw new Error(
+              `Ollima Model Error (HTTP 403): Model "${selectedModel}" requires a paid Ollima plan. Free API keys support open-weight models like "deepseek-v4-flash" or "gemma4".`,
+            );
+          }
           throw new Error(
-            `Ollama Authentication Error (HTTP ${status}): Unauthorized. Invalid API key or access denied for endpoint "${targetUrl}". Details: ${errText.slice(0, 200)}`,
+            `Ollima Authentication Error (HTTP ${status}): Unauthorized. Invalid API key or access denied for endpoint "${targetUrl}". Details: ${errText.slice(0, 200)}`,
           );
         } else if (status === 404) {
           throw new Error(
-            `Ollama Model Error (HTTP 404): Model "${selectedModel}" not found at endpoint "${targetUrl}". Details: ${errText.slice(0, 200)}`,
+            `Ollima Model Error (HTTP 404): Model "${selectedModel}" not found at endpoint "${targetUrl}". Details: ${errText.slice(0, 200)}`,
           );
         } else if (status === 429) {
           throw new Error(
-            `Ollama Rate Limit Error (HTTP 429): Rate limit exceeded for endpoint "${targetUrl}". Details: ${errText.slice(0, 200)}`,
+            `Ollima Rate Limit Error (HTTP 429): Rate limit exceeded for endpoint "${targetUrl}". Please wait a moment. Details: ${errText.slice(0, 200)}`,
           );
         } else {
           throw new Error(
-            `Ollama API Error (HTTP ${status}): Request failed at "${targetUrl}". Details: ${errText.slice(0, 200)}`,
+            `Ollima API Error (HTTP ${status}): Request failed at "${targetUrl}". Details: ${errText.slice(0, 200)}`,
           );
         }
       }
@@ -564,7 +571,7 @@ export class AIProvider {
         const content = data.choices?.[0]?.message?.content;
         if (!content) {
           throw new Error(
-            `Ollama Response Error: Missing "content" in choices response from "${targetUrl}".`,
+            `Ollima Response Error: Missing "content" in choices response from "${targetUrl}".`,
           );
         }
         return content;
@@ -572,7 +579,7 @@ export class AIProvider {
         const content = data.message?.content;
         if (!content) {
           throw new Error(
-            `Ollama Response Error: Missing "message.content" in response from "${targetUrl}".`,
+            `Ollima Response Error: Missing "message.content" in response from "${targetUrl}".`,
           );
         }
         return content;
@@ -580,12 +587,12 @@ export class AIProvider {
     } catch (e: any) {
       if (e.name === "AbortError") {
         throw new Error(
-          `Ollama API Timeout Error: Request to "${targetUrl}" timed out after 60 seconds.`,
+          `Ollima API Timeout Error: Request to "${targetUrl}" timed out after 60 seconds.`,
         );
       }
       if (e.code === "ECONNREFUSED" || e.message?.includes("ECONNREFUSED")) {
         throw new Error(
-          `Ollama Connection Error: Could not connect to Ollima server at "${targetUrl}". Ensure the service is running and accessible.`,
+          `Ollima Connection Error: Could not connect to Ollima server at "${targetUrl}". Ensure the service is running and accessible.`,
         );
       }
       throw e;

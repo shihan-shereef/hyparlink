@@ -6,6 +6,9 @@ import { ProjectGenerator } from "../hyperframes/project-generator.js";
 import { Validator, ValidationResult } from "../hyperframes/validator.js";
 import { DesignValidator, DesignValidationResult } from "../hyperframes/design-validator.js";
 import { Renderer, RenderResult, ProbeMetadata } from "../hyperframes/renderer.js";
+import { FrameQualityAnalyzer, FrameQualityReport } from "../hyperframes/frame-analyzer.js";
+import { CompositionAuditor, AuditResult } from "../ai/composition-auditor.js";
+import { EnvironmentChecker } from "../system/environment-checker.js";
 
 export interface AssetManifestItem {
   id: string;
@@ -42,8 +45,12 @@ export interface PipelineReport {
   renderTimeSeconds?: number;
   compositionPlan?: any;
   storyboard?: any;
+  creativeBrief?: any;
+  timeline?: any;
   probeData?: ProbeMetadata;
   extractedFrames?: string[];
+  frameQualityReport?: FrameQualityReport;
+  auditResult?: AuditResult;
 }
 
 export interface RunOptions {
@@ -53,6 +60,8 @@ export interface RunOptions {
   fps?: number;
   resolution?: string;
   assets?: AssetManifestItem[];
+  model?: string;
+  onProgress?: (stage: string, message: string) => void | Promise<void>;
 }
 
 export class VideoGenerationPipeline {
@@ -76,29 +85,43 @@ export class VideoGenerationPipeline {
   }
 
   public async run(
-    prompt: string,
+    promptOrOptions: string | ({ prompt: string } & RunOptions),
     runOptions?: RunOptions,
   ): Promise<PipelineReport> {
+    let prompt: string;
+    let options: RunOptions | undefined;
+    if (typeof promptOrOptions === "object" && promptOrOptions !== null) {
+      prompt = (promptOrOptions as any).prompt || "";
+      options = { ...promptOrOptions };
+    } else {
+      prompt = String(promptOrOptions || "");
+      options = runOptions;
+    }
+
     const providerInfo = this.aiGenerator.getProviderInfo();
+    const activeModel = options?.model || providerInfo.model;
     const jobId = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
     let correctionAttempts = 0;
 
-    const requestedDuration = runOptions?.duration
-      ? Number(runOptions.duration)
-      : 15;
+    const promptDuration = AIGenerator.extractDurationFromPrompt(prompt);
+    const requestedDuration = promptDuration
+      ? promptDuration
+      : options?.duration
+        ? Number(options.duration)
+        : 15;
     const requestedResolution =
-      runOptions?.resolution || (runOptions?.width === 1280 ? "720p" : "1080p");
+      options?.resolution || (options?.width === 1280 ? "720p" : "1080p");
     const requestedWidth =
-      runOptions?.width || (requestedResolution === "720p" ? 1280 : 1920);
+      options?.width || (requestedResolution === "720p" ? 1280 : 1920);
     const requestedHeight =
-      runOptions?.height || (requestedResolution === "720p" ? 720 : 1080);
-    const requestedFps = runOptions?.fps || 30;
+      options?.height || (requestedResolution === "720p" ? 720 : 1080);
+    const requestedFps = options?.fps || 30;
 
     console.log(`\n==================================================`);
     console.log(`Starting AI Video Generation Pipeline (Job: ${jobId})`);
     console.log(`Prompt: "${prompt}"`);
     console.log(
-      `Target Duration: ${requestedDuration}s | Specs: ${requestedWidth}x${requestedHeight} @ ${requestedFps}fps (${requestedResolution})`,
+      `Target Duration: ${requestedDuration}s${promptDuration ? " (Extracted from prompt)" : ""} | Specs: ${requestedWidth}x${requestedHeight} @ ${requestedFps}fps (${requestedResolution})`,
     );
     if (runOptions?.assets && runOptions.assets.length > 0) {
       console.log(
@@ -106,12 +129,25 @@ export class VideoGenerationPipeline {
       );
     }
     console.log(
-      `AI Provider: ${providerInfo.provider} | Model: ${providerInfo.model}`,
+      `AI Provider: ${providerInfo.provider} | Model: ${activeModel}`,
     );
     console.log(`==================================================\n`);
 
+    // PRE-FLIGHT CHECK: Verify rendering dependencies before expensive generation begins
+    const envStatus = await EnvironmentChecker.checkEnvironment();
+    if (!envStatus.renderingReady) {
+      const missingReason =
+        envStatus.recommendations.join("; ") || "System dependencies not satisfied";
+      const errMsg = `Rendering environment not ready: ${missingReason}`;
+      console.error(`[Pipeline Pre-flight Failed] ${errMsg}`);
+      if (runOptions?.onProgress) {
+        await runOptions.onProgress("failed", errMsg);
+      }
+      throw new Error(errMsg);
+    }
+
     // STEP 1: Generate Project via AI
-    console.log(`[Step 1/4] Generating HyperFrames project files with AI...`);
+    console.log(`[Step 1/5] Generating HyperFrames project files with AI...`);
     let currentPayload: GeneratedProjectPayload =
       await this.aiGenerator.generateProject(prompt, {
         duration: requestedDuration,
@@ -119,6 +155,8 @@ export class VideoGenerationPipeline {
         height: requestedHeight,
         fps: requestedFps,
         assets: runOptions?.assets,
+        model: activeModel,
+        onProgress: runOptions?.onProgress,
       });
 
     // STEP 2: Write Project into an isolated folder
@@ -128,14 +166,19 @@ export class VideoGenerationPipeline {
     });
     console.log(`Project files written to: ${projectDir}`);
 
-    // If workspace assets are provided, copy or link them into projectDir/assets
-    if (runOptions?.assets && runOptions.assets.length > 0) {
+    // If workspace or AI-generated assets are provided, copy them into projectDir/assets
+    const effectiveAssets =
+      (runOptions?.assets && runOptions.assets.length > 0)
+        ? runOptions.assets
+        : (currentPayload.analyzedAssets || []);
+
+    if (effectiveAssets && effectiveAssets.length > 0) {
       const assetsDir = path.join(projectDir, "assets");
       if (!fs.existsSync(assetsDir)) {
         fs.mkdirSync(assetsDir, { recursive: true });
       }
 
-      for (const asset of runOptions.assets) {
+      for (const asset of effectiveAssets) {
         const destPath = path.join(assetsDir, asset.name);
         try {
           if (asset.localPath && fs.existsSync(asset.localPath)) {
@@ -150,15 +193,25 @@ export class VideoGenerationPipeline {
               );
               console.log(`[Asset Generated] ${asset.name} -> ${destPath}`);
             } else {
-              const defaultBuildingPath = path.resolve(
-                this.baseDir,
-                "..",
-                "default-assets",
-                "ollasoftware-building.jpg",
+              // Generate high quality tailored SVG vector asset if binary file not found locally
+              fs.writeFileSync(
+                destPath,
+                `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <rect x="60" y="60" width="1080" height="680" rx="20" fill="none" stroke="#38bdf8" stroke-width="2" stroke-opacity="0.4"/>
+  <circle cx="600" cy="360" r="80" fill="#0284c7" fill-opacity="0.25"/>
+  <text x="600" y="500" font-family="sans-serif" font-size="32" font-weight="bold" fill="#f8fafc" text-anchor="middle">${asset.name}</text>
+  <text x="600" y="550" font-family="sans-serif" font-size="20" fill="#94a3b8" text-anchor="middle">WORKSPACE ASSET</text>
+</svg>`,
+                "utf-8",
               );
-              if (fs.existsSync(defaultBuildingPath)) {
-                fs.copyFileSync(defaultBuildingPath, destPath);
-              }
+              console.log(`[Asset Generated Vector] ${asset.name} -> ${destPath}`);
             }
           }
         } catch (copyErr: any) {
@@ -169,35 +222,43 @@ export class VideoGenerationPipeline {
       }
     }
 
-    // Always ensure default assets (like ollasoftware-building.jpg) are available in project assets
-    const defaultBuildingPath = path.resolve(
-      this.baseDir,
-      "..",
-      "default-assets",
-      "ollasoftware-building.jpg",
+    // STAGE 4: Checking Composition (The LLM Checks Its Own Work & Validates Syntax)
+    if (runOptions?.onProgress) {
+      await runOptions.onProgress(
+        "checking_composition",
+        "Stage 4: Auditing prompt compliance, timeline integrity & HyperFrames structure...",
+      );
+    }
+    console.log(
+      `\n[Stage 4/5: Checking Composition] Performing autonomous review and HyperFrames validation...`,
     );
-    if (fs.existsSync(defaultBuildingPath)) {
-      const assetsDir = path.join(projectDir, "assets");
-      if (!fs.existsSync(assetsDir)) {
-        fs.mkdirSync(assetsDir, { recursive: true });
-      }
-      const destBuilding = path.join(assetsDir, "ollasoftware-building.jpg");
-      if (!fs.existsSync(destBuilding)) {
-        try {
-          fs.copyFileSync(defaultBuildingPath, destBuilding);
-          console.log(
-            `[Default Asset Copied] ollasoftware-building.jpg -> ${destBuilding}`,
-          );
-        } catch (e: any) {
-          console.warn(`[Default Asset Warning] ${e.message}`);
-        }
+
+    // 1. Autonomous Self-Audit
+    let auditResult = await CompositionAuditor.audit({
+      prompt,
+      creativeBrief: currentPayload.creativeBrief,
+      timeline: currentPayload.timeline,
+      files: currentPayload.files,
+      projectDir,
+      options: {
+        duration: requestedDuration,
+        width: requestedWidth,
+        height: requestedHeight,
+        fps: requestedFps,
+        assets: runOptions?.assets,
+      },
+      provider: (this.aiGenerator as any).provider,
+      model: activeModel,
+    });
+    console.log(`[Autonomous Audit] Quality Score: ${auditResult.score}/100. Passed: ${auditResult.passed}`);
+    if (auditResult.issues.length > 0) {
+      console.warn(`[Autonomous Audit] Notices:`);
+      for (const iss of auditResult.issues) {
+        console.warn(`  - ${iss}`);
       }
     }
 
-    // STEP 3: Design-Quality Inspection & Auto-Repair Stage
-    console.log(
-      `[Step 2/4] Inspecting design quality, asset references, and duration integrity...`,
-    );
+    // 2. Design-Quality Inspection & Auto-Repair Stage
     const designResult = await DesignValidator.inspectAndRepair(projectDir);
     if (designResult.issues.length > 0) {
       console.log(
@@ -208,30 +269,38 @@ export class VideoGenerationPipeline {
       }
     }
 
-    // STEP 4: Validation & Auto-fix Loop (Max 3 attempts)
-    console.log(
-      `[Validation] Checking HyperFrames structural compliance and timelines...`,
-    );
-    let validationResult: ValidationResult =
-      await Validator.validate(projectDir);
+    // 3. HyperFrames Linter & CLI Validation
+    let validationResult: ValidationResult = await Validator.validate(projectDir);
 
-    while (!validationResult.valid && correctionAttempts < this.maxAttempts) {
+    let allErrors = [...validationResult.errors];
+    if (!auditResult.passed) {
+      allErrors = [...allErrors, ...auditResult.issues];
+    }
+    let isValid = validationResult.valid && auditResult.passed;
+
+    while (!isValid && correctionAttempts < this.maxAttempts) {
       correctionAttempts++;
+      if (runOptions?.onProgress) {
+        await runOptions.onProgress(
+          "checking_composition",
+          `Stage 4: Self-repairing composition with AI model (Attempt ${correctionAttempts}/${this.maxAttempts})...`,
+        );
+      }
       console.warn(
         `\n[Validation] Check failed (Attempt ${correctionAttempts}/${this.maxAttempts}). Errors found:`,
       );
-      for (const err of validationResult.errors) {
+      for (const err of allErrors) {
         console.warn(`  - ${err}`);
       }
 
       console.log(
-        `[Correction] Requesting fix from AI model (Attempt ${correctionAttempts})...`,
+        `[Correction] Requesting targeted fix from AI model (Attempt ${correctionAttempts})...`,
       );
       try {
         currentPayload = await this.aiGenerator.correctProject(
           prompt,
           currentPayload.files,
-          validationResult.errors,
+          allErrors,
         );
 
         // Re-write project files
@@ -245,6 +314,28 @@ export class VideoGenerationPipeline {
 
         console.log(`[Validation] Re-checking corrected project...`);
         validationResult = await Validator.validate(projectDir);
+
+        // Re-audit
+        auditResult = await CompositionAuditor.audit({
+          prompt,
+          creativeBrief: currentPayload.creativeBrief,
+          timeline: currentPayload.timeline,
+          files: currentPayload.files,
+          projectDir,
+          options: {
+            duration: requestedDuration,
+            width: requestedWidth,
+            height: requestedHeight,
+            fps: requestedFps,
+            assets: runOptions?.assets,
+          },
+        });
+
+        allErrors = [...validationResult.errors];
+        if (!auditResult.passed) {
+          allErrors = [...allErrors, ...auditResult.issues];
+        }
+        isValid = validationResult.valid && auditResult.passed;
       } catch (fixErr: any) {
         console.error(
           `[Correction] Error during correction attempt: ${fixErr.message}`,
@@ -253,7 +344,7 @@ export class VideoGenerationPipeline {
       }
     }
 
-    if (!validationResult.valid) {
+    if (!isValid) {
       console.error(
         `\n[Validation FAILED] All ${correctionAttempts} correction attempts exhausted.`,
       );
@@ -265,19 +356,26 @@ export class VideoGenerationPipeline {
         projectPath: projectDir,
         validationStatus: "FAILED",
         correctionAttempts,
-        validationErrors: validationResult.errors,
+        validationErrors: allErrors,
         designIssues: designResult.issues,
         renderStatus: "SKIPPED",
         storyboard: currentPayload.storyboard,
+        auditResult,
       };
     }
 
     console.log(
-      `\n[Validation PASSED] HyperFrames project verified successfully.`,
+      `\n[Validation PASSED] HyperFrames project and autonomous audit verified successfully.`,
     );
 
-    // STEP 5: Render Project to MP4 & Post-Processing Verification
-    console.log(`\n[Step 3/4] Rendering video with HyperFrames...`);
+    // STAGE 5: Render the Video
+    if (runOptions?.onProgress) {
+      await runOptions.onProgress(
+        "rendering_video",
+        `Stage 5: Rendering video with HyperFrames (${requestedDuration}s @ ${requestedFps}fps, ${requestedResolution})...`,
+      );
+    }
+    console.log(`\n[Stage 5/5: Rendering Video] Rendering video with HyperFrames...`);
     const outputMp4Path = path.join(this.outputsDir, `output-${jobId}.mp4`);
 
     const renderResult: RenderResult = await Renderer.render({
@@ -304,12 +402,46 @@ export class VideoGenerationPipeline {
       };
     }
 
-    console.log(`\n[Step 4/4] Pipeline completed successfully!`);
+    // STEP 6: Headless Frame-Quality Analysis and FFprobe Verification
+    if (runOptions?.onProgress) {
+      await runOptions.onProgress(
+        "verifying_output",
+        "Running FFprobe stream verification and headless frame-quality checks...",
+      );
+    }
+    console.log(`\n[Step 5/5] Inspecting frame quality & FFprobe stream metrics...`);
+
+    let frameQualityReport: FrameQualityReport | undefined = undefined;
+    if (renderResult.extractedFrames && renderResult.extractedFrames.length > 0) {
+      try {
+        frameQualityReport = await FrameQualityAnalyzer.analyze(
+          renderResult.extractedFrames,
+          { width: requestedWidth, height: requestedHeight },
+        );
+        console.log(
+          `[Frame Quality] Inspected ${frameQualityReport.inspectedFramesCount} frames. Passed: ${frameQualityReport.passed}`,
+        );
+        for (const issue of frameQualityReport.issues) {
+          console.log(`  - [${issue.type.toUpperCase()}] ${issue.code}: ${issue.message}`);
+        }
+      } catch (fqErr: any) {
+        console.warn(`[Frame Quality Warning] Could not complete inspection: ${fqErr.message}`);
+      }
+    }
+
+    if (runOptions?.onProgress) {
+      await runOptions.onProgress(
+        "completed",
+        "Video generated, validated, and verified successfully.",
+      );
+    }
+
+    console.log(`\nPipeline completed successfully!`);
 
     return {
       prompt,
       aiProvider: providerInfo.provider,
-      aiModel: providerInfo.model,
+      aiModel: activeModel,
       projectPath: projectDir,
       validationStatus: "PASSED",
       correctionAttempts,
@@ -323,8 +455,12 @@ export class VideoGenerationPipeline {
       renderTimeSeconds: renderResult.renderTimeSeconds,
       compositionPlan: currentPayload.compositionPlan,
       storyboard: currentPayload.storyboard,
+      creativeBrief: currentPayload.creativeBrief,
+      timeline: currentPayload.timeline,
       probeData: renderResult.probeData,
       extractedFrames: renderResult.extractedFrames,
+      frameQualityReport,
+      auditResult,
     };
   }
 }

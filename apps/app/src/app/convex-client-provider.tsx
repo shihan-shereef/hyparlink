@@ -7,32 +7,27 @@ import type { ReactNode } from "react";
 
 function getConvexUrl(): string {
   if (typeof window !== "undefined") {
-    const isLocalhost =
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1";
-
-    // 1. On localhost, ALWAYS connect directly to local Convex on port 3210
-    if (isLocalhost) {
-      return "http://localhost:3210";
-    }
-
-    // 2. On remote / Cloudflare tunnel, read the live meta tag injected dynamically by RootLayout
+    // 1. If meta tag is injected dynamically by RootLayout
     const metaUrl = document
       .querySelector('meta[name="convex-url"]')
       ?.getAttribute("content");
     if (
       metaUrl &&
-      !metaUrl.includes("localhost") &&
-      !metaUrl.includes("127.0.0.1")
+      !metaUrl.includes("partial-incidence-briefly-documentation")
     ) {
-      return metaUrl;
+      return metaUrl.trim();
     }
 
-    // 3. Fallback to active Cloudflare tunnel
-    return "https://partial-incidence-briefly-documentation.trycloudflare.com";
+    const isLocalhost =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1";
+
+    if (isLocalhost) {
+      return "http://localhost:3210";
+    }
   }
 
-  return "http://localhost:3210";
+  return process.env.NEXT_PUBLIC_CONVEX_URL || "http://127.0.0.1:3210";
 }
 
 const convex = new ConvexReactClient(getConvexUrl(), {
