@@ -2213,6 +2213,88 @@ window.__timelines["main"] = tl;`);
               Create videos at the speed of thought
             </h1>
           </div>
+
+          {/* Centered Controls: AI Prompt Mode | Direct Code Mode & ∷ Gemini */}
+          <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+            {/* Mode Switcher Pill */}
+            <div className="flex items-center gap-1 rounded-full border border-slate-200/90 bg-white p-1 dark:border-neutral-700 dark:bg-neutral-800/90 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setPipelineMode("ai_prompt")}
+                className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  pipelineMode === "ai_prompt"
+                    ? "bg-slate-900 text-white shadow-xs dark:bg-white dark:text-slate-900"
+                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                }`}
+              >
+                <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                <span>AI Prompt Mode</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPipelineMode("direct_code")}
+                className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  pipelineMode === "direct_code"
+                    ? "bg-slate-900 text-white shadow-xs dark:bg-white dark:text-slate-900"
+                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                }`}
+              >
+                <Code2 className="h-3.5 w-3.5 shrink-0" />
+                <span>Direct Code Mode</span>
+              </button>
+            </div>
+
+            {/* Model Selector Pill (∷ Gemini) */}
+            <div className="relative shrink-0" ref={modelDropdownRef}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowModelDropdown(!showModelDropdown);
+                }}
+                className="flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-200 transition cursor-pointer shadow-2xs"
+              >
+                <span className="text-[11px] text-slate-400">∷</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  {selectedModel.includes("gemini") ? "Gemini" : selectedModel.includes("deepseek") ? "DeepSeek" : "Lite"}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+              </button>
+
+              {/* Model dropdown popover */}
+              {showModelDropdown && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl dark:border-neutral-800 dark:bg-[#121622] animate-in fade-in zoom-in-95 duration-100"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-neutral-800">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">AI Engine</span>
+                    <span className="text-[10px] text-slate-400 font-mono">({models.length} models)</span>
+                  </div>
+                  <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
+                    {models.slice(0, 10).map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedModel(m.id);
+                          setShowModelDropdown(false);
+                        }}
+                        className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left transition cursor-pointer ${
+                          selectedModel === m.id
+                            ? "bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
+                            : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-neutral-800"
+                        }`}
+                      >
+                        <span className="truncate">{m.name || m.id}</span>
+                        {selectedModel === m.id && <Check className="h-3.5 w-3.5 text-indigo-600" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
 
@@ -2666,79 +2748,7 @@ window.__timelines["main"] = tl;`);
                   </div>
                 </div>
 
-                {/* Center Controls: Mode Switcher (AI Prompt Mode | Direct Code Mode) & Model Selector (∷ Gemini) */}
-                <div className="flex flex-wrap items-center justify-center gap-2 flex-1 mx-auto my-1">
-                  {/* Mode Switcher inside prompt bar with smaller icons */}
-                  <div className="flex items-center gap-1 rounded-full border border-slate-200/90 bg-slate-50/90 p-0.5 dark:border-neutral-700 dark:bg-neutral-800/90 shrink-0 shadow-2xs">
-                    <button
-                      type="button"
-                      onClick={() => setPipelineMode("ai_prompt")}
-                      className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold bg-white text-indigo-600 shadow-xs dark:bg-neutral-900 dark:text-indigo-400 transition cursor-pointer"
-                    >
-                      <Sparkles className="h-3 w-3 shrink-0" />
-                      <span>AI Prompt Mode</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPipelineMode("direct_code")}
-                      className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition cursor-pointer"
-                    >
-                      <Code2 className="h-3 w-3 shrink-0" />
-                      <span>Direct Code Mode</span>
-                    </button>
-                  </div>
-
-                  {/* Model Selector Pill (∷ Gemini) centered */}
-                  <div className="relative shrink-0" ref={modelDropdownRef}>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowModelDropdown(!showModelDropdown);
-                      }}
-                      className="flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-300 transition cursor-pointer shadow-2xs"
-                    >
-                      <span className="text-[10px] text-slate-400">∷</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {selectedModel.includes("gemini") ? "Gemini" : selectedModel.includes("deepseek") ? "DeepSeek" : "Lite"}
-                      </span>
-                      <ChevronDown className="h-3 w-3 text-slate-400" />
-                    </button>
-
-                    {/* Model dropdown popover */}
-                    {showModelDropdown && (
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute bottom-10 left-1/2 -translate-x-1/2 z-50 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl dark:border-neutral-800 dark:bg-[#121622] animate-in fade-in zoom-in-95 duration-100"
-                      >
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-neutral-800">
-                          <span className="text-xs font-bold text-slate-900 dark:text-white">AI Engine</span>
-                          <span className="text-[10px] text-slate-400 font-mono">({models.length} models)</span>
-                        </div>
-                        <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
-                          {models.slice(0, 10).map((m) => (
-                            <button
-                              key={m.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedModel(m.id);
-                                setShowModelDropdown(false);
-                              }}
-                              className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left transition cursor-pointer ${
-                                selectedModel === m.id
-                                  ? "bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
-                                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-neutral-800"
-                              }`}
-                            >
-                              <span className="truncate">{m.name || m.id}</span>
-                              {selectedModel === m.id && <Check className="h-3.5 w-3.5 text-indigo-600" />}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                {/* Left Controls: + (Attach) and Sliders (Settings) */}
 
                 {/* Right Controls: Mic and Send Button */}
                 <div className="flex items-center gap-2 shrink-0">
@@ -2793,26 +2803,8 @@ window.__timelines["main"] = tl;`);
                 </div>
               </div>
 
-              {/* Right Controls: Mode Toggle + Language Tabs */}
+              {/* Right Controls: Language Tabs */}
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1 rounded-full border border-slate-200/90 bg-slate-50/90 p-0.5 dark:border-neutral-700 dark:bg-neutral-800/90">
-                  <button
-                    type="button"
-                    onClick={() => setPipelineMode("ai_prompt")}
-                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition cursor-pointer"
-                  >
-                    <Sparkles className="h-3 w-3 shrink-0" />
-                    <span>AI Prompt Mode</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPipelineMode("direct_code")}
-                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold bg-white text-indigo-600 shadow-2xs dark:bg-neutral-900 dark:text-indigo-400 transition cursor-pointer"
-                  >
-                    <Code2 className="h-3 w-3 shrink-0" />
-                    <span>Direct Code Mode</span>
-                  </button>
-                </div>
 
                 {/* Code Language Tabs */}
                 <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-neutral-800">
