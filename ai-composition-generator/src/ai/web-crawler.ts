@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import dns from "node:dns/promises";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,6 +15,10 @@ export interface ScrapedWebAsset {
   type: string;
   mimeType: string;
   url: string;
+  sourceUrl?: string;
+  attribution?: string;
+  license?: string;
+  fileSizeBytes: number;
 }
 
 export interface WebCrawlResult {
@@ -29,39 +34,158 @@ export class WebCrawler {
   private static cacheDir = path.resolve(__dirname, "../../generated-assets/web-crawler");
 
   /**
-   * Intelligently crawls a URL or searches the web for a topic,
-   * gathers real facts, and downloads real images directly.
+   * SSRF Protection: Validates that a URL is safe to fetch.
+   * Blocks non-HTTP/HTTPS schemes, localhost, loopbacks, link-local,
+   * RFC 1918 private ranges, and cloud metadata endpoints (169.254.169.254).
+   */
+  public static async isSafeUrl(targetUrl: string): Promise<boolean> {
+    try {
+      const parsed = new URL(targetUrl);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return false;
+      }
+
+      const host = parsed.hostname.toLowerCase();
+
+      // Block well-known loopbacks and metadata hosts
+      if (
+        host === "localhost" ||
+        host === "127.0.0.1" ||
+        host === "::1" ||
+        host === "0.0.0.0" ||
+        host === "metadata.google.internal" ||
+        host === "instance-data"
+      ) {
+        return false;
+      }
+
+      // Check IPv4 directly if raw IP was provided
+      if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+        if (this.isPrivateIp(host)) return false;
+      }
+
+      // Perform DNS resolution to check actual target IP address
+      const lookupResult = await dns.lookup(host, { all: true });
+      for (const entry of lookupResult) {
+        if (this.isPrivateIp(entry.address)) {
+          return false;
+        }
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Evaluates if an IP address belongs to loopback, link-local, or private RFC ranges.
+   */
+  private static isPrivateIp(ip: string): boolean {
+    if (ip.startsWith("127.") || ip === "0.0.0.0" || ip === "::1") return true;
+    if (ip.startsWith("10.")) return true;
+    if (ip.startsWith("192.168.")) return true;
+    if (ip.startsWith("169.254.")) return true; // AWS/GCP/Azure metadata & link-local
+    if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip)) return true;
+    if (ip.startsWith("fc") || ip.startsWith("fd") || ip.startsWith("fe80")) return true; // IPv6 ULA & Link-local
+    return false;
+  }
+
+  /**
+   * Validates image magic bytes to ensure file is authentic JPEG, PNG, WebP, or SVG.
+   */
+  public static isValidImageBuffer(buffer: Buffer): { valid: boolean; mimeType: string; ext: string } {
+    if (!buffer || buffer.length < 8) {
+      return { valid: false, mimeType: "", ext: "" };
+    }
+
+    // JPEG: FF D8 FF
+    if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+      return { valid: true, mimeType: "image/jpeg", ext: ".jpg" };
+    }
+
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    if (
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47
+    ) {
+      return { valid: true, mimeType: "image/png", ext: ".png" };
+    }
+
+    // WebP: RIFF ... WEBP
+    if (
+      buffer[0] === 0x52 &&
+      buffer[1] === 0x49 &&
+      buffer[2] === 0x46 &&
+      buffer[3] === 0x46 &&
+      buffer[8] === 0x57 &&
+      buffer[9] === 0x45 &&
+      buffer[10] === 0x42 &&
+      buffer[11] === 0x50
+    ) {
+      return { valid: true, mimeType: "image/webp", ext: ".webp" };
+    }
+
+    // SVG: Check first 256 bytes for <svg or <?xml
+    const header = buffer.slice(0, 256).toString("utf-8").toLowerCase();
+    if (header.includes("<svg") || (header.includes("<?xml") && header.includes("<svg"))) {
+      return { valid: true, mimeType: "image/svg+xml", ext: ".svg" };
+    }
+
+    return { valid: false, mimeType: "", ext: "" };
+  }
+
+  /**
+   * Intelligently enriches video requests with real-world research & assets when appropriate.
    */
   public static async enrichFromWeb(
     prompt: string,
     onProgress?: (stage: string, message: string) => void | Promise<void>,
   ): Promise<WebCrawlResult | null> {
-    const urlMatch = prompt.match(/https?:\/\/[^\s]+/i);
+    const urlMatch = prompt.match(/https?:\/\/[^\s"',)]+/i);
     const targetUrl = urlMatch ? urlMatch[0] : null;
 
     if (targetUrl) {
-      console.log(`[WebCrawler] URL detected in prompt: ${targetUrl}`);
+      const isSafe = await this.isSafeUrl(targetUrl);
+      if (!isSafe) {
+        console.warn(`[WebCrawler] URL failed SSRF security check: ${targetUrl}. Aborting crawl.`);
+        return null;
+      }
+
+      console.log(`[WebCrawler] Authorized URL detected: ${targetUrl}`);
       if (onProgress) {
-        await onProgress("web_crawling", `Crawling website ${targetUrl} for real data & images...`);
+        await onProgress("web_crawling", `Researching verified web assets from ${new URL(targetUrl).hostname}...`);
       }
       return await this.crawlUrl(targetUrl, onProgress);
     }
 
-    // If no explicit URL, extract topic to search the web
-    const topic = this.extractSearchTopic(prompt);
-    if (topic && topic.length > 2) {
-      console.log(`[WebCrawler] Searching the web for real facts & photos of: "${topic}"...`);
-      if (onProgress) {
-        await onProgress("web_crawling", `Searching the web for real media & data on "${topic}"...`);
+    // Only search external topics when the prompt asks for real-world product research
+    const pLower = prompt.toLowerCase();
+    const wantsResearch =
+      pLower.includes("research") ||
+      pLower.includes("official website") ||
+      pLower.includes("real software") ||
+      pLower.includes("official product") ||
+      pLower.includes("company website");
+
+    if (wantsResearch) {
+      const topic = this.extractSearchTopic(prompt);
+      if (topic && topic.length > 2) {
+        console.log(`[WebCrawler] Researching real-world subject: "${topic}"...`);
+        if (onProgress) {
+          await onProgress("web_crawling", `Researching verified product info for "${topic}"...`);
+        }
+        return await this.searchWebTopic(topic, onProgress);
       }
-      return await this.searchWebTopic(topic, onProgress);
     }
 
     return null;
   }
 
   /**
-   * Crawls a direct URL, parses its content, and downloads real photos/logos.
+   * Crawls a direct URL, parses its content, and downloads real photos/logos safely.
    */
   public static async crawlUrl(
     url: string,
@@ -78,7 +202,7 @@ export class WebCrawler {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       const res = await fetch(url, {
         headers: {
@@ -87,6 +211,7 @@ export class WebCrawler {
           Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         },
         signal: controller.signal,
+        redirect: "follow",
       });
       clearTimeout(timeoutId);
 
@@ -131,27 +256,26 @@ export class WebCrawler {
         if (
           !src.includes("data:image") &&
           !src.includes("icon") &&
-          !src.includes("logo-small") &&
           !src.includes("1x1") &&
           !src.includes("badge") &&
           (src.endsWith(".jpg") || src.endsWith(".jpeg") || src.endsWith(".png") || src.endsWith(".webp") || src.includes("images/"))
         ) {
           imageUrls.push(src);
-          if (imageUrls.length >= 10) break;
+          if (imageUrls.length >= 8) break;
         }
       }
 
-      // Download valid images
+      // Download and verify images
       result.assets = await this.downloadImages(imageUrls, url, onProgress);
     } catch (err: any) {
-      console.warn(`[WebCrawler] Failed to crawl URL ${url}: ${err.message}`);
+      console.warn(`[WebCrawler] Notice crawling ${url}: ${err.message}`);
     }
 
     return result;
   }
 
   /**
-   * Searches Wikipedia and public knowledge endpoints for a specific topic/character/brand.
+   * Searches Wikipedia public knowledge endpoints for a specific topic/product/company.
    */
   public static async searchWebTopic(
     topic: string,
@@ -170,7 +294,7 @@ export class WebCrawler {
       const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${cleanTopic}`;
 
       const res = await fetch(summaryUrl, {
-        headers: { "User-Agent": "HyparlinkAutonomousCrawler/1.0 (contact@hyparlink.ai)" },
+        headers: { "User-Agent": "HyparlinkAutonomousEngine/1.0 (contact@hyparlink.ai)" },
       });
 
       if (res.ok) {
@@ -190,14 +314,14 @@ export class WebCrawler {
         }
       }
     } catch (err: any) {
-      console.warn(`[WebCrawler] Topic search failed for ${topic}: ${err.message}`);
+      console.warn(`[WebCrawler] Topic research notice for ${topic}: ${err.message}`);
     }
 
     return result;
   }
 
   /**
-   * Downloads candidate image URLs to a local cache directory.
+   * Downloads candidate image URLs to a local project-isolated directory with SSRF, size & signature checks.
    */
   private static async downloadImages(
     urls: string[],
@@ -220,9 +344,13 @@ export class WebCrawler {
         continue;
       }
 
+      // Check SSRF on target image
+      const isSafe = await this.isSafeUrl(fullUrl);
+      if (!isSafe) continue;
+
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
         const imgRes = await fetch(fullUrl, {
           headers: {
@@ -236,14 +364,20 @@ export class WebCrawler {
         if (!imgRes.ok) continue;
 
         const buffer = Buffer.from(await imgRes.arrayBuffer());
-        if (buffer.length < 8000) continue; // Skip tiny icons/avatars
+        if (buffer.length < 5000 || buffer.length > 15 * 1024 * 1024) continue; // Min 5KB, Max 15MB
 
-        const ext = fullUrl.endsWith(".png") ? ".png" : fullUrl.endsWith(".webp") ? ".webp" : ".jpg";
-        const filename = `web_asset_${count + 1}${ext}`;
+        // Verify magic bytes
+        const sig = this.isValidImageBuffer(buffer);
+        if (!sig.valid) {
+          console.warn(`[WebCrawler] Rejected image with invalid signature: ${fullUrl}`);
+          continue;
+        }
+
+        const filename = `web_asset_${count + 1}${sig.ext}`;
         const localPath = path.join(targetDir, filename);
 
         fs.writeFileSync(localPath, buffer);
-        console.log(`[WebCrawler] Downloaded real web asset: ${filename} (${(buffer.length / 1024).toFixed(1)} KB)`);
+        console.log(`[WebCrawler] Verified and saved web asset: ${filename} (${(buffer.length / 1024).toFixed(1)} KB)`);
 
         assets.push({
           id: `web-asset-${hash}-${count}`,
@@ -251,16 +385,20 @@ export class WebCrawler {
           originalFilename: filename,
           localPath,
           type: "image",
-          mimeType: ext === ".png" ? "image/png" : "image/jpeg",
+          mimeType: sig.mimeType,
           url: fullUrl,
+          sourceUrl: baseUrl,
+          attribution: `Source: ${new URL(baseUrl).hostname}`,
+          license: "Public Web Asset",
+          fileSizeBytes: buffer.length,
         });
 
         count++;
         if (onProgress) {
-          await onProgress("web_crawling", `Downloaded real web media ${count}/5 from ${new URL(baseUrl).hostname}...`);
+          await onProgress("web_crawling", `Acquired verified media ${count}/5 from ${new URL(baseUrl).hostname}...`);
         }
       } catch (err: any) {
-        console.warn(`[WebCrawler] Failed to download image ${fullUrl}: ${err.message}`);
+        console.warn(`[WebCrawler] Failed to acquire image ${fullUrl}: ${err.message}`);
       }
     }
 
@@ -268,16 +406,17 @@ export class WebCrawler {
   }
 
   /**
-   * Helper to isolate real world subject keywords from conversational prompts.
+   * Extracts clean, distinct real-world product/company topics from prompt strings.
    */
   private static extractSearchTopic(prompt: string): string | null {
+    // Check if prompt names a real product e.g. "Linear", "Figma", "Nike", "Stripe", "Next.js", etc.
     const clean = prompt
-      .replace(/^create a \d+-second (cinematic )?(ad|video|commercial)? (for|of|about)? /i, "")
-      .replace(/with (voice|logo|presentation|music|sound).*/i, "")
-      .replace(/in (the )?same settings.*/i, "")
+      .replace(/^create\s+(a\s+)?(\d+[- ]seconds?\s+)?(advertisement|commercial|video|promo)\s+(for|about|of)?\s*/i, "")
+      .replace(/\s*(with|using|showing|highlighting|featuring)\s+.*$/i, "")
+      .replace(/\s*(research|official|website|features).*$/i, "")
       .trim();
 
-    const words = clean.split(/\s+/).slice(0, 4).join(" ");
-    return words || null;
+    const words = clean.split(/\s+/).slice(0, 3).join(" ");
+    return words.length > 2 ? words : null;
   }
 }

@@ -10,7 +10,7 @@ export default async function Layout({
 
   return (
     <WorkspaceProvider>
-      <div className="min-h-screen w-full bg-secondary dark:bg-black md:flex">
+      <div className="min-h-screen w-full bg-[#f8fafc] dark:bg-[#090d14] md:flex">
         <Sidebar />
         <main className="flex min-w-0 flex-1 flex-col">
           <Topbar />

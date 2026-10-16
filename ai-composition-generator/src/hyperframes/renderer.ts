@@ -72,22 +72,22 @@ export class Renderer {
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
     // Map resolution safely to supported HyperFrames CLI values
-    let safeResolution = "1080p";
+    let resFlag = "";
     const resLower = (resolution || "").toLowerCase();
     if (resLower.includes("4k")) {
-      safeResolution = "4k";
+      resFlag = "--resolution 4k";
     } else if (resLower === "portrait" || resLower === "9:16") {
-      safeResolution = "portrait";
+      resFlag = "--resolution portrait";
     } else if (resLower === "square" || resLower === "1:1") {
-      safeResolution = "square";
-    } else {
-      safeResolution = "1080p";
+      resFlag = "--resolution square";
+    } else if (resLower.includes("1080")) {
+      resFlag = "--resolution 1080p";
     }
 
     const ffmpegPath = await this.getFfmpegPath();
     const ffmpegDir = path.dirname(ffmpegPath);
     const envPath = `${ffmpegDir}:${process.env.PATH || ""}`;
-    const command = `npx --yes hyperframes@0.8.139 render --resolution ${safeResolution} --format ${format} -o "${outputPath}"`;
+    const command = `npx --yes hyperframes@0.8.139 render ${resFlag ? resFlag + " " : ""}--format ${format} -o "${outputPath}"`;
 
     console.log(`[Renderer] Render started...`);
     console.log(`[Renderer] Command: ${command}`);
@@ -100,7 +100,7 @@ export class Renderer {
           ...process.env,
           PATH: envPath,
         },
-        timeout: 180000, // 3 minutes timeout for rendering
+        timeout: 600000, // 10 minutes timeout for rendering long compositions (60s - 90s)
       });
 
       const combined = stdout + "\n" + stderr;

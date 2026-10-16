@@ -598,10 +598,20 @@ export default function HeyGenStudioPage() {
               Node & FFmpeg: Ready ✓
             </Link>
             <a
+              href="https://app.heygen.com/avatar/voices"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-md hover:from-purple-500 hover:to-indigo-500 transition-all"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+              <span>Create Avatar & Voices</span>
+              <ExternalLink className="h-3 w-3" />
+            </a>
+            <a
               href="https://app.heygen.com/signup"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-medium text-white shadow hover:bg-indigo-700"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-primary shadow hover:bg-secondary"
             >
               HeyGen Portal <ExternalLink className="h-3 w-3" />
             </a>
@@ -789,8 +799,18 @@ export default function HeyGenStudioPage() {
                       }`}
                     >
                       <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-                      My Custom HeyGen Avatar (Direct ID)
+                      HeyGen Avatars &amp; Voices (Link / ID)
                     </button>
+                    <a
+                      href="https://app.heygen.com/avatar/voices"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 rounded-md px-3 py-1.5 font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 transition"
+                      title="Open app.heygen.com/avatar/voices in a new window"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Open Voices Studio ↗
+                    </a>
                   </div>
                 </div>
 
@@ -884,56 +904,118 @@ export default function HeyGenStudioPage() {
                 ) : (
                   /* DIRECT HEYGEN AVATAR ID & VOICE ID FORM */
                   <div className="mt-2 space-y-4 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-500">
-                          Direct HeyGen Custom Avatar Integration
-                        </h4>
+                    {/* Direct HeyGen Integration Header */}
+                    <div className="rounded-xl border border-indigo-500/40 bg-gradient-to-r from-indigo-950/70 via-purple-950/50 to-slate-900/70 p-4 shadow-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                              HeyGen Avatars &amp; Voices Studio
+                            </h4>
+                            <span className="rounded-full bg-indigo-500/20 border border-indigo-500/40 px-2 py-0.5 text-[10px] font-semibold text-indigo-300">
+                              app.heygen.com/avatar/voices
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-300">
+                            Create or select your custom avatar and voice directly on HeyGen, then copy the link or ID from the address bar to use it in your videos.
+                          </p>
+                        </div>
+                        <a
+                          href="https://app.heygen.com/avatar/voices"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-bold text-white shadow-md transition-all transform hover:scale-[1.02] shrink-0"
+                        >
+                          <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                          <span>Open HeyGen Avatars &amp; Voices</span>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
                       </div>
-                      <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-medium text-indigo-600 dark:text-indigo-400">
-                        Saved to Browser
-                      </span>
                     </div>
-
-                    <p className="text-xs text-primary/70">
-                      Create an account on HeyGen, train your personal <strong>Instant Avatar</strong> or <strong>Studio Avatar</strong>, and paste your <strong>Avatar ID</strong> and <strong>Voice ID</strong> below. The dashboard will generate videos featuring your exact custom avatar!
-                    </p>
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="block text-xs font-semibold text-primary mb-1">
-                          HeyGen Avatar ID <span className="text-rose-500">*</span>
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-semibold text-primary">
+                            HeyGen Avatar Link or ID <span className="text-rose-500">*</span>
+                          </label>
+                          <a
+                            href="https://app.heygen.com/avatar/voices"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] font-medium text-indigo-500 hover:underline flex items-center gap-1"
+                          >
+                            Get from HeyGen <ExternalLink className="h-2.5 w-2.5" />
+                          </a>
+                        </div>
                         <input
                           type="text"
-                          placeholder="e.g. Angela-in-office-20240820 or your Avatar UUID"
+                          placeholder="Paste URL (https://app.heygen.com/avatar/voices...) or Avatar ID"
                           value={customAvatarId}
                           onChange={(e) => {
-                            setCustomAvatarId(e.target.value);
+                            const raw = e.target.value;
+                            let parsed = raw.trim();
                             try {
-                              localStorage.setItem("heygen_custom_avatar_id", e.target.value.trim());
+                              if (parsed.startsWith("http://") || parsed.startsWith("https://")) {
+                                const u = new URL(parsed);
+                                const qId = u.searchParams.get("avatar_id") || u.searchParams.get("avatarId") || u.searchParams.get("id");
+                                if (qId) {
+                                  parsed = qId;
+                                } else {
+                                  const segs = u.pathname.split("/").filter(Boolean);
+                                  const lastSeg = segs[segs.length - 1];
+                                  if (lastSeg && lastSeg !== "voices" && lastSeg !== "avatar") {
+                                    parsed = lastSeg;
+                                  }
+                                }
+                              }
+                            } catch {}
+                            setCustomAvatarId(parsed);
+                            try {
+                              localStorage.setItem("heygen_custom_avatar_id", parsed);
                             } catch {}
                           }}
                           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-mono text-primary placeholder:text-primary/40 focus:border-indigo-500 focus:outline-none"
                         />
                         <span className="mt-1 block text-[10px] text-primary/50">
-                          Found in HeyGen under <strong>Avatars</strong> &rarr; Click your avatar &rarr; Avatar details / URL.
+                          Paste your avatar link from <strong>https://app.heygen.com/avatar/voices</strong> or your Avatar ID.
                         </span>
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-primary mb-1">
-                          HeyGen Voice ID <span className="text-primary/40">(Optional)</span>
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-semibold text-primary">
+                            HeyGen Voice Link or ID <span className="text-primary/40">(Optional)</span>
+                          </label>
+                          <a
+                            href="https://app.heygen.com/avatar/voices"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] font-medium text-indigo-500 hover:underline flex items-center gap-1"
+                          >
+                            Browse Voices <ExternalLink className="h-2.5 w-2.5" />
+                          </a>
+                        </div>
                         <input
                           type="text"
-                          placeholder="e.g. 1bd8ba5613b54435... or cloned Voice ID"
+                          placeholder="Paste Voice URL or Voice ID (e.g. 1bd8ba5613b54435...)"
                           value={customVoiceId}
                           onChange={(e) => {
-                            setCustomVoiceId(e.target.value);
+                            const raw = e.target.value;
+                            let parsed = raw.trim();
                             try {
-                              localStorage.setItem("heygen_custom_voice_id", e.target.value.trim());
+                              if (parsed.startsWith("http://") || parsed.startsWith("https://")) {
+                                const u = new URL(parsed);
+                                const qVoice = u.searchParams.get("voice_id") || u.searchParams.get("voiceId") || u.searchParams.get("id");
+                                if (qVoice) {
+                                  parsed = qVoice;
+                                }
+                              }
+                            } catch {}
+                            setCustomVoiceId(parsed);
+                            try {
+                              localStorage.setItem("heygen_custom_voice_id", parsed);
                             } catch {}
                           }}
                           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-mono text-primary placeholder:text-primary/40 focus:border-indigo-500 focus:outline-none"
@@ -949,23 +1031,24 @@ export default function HeyGenStudioPage() {
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-primary flex items-center gap-1.5">
                           <Info className="h-3.5 w-3.5 text-indigo-500" />
-                          How to find your Avatar ID and Voice ID in HeyGen:
+                          How to create and copy your Avatar &amp; Voice from HeyGen:
                         </span>
                         <a
-                          href="https://app.heygen.com"
+                          href="https://app.heygen.com/avatar/voices"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[11px] font-medium text-indigo-500 hover:underline flex items-center gap-1"
+                          className="text-[11px] font-semibold text-indigo-500 hover:underline flex items-center gap-1"
                         >
-                          Open HeyGen <ExternalLink className="h-3 w-3" />
+                          Go to app.heygen.com/avatar/voices <ExternalLink className="h-3 w-3" />
                         </a>
                       </div>
                       <ol className="list-decimal list-inside space-y-1 text-primary/70 text-[11px]">
-                        <li>Log in to your account at <strong className="text-primary">app.heygen.com</strong>.</li>
-                        <li>Click <strong>Avatars</strong> on the left bar and select the avatar you created (Instant Avatar or Studio Avatar).</li>
-                        <li>Look at the address bar or click the share/API button to copy the <strong>Avatar ID</strong> (e.g., <code>Angela-in-office-20240820</code>).</li>
-                        <li>Under <strong>Voices</strong>, copy your cloned Voice ID if you created one.</li>
-                        <li>Paste both IDs above &mdash; your custom avatar will be used whenever you render!</li>
+                        <li>Open <a href="https://app.heygen.com/avatar/voices" target="_blank" rel="noopener noreferrer" className="text-indigo-500 underline font-medium">https://app.heygen.com/avatar/voices</a> in your browser.</li>
+                        <li>Create your custom <strong>Instant Avatar</strong> or select your existing avatar.</li>
+                        <li>Copy the URL from your browser address bar or copy your Avatar ID directly.</li>
+                        <li>Paste the link or ID into the box above &mdash; our system automatically extracts the ID.</li>
+                        <li>(Optional) Select your cloned voice from the Voices tab, copy the ID, and paste it in the Voice field.</li>
+                        <li>Click <strong>Generate HeyGen Avatar Video</strong> below to create your video featuring your avatar!</li>
                       </ol>
                     </div>
 
@@ -975,11 +1058,14 @@ export default function HeyGenStudioPage() {
                       <div className="flex-1">
                         {customAvatarId.trim() ? (
                           <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                            Ready: Videos will render using custom avatar ID <code className="font-mono bg-secondary px-1.5 py-0.5 rounded text-[11px]">{customAvatarId.trim()}</code>
+                            Ready: Videos will render using custom avatar <code className="font-mono bg-secondary px-1.5 py-0.5 rounded text-[11px]">{customAvatarId.trim()}</code>
+                            {customVoiceId.trim() && (
+                              <> with voice <code className="font-mono bg-secondary px-1.5 py-0.5 rounded text-[11px]">{customVoiceId.trim()}</code></>
+                            )}
                           </span>
                         ) : (
                           <span className="text-amber-600 dark:text-amber-400">
-                            Please paste your HeyGen Avatar ID above to render with your custom avatar.
+                            Please paste your Avatar link or ID from <a href="https://app.heygen.com/avatar/voices" target="_blank" rel="noopener noreferrer" className="underline font-medium">app.heygen.com/avatar/voices</a> above.
                           </span>
                         )}
                       </div>

@@ -1,39 +1,36 @@
 "use client";
 
-import { HelpCircle } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { HelpCircle, Sparkles } from "lucide-react";
 import { NotificationsBell } from "./notifications-bell";
 
-const APP_VERSION = "0.1.0";
-const TITLES: Record<string, string> = {
-  "/": "Dashboard",
-  "/jobs": "Jobs",
-  "/platform": "Platform",
-  "/files": "Files",
-  "/settings": "Settings",
-  "/settings/billing": "Billing",
-};
-
 export function Topbar() {
-  const pathname = usePathname();
-  const title = TITLES[pathname] ?? "Dashboard";
   return (
-    <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-6">
-      <nav className="flex items-center gap-1.5 text-sm">
-        <span className="text-primary/40">myos</span>
-        <span className="text-primary/30">/</span>
-        <span className="font-medium text-primary/80">{title}</span>
-      </nav>
-      <div className="flex items-center gap-3 text-xs text-primary/40">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/80 px-6 backdrop-blur-md dark:border-neutral-800 dark:bg-[#0c1017]/80">
+      {/* Left: Ollastar Branding */}
+      <div className="flex items-center gap-2.5">
+        <img
+          src="/ollastar-logo.png"
+          alt="Ollastar"
+          className="h-7 w-7 rounded-full object-contain"
+        />
+        <span className="font-bold tracking-tight text-slate-900 dark:text-white text-sm">
+          Ollastar
+        </span>
+      </div>
+
+      {/* Right Controls */}
+      <div className="flex items-center gap-3">
+
         <NotificationsBell />
-        <span className="hidden sm:inline">v{APP_VERSION}</span>
+
         <a
-          href="https://github.com/get-convex/v1/tree/main/docs"
+          href="https://gamma.app"
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-1.5 hover:text-primary"
+          className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-neutral-800 dark:hover:text-white transition"
+          title="Help & Documentation"
         >
-          <HelpCircle className="h-4 w-4" /> Help
+          <HelpCircle className="h-4 w-4" />
         </a>
       </div>
     </header>

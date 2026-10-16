@@ -10,7 +10,8 @@
     "test:prompt": "tsx src/index.ts --prompt \"Create a 5-second 1080p landscape title card for HyperFrames Studio with a dark background, blue glowing text, a smooth fade-in animation and a camera push effect.\""
   },
   "dependencies": {
-    "hyperframes": "0.8.139"
+    "hyperframes": "0.8.139",
+    "jsonrepair": "^3.15.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

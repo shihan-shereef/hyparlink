@@ -18,7 +18,6 @@ import {
   ListChecks,
   Play,
   Sparkles,
-  UserCheck,
   Users,
   Video,
 } from "lucide-react";
@@ -95,13 +94,6 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2">
             <Link
-              href="/heygen"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-medium text-primary-foreground shadow transition hover:opacity-90"
-            >
-              <UserCheck className="h-3.5 w-3.5" />
-              HeyGen Avatars
-            </Link>
-            <Link
               href="/create-video"
               className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-medium text-primary shadow-sm transition hover:bg-secondary"
             >
@@ -128,16 +120,6 @@ export default function Home() {
                     Type a prompt or paste any website URL. The AI will crawl data, download photos, and render a 1080p video.
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[11px] font-medium text-emerald-500">
-                  <Globe className="h-3 w-3" />
-                  Web Crawler Active
-                </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-0.5 text-[11px] font-medium text-indigo-400">
-                  <Film className="h-3 w-3" />
-                  HyperFrames 0.8.139
-                </span>
               </div>
             </div>
 
@@ -199,118 +181,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Quick Inspiration Chips */}
-              <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <span className="text-primary/50 text-[11px] font-medium mr-1">
-                  Quick Prompts:
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handlePreset(
-                      "Create a 30-second cinematic DC superman ad for clurk Kent with voice and logo of the superman and presentation of Clark Kent",
-                      30,
-                      "16:9",
-                    )
-                  }
-                  className="rounded-full border border-border bg-card hover:bg-secondary px-2.5 py-1 text-[11px] text-primary/80 transition"
-                >
-                  🦸‍♂️ Superman (Clark Kent)
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handlePreset(
-                      "Create a 30-second ad of green lantern series of dc with voice and logo of the lantern ring and presentation of guy gardner",
-                      30,
-                      "16:9",
-                    )
-                  }
-                  className="rounded-full border border-border bg-card hover:bg-secondary px-2.5 py-1 text-[11px] text-primary/80 transition"
-                >
-                  🟢 Green Lantern (Guy Gardner)
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handlePreset(
-                      "https://en.wikipedia.org/wiki/Superman Create a 30-second video presentation with facts and photos",
-                      30,
-                      "16:9",
-                    )
-                  }
-                  className="rounded-full border border-border bg-card hover:bg-secondary px-2.5 py-1 text-[11px] text-primary/80 transition"
-                >
-                  🌐 Crawl URL: Wikipedia Superman
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handlePreset(
-                      "Create an authoritative milestone celebration video featuring '1,000,000 Developers' with dynamic numerical counter animations, clean grid lines, and kinetic typography.",
-                      15,
-                      "16:9",
-                    )
-                  }
-                  className="rounded-full border border-border bg-card hover:bg-secondary px-2.5 py-1 text-[11px] text-primary/80 transition"
-                >
-                  📊 1,000,000 Developers
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
-
-        {/* Video Rendering Environment Verification Banner */}
-        <div className="rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-card to-card p-4 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="rounded-lg bg-emerald-500/20 p-2 text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold text-primary">
-                    Video Rendering Engine & System Dependencies Installed
-                  </h3>
-                  <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    Verified Ready ✓
-                  </span>
-                </div>
-                <p className="mt-0.5 text-xs text-primary/70">
-                  Node.js, npm, FFmpeg, FFprobe, and HyperFrames CLI are confirmed active on the backend server.
-                </p>
-              </div>
-            </div>
-            <Link
-              href="/settings"
-              className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:underline dark:text-emerald-400"
-            >
-              System Details <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 border-t border-border/50 pt-3">
-            <div className="flex items-center gap-2 text-xs">
-              <Cpu className="h-3.5 w-3.5 text-emerald-500" />
-              <span className="text-primary/60">Node.js:</span>
-              <span className="font-mono font-medium text-primary">v22.20.0 ✓</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <Film className="h-3.5 w-3.5 text-emerald-500" />
-              <span className="text-primary/60">FFmpeg:</span>
-              <span className="font-mono font-medium text-primary">8.1.2 (H.264/AAC) ✓</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-              <span className="text-primary/60">HyperFrames:</span>
-              <span className="font-mono font-medium text-primary">0.8.139 ✓</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <HardDrive className="h-3.5 w-3.5 text-emerald-500" />
-              <span className="text-primary/60">Disk Storage:</span>
-              <span className="font-mono font-medium text-primary">30.4 GB Free ✓</span>
-            </div>
           </div>
         </div>
 

@@ -55,6 +55,8 @@ export interface PromptComponents {
 
 export type SceneLayoutType =
   | "cinematic-hero-intro"
+  | "hero-product-showcase"
+  | "feature-split-layout"
   | "nature-tree-growth"
   | "network-http-flow"
   | "abstract-geometric-motion"
@@ -65,17 +67,10 @@ export type SceneLayoutType =
   | "kinetic-typography"
   | "comparison-impact"
   | "architectural-spec"
-  | "cinematic-climax-cta"
-  | "green-lantern-ring"
-  | "green-lantern-guy-gardner"
-  | "green-lantern-construct"
-  | "green-lantern-battery"
-  | "green-lantern-oath"
-  | "superman-shield"
-  | "superman-clark-kent"
-  | "superman-metropolis"
-  | "superman-solar"
-  | "superman-climax";
+  | "brand-climax-cta"
+  | "avatar-presenter-spotlight"
+  | "avatar-mixed-feature"
+  | "cinematic-climax-cta";
 
 export interface BriefScenePlan {
   id?: string;

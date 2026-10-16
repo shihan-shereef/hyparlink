@@ -56,13 +56,17 @@ const statusBadges: Record<string, { label: string; className: string }> = {
   },
 };
 
+const PRIMARY_WS = "mh7eadmg10g11yqwbjtyc41yjs8fxx17" as Id<"workspaces">;
+
 export default function ProjectsPage() {
-  const { current } = useWorkspace();
+  const { current, workspaces, select } = useWorkspace();
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+
+  const effectiveWs = current || PRIMARY_WS;
 
   const projects = useQuery(
     api.projects.list,
-    current ? { workspaceId: current } : "skip",
+    effectiveWs ? { workspaceId: effectiveWs } : "skip",
   );
 
   const duplicateProject = useMutation(api.projects.duplicate);
@@ -152,12 +156,25 @@ export default function ProjectsPage() {
               Generate your first HyperFrames animated video using natural
               language.
             </p>
-            <Link href="/create-video" className="mt-4">
-              <Button size="sm" className="gap-2">
-                <Sparkles className="h-4 w-4" />
-                Create First Video
-              </Button>
-            </Link>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+              <Link href="/create-video">
+                <Button size="sm" className="gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Create First Video
+                </Button>
+              </Link>
+              {effectiveWs !== PRIMARY_WS && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => select(PRIMARY_WS)}
+                  className="gap-2 border-primary/30 text-primary"
+                >
+                  <Film className="h-4 w-4 text-purple-500" />
+                  Switch to Primary Workspace (60 Videos)
+                </Button>
+              )}
+            </div>
           </div>
         ) : viewMode === "grid" ? (
           /* VIDEO PROJECT CARDS (Phase 8A & Phase 8B) */

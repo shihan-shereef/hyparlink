@@ -175,6 +175,12 @@ export default defineSchema({
     outputUrl: v.optional(v.string()),
     error: v.optional(v.string()),
     jobId: v.optional(v.id("jobs")),
+    avatarId: v.optional(v.string()),
+    avatarName: v.optional(v.string()),
+    voiceId: v.optional(v.string()),
+    voiceName: v.optional(v.string()),
+    generationMode: v.optional(v.string()), // "hyperframes_only" | "avatar_mixed" | "avatar_presenter"
+    isAvatarVideo: v.optional(v.boolean()),
     // Phase 7: Persistent Cloud Storage & CDN metadata
     storageProvider: v.optional(v.string()), // "r2" | "s3" | "convex" | "local"
     storageKey: v.optional(v.string()), // "workspaces/{ws}/projects/{proj}/renders/{job}/video.mp4"
@@ -213,6 +219,19 @@ export default defineSchema({
     hlsMasterKey: v.optional(v.string()),
     // Phase 8D: Selected Workspace Assets
     assetIds: v.optional(v.array(v.id("assets"))),
+    // Video Agent Mode & Production Plan (Plan Mode vs. Autopilot Mode)
+    mode: v.optional(v.string()), // "plan" | "autopilot"
+    productionPlan: v.optional(v.any()),
+    planStatus: v.optional(v.string()), // "planning" | "ready" | "revising" | "approved"
+    chatHistory: v.optional(
+      v.array(
+        v.object({
+          role: v.string(),
+          content: v.string(),
+          timestamp: v.number(),
+        }),
+      ),
+    ),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

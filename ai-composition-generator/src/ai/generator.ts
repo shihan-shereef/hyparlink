@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import { jsonrepair } from "jsonrepair";
 import { AIProvider } from "./provider.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,6 +26,12 @@ import { ScenePlanner, PlannedTimeline } from "./scene-planner.js";
 import { CompositionSynthesizer } from "./composition-synthesizer.js";
 import { AIImageGenerator } from "./image-generator.js";
 import { WebCrawler, WebCrawlResult } from "./web-crawler.js";
+import { AgentPlanner, VideoProductionPlan } from "./agent-planner.js";
+import {
+  CompositeImageService,
+  DiscoveredAssetReport,
+  ImageProviderSettings,
+} from "../images/index.js";
 
 export interface GeneratedProjectPayload {
   files: Record<string, string>;
@@ -40,6 +47,8 @@ export interface GeneratedProjectPayload {
   creativeBrief?: CreativeBrief;
   timeline?: PlannedTimeline;
   analyzedAssets?: AnalyzedAsset[];
+  productionPlan?: VideoProductionPlan;
+  discoveredAssetReport?: DiscoveredAssetReport;
 }
 
 export interface GenerateProjectOptions {
@@ -49,6 +58,12 @@ export interface GenerateProjectOptions {
   fps?: number;
   assets?: any[];
   model?: string;
+  productionPlan?: VideoProductionPlan;
+  mode?: "plan" | "autopilot";
+  imageSettings?: Partial<ImageProviderSettings>;
+  compositionMode?: "mode_a" | "mode_b" | "mode_c" | "auto" | "hyperframes_only";
+  visualStyle?: string;
+  avatarLanguage?: string;
   onProgress?: (stage: string, message: string) => void | Promise<void>;
 }
 
@@ -130,6 +145,10 @@ export class AIGenerator {
       !Array.isArray(optionsOrAssets) && (optionsOrAssets as any)?.onProgress
         ? (optionsOrAssets as any).onProgress
         : undefined;
+    const imageSettings =
+      !Array.isArray(optionsOrAssets) && (optionsOrAssets as any)?.imageSettings
+        ? (optionsOrAssets as any).imageSettings
+        : undefined;
 
     // STAGE 1: Writing Composition (Understanding prompt intent, brief & assets)
     if (onProgress) {
@@ -182,115 +201,117 @@ export class AIGenerator {
       console.log(`[AIGenerator] Bound ${assets.length} scraped web asset(s) to video composition!`);
     }
 
-    // Creative Brief Generation via Ollima LLM
-    if (onProgress) {
-      await onProgress(
-        "writing_composition",
-        `Writing composition: Planning creative brief with Ollima LLM (${model || this.provider.getProviderInfo().model})...`,
-      );
-    }
+    // STAGE 1: Agent Video Production Plan & Creative Brief
+    const incomingPlan =
+      !Array.isArray(optionsOrAssets) && (optionsOrAssets as any)?.productionPlan
+        ? (optionsOrAssets as any).productionPlan
+        : null;
 
-    let creativeBrief: CreativeBrief;
-    try {
-      let promptWithWeb = userPrompt;
-      if (webResult) {
-        promptWithWeb += `\n\nREAL WEB RESEARCH & FACT DATA:\n- Page/Topic Title: ${webResult.title}\n- Summary: ${webResult.summary}\n- Key Facts: ${webResult.keyFacts.slice(0, 5).join("; ")}\n- Headings: ${webResult.headings.slice(0, 5).join(", ")}`;
-      }
-
-      const briefPrompt = `PROMPT:\n${promptWithWeb}\n\nAUTHORITATIVE SPECS:\n- Duration: ${duration} seconds (EXACT)\n- Resolution: ${width}x${height} @ ${fps}fps\n${assets.length > 0 ? `- Selected Assets: ${assets.map((a: any) => a.name || a.originalFilename).join(", ")}` : ""}\n\nPlease generate the Creative Brief JSON adhering strictly to the official HyperFrames Prompting Guide (Levels 1-7 & Appendix).`;
-
-      const briefRaw = await this.provider.complete(
-        [
-          { role: "system", content: CREATIVE_BRIEF_SYSTEM_PROMPT },
-          { role: "user", content: briefPrompt },
-        ],
-        0.2,
-        model,
-      );
-
-      let cleanBrief = briefRaw.trim();
-      if (cleanBrief.startsWith("```")) {
-        cleanBrief = cleanBrief
-          .replace(/^```(?:json)?\s*/i, "")
-          .replace(/\s*```$/, "")
-          .trim();
-      }
-      creativeBrief = JSON.parse(cleanBrief);
-      creativeBrief.aiProvider = model || this.provider.getProviderInfo().model;
-    } catch (briefErr: any) {
-      console.warn(
-        `[AIGenerator] Creative brief LLM response fallback: ${briefErr.message}`,
-      );
-      creativeBrief = this.synthesizeDefaultBrief(userPrompt, duration, assets, webResult);
-      creativeBrief.aiProvider = "offline-synthesizer";
-    }
-
-    // Enforce authoritative duration strictly
-    creativeBrief.totalDuration = duration;
-    const promptLower = userPrompt.toLowerCase();
-    if (promptLower.includes("silent") || promptLower.includes("no audio") || promptLower.includes("without audio")) {
-      if (!creativeBrief.audioPlan) {
-        creativeBrief.audioPlan = { isSilent: true };
-      }
-      creativeBrief.audioPlan.isSilent = true;
-    }
-
-    const isGreenLantern =
-      promptLower.includes("lantern") ||
-      promptLower.includes("guy gardner") ||
-      promptLower.includes("green lantern") ||
-      promptLower.includes("power ring");
-
-    const isSuperman =
-      promptLower.includes("superman") ||
-      promptLower.includes("clark kent") ||
-      promptLower.includes("clurk kent") ||
-      promptLower.includes("man of steel") ||
-      promptLower.includes("krypton") ||
-      promptLower.includes("daily planet");
-
-    if (isGreenLantern && (!assets || assets.length === 0)) {
-      const presetDir = path.resolve(__dirname, "../../presets/green-lantern-assets");
-      if (fs.existsSync(presetDir)) {
-        assets = [
-          { name: "ring.jpg", originalFilename: "ring.jpg", localPath: path.join(presetDir, "ring.jpg"), type: "image", mimeType: "image/jpeg" },
-          { name: "guy_gardner.jpg", originalFilename: "guy_gardner.jpg", localPath: path.join(presetDir, "guy_gardner.jpg"), type: "image", mimeType: "image/jpeg" },
-          { name: "construct_fist.jpg", originalFilename: "construct_fist.jpg", localPath: path.join(presetDir, "construct_fist.jpg"), type: "image", mimeType: "image/jpeg" },
-          { name: "battery.jpg", originalFilename: "battery.jpg", localPath: path.join(presetDir, "battery.jpg"), type: "image", mimeType: "image/jpeg" },
-          { name: "title_reveal.jpg", originalFilename: "title_reveal.jpg", localPath: path.join(presetDir, "title_reveal.jpg"), type: "image", mimeType: "image/jpeg" },
-        ];
-      }
-    } else if (isSuperman && (!assets || assets.length === 0)) {
-      const presetDir = path.resolve(__dirname, "../../presets/superman-assets");
-      if (fs.existsSync(presetDir)) {
-        assets = [
-          { name: "s_shield.jpg", originalFilename: "s_shield.jpg", localPath: path.join(presetDir, "s_shield.jpg"), type: "image", mimeType: "image/jpeg" },
-          { name: "clark_kent.jpg", originalFilename: "clark_kent.jpg", localPath: path.join(presetDir, "clark_kent.jpg"), type: "image", mimeType: "image/jpeg" },
-          { name: "daily_planet_desk.jpg", originalFilename: "daily_planet_desk.jpg", localPath: path.join(presetDir, "daily_planet_desk.jpg"), type: "image", mimeType: "image/jpeg" },
-          { name: "solar_power.jpg", originalFilename: "solar_power.jpg", localPath: path.join(presetDir, "solar_power.jpg"), type: "image", mimeType: "image/jpeg" },
-          { name: "superman_title.jpg", originalFilename: "superman_title.jpg", localPath: path.join(presetDir, "superman_title.jpg"), type: "image", mimeType: "image/jpeg" },
-        ];
-      }
-    }
-
-    // Automated Free AI Image Generation for any arbitrary prompt with no assets
-    if (!assets || assets.length === 0) {
-      console.log(`[AIGenerator] No assets uploaded or preset matched. Calling automated AI image generator...`);
+    let productionPlan: VideoProductionPlan;
+    if (incomingPlan) {
       if (onProgress) {
-        await onProgress("generating_images", "Generating bespoke AI scene artwork (5 scenes)...");
+        await onProgress(
+          "writing_composition",
+          `Writing composition: Adopting approved Video Production Plan (${incomingPlan.scenes?.length || 0} scenes)...`,
+        );
       }
+      productionPlan = incomingPlan;
+    } else {
+      if (onProgress) {
+        await onProgress(
+          "writing_composition",
+          `Writing composition: Agent planning production plan, script & bespoke scene breakdown...`,
+        );
+      }
+      productionPlan = await AgentPlanner.generatePlan(
+        userPrompt,
+        {
+          duration,
+          width,
+          height,
+          fps,
+          model: model || this.provider.getProviderInfo().model,
+          assets,
+          mode: (!Array.isArray(optionsOrAssets) && (optionsOrAssets as any)?.mode) || "autopilot",
+          compositionMode: (!Array.isArray(optionsOrAssets) && (optionsOrAssets as any)?.compositionMode) || undefined,
+          visualStyle: (!Array.isArray(optionsOrAssets) && (optionsOrAssets as any)?.visualStyle) || undefined,
+          avatarLanguage: (!Array.isArray(optionsOrAssets) && (optionsOrAssets as any)?.avatarLanguage) || undefined,
+        },
+        this.provider,
+      );
+    }
+
+    let creativeBrief: CreativeBrief = AgentPlanner.planToCreativeBrief(productionPlan);
+    creativeBrief.totalDuration = duration;
+    creativeBrief.aiProvider = model || this.provider.getProviderInfo().model;
+
+    // Check if the brief benefits from AI generated images (Rule 8: Support Image Generation When Needed)
+    const promptLower = userPrompt.toLowerCase();
+    const isSvgOrDiagramOrChart =
+      promptLower.includes("tree") ||
+      promptLower.includes("seed") ||
+      promptLower.includes("grow") ||
+      promptLower.includes("chart") ||
+      promptLower.includes("revenue") ||
+      promptLower.includes("graph") ||
+      promptLower.includes("http") ||
+      promptLower.includes("diagram") ||
+      promptLower.includes("geometric") ||
+      promptLower.includes("abstract motion") ||
+      promptLower.includes("typography");
+
+    // Intelligent Visual Asset Discovery & Sourcing
+    let discoveredReport: DiscoveredAssetReport | undefined = undefined;
+    const hasUserProvidedAssets = assets && assets.length > 0;
+
+    // Search open-web visual sources when user hasn't explicitly supplied full assets
+    const wantsImageDiscovery =
+      !isSvgOrDiagramOrChart &&
+      (imageSettings?.wikimediaEnabled !== false ||
+        imageSettings?.pexelsEnabled ||
+        imageSettings?.unsplashEnabled ||
+        !hasUserProvidedAssets);
+
+    if (wantsImageDiscovery) {
+      console.log(`[AIGenerator] Discovering visual assets via CompositeImageService...`);
       try {
-        const aiAssets = await AIImageGenerator.generateSceneAssets(userPrompt, creativeBrief, onProgress);
-        if (aiAssets && aiAssets.length > 0) {
-          assets = aiAssets;
-          console.log(`[AIGenerator] Bound ${assets.length} AI-generated images to project!`);
+        const imageService = new CompositeImageService(assets || []);
+        const sceneCount = creativeBrief.scenes?.length || Math.min(Math.max(Math.round(duration / 5), 1), 6);
+        const discoveryResult = await imageService.discoverAndPrepareAssets({
+          userPrompt,
+          creativeBrief,
+          sceneCount,
+          userAssets: assets || [],
+          settings: imageSettings,
+          onProgress,
+        });
+
+        if (discoveryResult.downloadedAssets.length > 0) {
+          // If user provided assets, ensure user assets remain first!
+          if (hasUserProvidedAssets) {
+            assets = [...assets, ...discoveryResult.downloadedAssets];
+          } else {
+            assets = discoveryResult.downloadedAssets;
+          }
+          discoveredReport = discoveryResult.report;
+          console.log(
+            `[AIGenerator] Successfully bound ${assets.length} visual asset(s) to project (${discoveredReport.externalAssetsUsed} external, ${discoveredReport.workspaceAssetsUsed} workspace, ${discoveredReport.aiGeneratedUsed} AI).`
+          );
         }
-      } catch (imgErr: any) {
-        console.warn(`[AIGenerator] AI image generation warning: ${imgErr.message}`);
+      } catch (discErr: any) {
+        console.warn(`[AIGenerator] Image discovery notice: ${discErr.message}`);
+        if (!assets || assets.length === 0) {
+          try {
+            const aiAssets = await AIImageGenerator.generateSceneAssets(userPrompt, creativeBrief, onProgress);
+            if (aiAssets && aiAssets.length > 0) {
+              assets = aiAssets;
+            }
+          } catch {}
+        }
       }
     }
 
-    // Workspace Asset Analysis (Part of Stage 1 Composition Setup)
+    // Workspace Asset Analysis
     if (onProgress) {
       await onProgress(
         "writing_composition",
@@ -310,19 +331,17 @@ export class AIGenerator {
         `Timing clips: Planning frame-accurate timeline (${duration}s = ${Math.round(duration * fps)} frames @ ${fps}fps)...`,
       );
     }
-    const timeline = ScenePlanner.planTimeline(creativeBrief, analyzedAssets, {
-      duration,
-      fps,
-    });
+    const timeline = AgentPlanner.planToTimeline(productionPlan, analyzedAssets);
 
-    // STAGE 3: Animating the Elements (Dynamic Composition Code Generation & GSAP Transforms)
+    // STAGE 3: Animating the Elements (Dynamic AI Composition Code Generation & GSAP Transforms)
     if (onProgress) {
       await onProgress(
         "animating_elements",
         `Animating elements: Synthesizing bespoke HTML, SVG, and GPU-transform GSAP animations for ${timeline.scenes.length} scenes...`,
       );
     }
-    const synthesisResult = CompositionSynthesizer.synthesize(
+    const synthesisResult = await CompositionSynthesizer.synthesizeWithAI(
+      this.provider,
       creativeBrief,
       timeline,
       analyzedAssets,
@@ -331,6 +350,8 @@ export class AIGenerator {
         height,
         fps,
       },
+      model,
+      onProgress,
     );
 
     return {
@@ -339,7 +360,43 @@ export class AIGenerator {
       creativeBrief,
       timeline,
       analyzedAssets,
+      productionPlan,
+      discoveredAssetReport: discoveredReport,
     };
+  }
+
+  /**
+   * Resilient JSON extraction from LLM completion text, tolerating markdown fences,
+   * leading/trailing conversational text, comments, unescaped newlines/tabs, and trailing commas via jsonrepair.
+   */
+  private extractJsonFromText(rawText: string): any {
+    let clean = rawText.trim();
+    const codeBlockMatch = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (codeBlockMatch) {
+      clean = codeBlockMatch[1].trim();
+    } else {
+      const firstBrace = clean.indexOf("{");
+      const lastBrace = clean.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        clean = clean.substring(firstBrace, lastBrace + 1);
+      }
+    }
+
+    try {
+      return JSON.parse(clean);
+    } catch {
+      try {
+        const repaired = jsonrepair(clean);
+        return JSON.parse(repaired);
+      } catch {
+        const stripped = clean
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .replace(/\/\/.*$/gm, "")
+          .replace(/,\s*([}\]])/g, "$1");
+        const repaired2 = jsonrepair(stripped);
+        return JSON.parse(repaired2);
+      }
+    }
   }
 
   private synthesizeDefaultBrief(
@@ -369,27 +426,17 @@ export class AIGenerator {
       promptLower.includes("bar chart") ||
       promptLower.includes("growth animation");
 
-    const isBatman =
-      (promptLower.includes("batman") && !promptLower.includes("lantern")) ||
-      (assets.length > 0 && assets[0]?.name?.toLowerCase().includes("batman"));
+    const isFootwearOrApparel =
+      promptLower.includes("shoe") ||
+      promptLower.includes("footwear") ||
+      promptLower.includes("sneaker") ||
+      promptLower.includes("running");
 
-    const isGreenLantern =
-      promptLower.includes("lantern") ||
-      promptLower.includes("guy gardner") ||
-      promptLower.includes("green lantern") ||
-      promptLower.includes("power ring");
-
-    const isSuperman =
-      promptLower.includes("superman") ||
-      promptLower.includes("clark kent") ||
-      promptLower.includes("clurk kent") ||
-      promptLower.includes("man of steel") ||
-      promptLower.includes("krypton") ||
-      promptLower.includes("daily planet");
-
-    const isArch =
-      promptLower.includes("building") ||
-      promptLower.includes("architect");
+    const isSoftwareProduct =
+      promptLower.includes("software") ||
+      promptLower.includes("saas") ||
+      promptLower.includes("platform") ||
+      promptLower.includes("application");
 
     const isSelectedAssetAd =
       assets.length > 0 &&
@@ -681,219 +728,152 @@ export class AIGenerator {
       };
     }
 
-    // SCENARIO 5: Cinematic Superhero / Batman Animation (Test A)
-    if (isBatman) {
+    // SCENARIO 5A: Premium Footwear & Apparel Cinematic Advertisement (Test A)
+    if (isFootwearOrApparel) {
+      const sceneCount = duration <= 12 ? 3 : 4;
+      const beatDur = duration / sceneCount;
       return {
-        title: "The Dark Knight Awakens",
-        subject: "15-second cinematic Batman-inspired superhero animation with Gotham skyline, rain, dramatic lighting, and suspenseful reveal",
-        videoType: "cinematic_animation",
-        category: "cinematic-trailer",
+        title: "AERO-PULSE // APEX RUNNING SHOE",
+        subject: "Cinematic advertisement for a premium running shoe featuring dynamic motion, custom SVG speed graphics, and bold typography",
+        videoType: "product_advertisement",
+        category: "advertisement",
         promptComponents: {
-          route: "cinematic_animation",
+          route: "product_advertisement",
           spec: {
             durationSeconds: duration,
             resolution: "1920x1080",
             frameRate: 30,
             aspectRatio: "16:9",
-            visualStyle: "Atmospheric Gotham dusk with deep shadows and fiery amber horizon",
-            colorPalette: ["#FFE600", "#FFAA00", "#00F5FF"],
-            typography: "Bebas Neue",
-            cameraMovement: "Slow cinematic push",
-            sceneCount: 3,
+            visualStyle: "High-contrast dynamic sports cinematography with glowing neon speed trails and dark studio atmosphere",
+            colorPalette: ["#FF4500", "#FFD700", "#0B0F19"],
+            typography: "Plus Jakarta Sans",
+            cameraMovement: "Cinematic camera push and dynamic tilt",
+            sceneCount,
           },
           beats: [
-            { id: "b1", purpose: "Suspenseful opening vigil", duration: 5, visualContent: "Gotham skyline at dusk with dramatic lighting", animation: "Slow camera scale" },
-            { id: "b2", purpose: "Batcomputer surveillance", duration: 5, visualContent: "Tactical HUD threat matrix", animation: "Radar sweep" },
-            { id: "b3", purpose: "Powerful final reveal", duration: 5, visualContent: "The symbol in the sky", animation: "Hero title reveal" },
+            { id: "b1", purpose: "Visual hook & product entry", duration: beatDur, visualContent: "Close-up hero product entrance with cinematic lighting and glowing speed lines", animation: "Dynamic scale-up & sweep" },
+            { id: "b2", purpose: "Product in motion & speed", duration: beatDur, visualContent: "Kinetic motion trails, SVG velocity streaks, and engineered traction", animation: "Horizontal velocity streak" },
+            { id: "b3", purpose: "Engineered benefits & comfort", duration: beatDur, visualContent: "Zero-gravity foam cushioning and responsive energy return badges", animation: "Feature callout pop" },
+            ...(sceneCount > 3 ? [{ id: "b4", purpose: "Brand climax & call to action", duration: beatDur, visualContent: "Polished brand reveal with glowing CTA button", animation: "Climax scale & button glow" }] : []),
           ],
           copy: {
-            headlines: ["JUSTICE IN THE SHADOWS", "GOTHAM THREAT MATRIX", "BECOME THE NIGHT"],
-            callToAction: "DISCOVER THE LEGEND",
+            headlines: ["DEFY GRAVITY", "UNLEASH SPEED", "RESPONSIVE CUSHIONING", "CLAIM YOUR EDGE"],
+            callToAction: "ORDER NOW",
           },
-          technique: ["Cinematic Ken Burns camera scale", "Glassmorphic tactical HUD", "High-contrast rim lighting"],
-          negatives: ["no corporate presentation cards", "no generic charts", "no daylight visuals"],
+          technique: ["Cinematic Ken Burns camera scale", "SVG speed lines and motion trails", "Kinetic typography reveals"],
+          negatives: ["no comic book elements", "no cartoon graphics", "no low-contrast text"],
         },
         audioPlan: {
           isSilent,
-          backgroundMusicDescription: isSilent ? undefined : "Heavy orchestral cinematic brass with thunderous percussion",
+          backgroundMusicDescription: isSilent ? undefined : "Intense cinematic percussion and driving sports electronic pulse",
         },
-        intendedAudience: "Fans, enthusiasts of cinematic storytelling",
-        visualAtmosphere: "Dark blue and black Gotham dusk atmosphere with dramatic ambient glow and rain streaks",
+        intendedAudience: "Athletes, runners, sports enthusiasts",
+        visualAtmosphere: "Sleek dark cinematic arena with ember glow, anamorphic lens flares, and vibrant fiery orange accents",
         colorPalette: {
-          primary: "#FFE600",
-          secondary: "#FFAA00",
-          accent: "#00F5FF",
-          backgroundColor: "#05070C",
-          surfaceColor: "rgba(10, 15, 26, 0.75)",
+          primary: "#FF4500",
+          secondary: "#FFD700",
+          accent: "#FF8C00",
+          backgroundColor: "#080B11",
+          surfaceColor: "rgba(15, 23, 42, 0.75)",
           textColor: "#FFFFFF",
           textMutedColor: "#94A3B8",
-          glowColor: "rgba(255, 230, 0, 0.4)",
-          borderColor: "rgba(255, 230, 0, 0.25)",
+          glowColor: "rgba(255, 69, 0, 0.45)",
+          borderColor: "rgba(255, 69, 0, 0.3)",
         },
         typography: {
-          displayFont: "Bebas Neue",
-          bodyFont: "Montserrat",
+          displayFont: "Plus Jakarta Sans",
+          bodyFont: "Inter",
           weights: ["400", "700", "900"],
           headlineTransform: "uppercase",
         },
         narrativeProgression: [
-          "Scene 1: Suspenseful Gotham dusk opening hook",
-          "Scene 2: Tactical Batcomputer threat surveillance",
-          "Scene 3: Powerful cinematic reveal and closing legend",
+          "Scene 1: Dramatic silhouette and hero shoe entrance",
+          "Scene 2: Kinetic speed graphics and aerodynamic agility",
+          "Scene 3: Engineered carbon plate and responsive cushioning",
+          ...(sceneCount > 3 ? ["Scene 4: Apex performance brand climax & CTA"] : []),
         ],
-        sceneCount: 3,
+        sceneCount,
         totalDuration: duration,
-        requiredImages: assets.map((a) => a.name || a.originalFilename || "asset.jpg"),
-        animationStyle: "Cinematic push-in scale 1.0 to 1.06 with atmospheric glow",
-        cameraMovement: "Slow push-in scale 1.0 to 1.06",
-        closingMessage: "BECOME THE NIGHT",
-        callToAction: "DISCOVER THE LEGEND",
+        requiredImages: assets.map((a) => a.name || a.originalFilename || "shoe.jpg"),
+        animationStyle: "High-energy GSAP velocity streaks and camera pushes",
+        cameraMovement: "Slow push-in scale 1.0 to 1.08",
+        closingMessage: "CLAIM YOUR EDGE",
+        callToAction: "ORDER NOW",
         aiProvider: "offline-synthesizer",
       };
     }
 
-    // SCENARIO 5B: DC Green Lantern / Guy Gardner Series Presentation
-    if (isGreenLantern) {
+    // SCENARIO 5B: Real Software & Tech Platform Advertisement (Test B)
+    if (isSoftwareProduct) {
+      const sceneCount = duration <= 15 ? 3 : 4;
+      const beatDur = duration / sceneCount;
       return {
-        title: "DC Lanterns: Guy Gardner",
-        subject: "15-second cinematic DC Green Lantern series teaser presentation for Guy Gardner with voiceover, subtitles, emerald willpower ring logo, and hard-light construct VFX",
-        videoType: "cinematic_animation",
-        category: "cinematic-trailer",
+        title: "SYNAPSE // AUTONOMOUS CLOUD PLATFORM",
+        subject: "Professional 25-second advertisement for a modern software product with feature callouts, high-tech telemetry, and official brand styling",
+        videoType: "product_advertisement",
+        category: "advertisement",
         promptComponents: {
-          route: "cinematic_animation",
+          route: "product_advertisement",
           spec: {
             durationSeconds: duration,
             resolution: "1920x1080",
             frameRate: 30,
             aspectRatio: "16:9",
-            visualStyle: "Cosmic emerald glow with deep space nebulae, pulsating hard-light constructs, and leather jacket Green Lantern emblem",
-            colorPalette: ["#00FF66", "#ADFF2F", "#00FF88"],
-            typography: "Bebas Neue",
-            cameraMovement: "Slow cinematic push",
-            sceneCount: 3,
+            visualStyle: "Ultra-sleek modern SaaS design with glassmorphism UI, glowing telemetry, and kinetic feature highlights",
+            colorPalette: ["#6366F1", "#00F5FF", "#070E1A"],
+            typography: "Space Grotesk",
+            cameraMovement: "Subtle isometric pan and zoom",
+            sceneCount,
           },
           beats: [
-            { id: "b1", purpose: "The Emerald Power Ring", duration: 5, visualContent: "Glowing Green Lantern Power Ring insignia with cosmic energy aura", animation: "Pulse construct flare" },
-            { id: "b2", purpose: "Guy Gardner Character Reveal", duration: 5, visualContent: "Leather jacket emblem and hard-light construct fist telemetry", animation: "Construct impact" },
-            { id: "b3", purpose: "In Brightest Day Climax", duration: 5, visualContent: "Green Lantern oath illumination and DC Lanterns series reveal", animation: "Emerald beam reveal" },
+            { id: "b1", purpose: "The modern software challenge & hook", duration: beatDur, visualContent: "High-tech software interface with real-time streaming data telemetry", animation: "HUD sweep & headline stagger" },
+            { id: "b2", purpose: "Architecture & core feature breakthrough", duration: beatDur, visualContent: "Modular glassmorphic microservice cards and zero-latency routing", animation: "Card cascade & metric rise" },
+            { id: "b3", purpose: "Enterprise performance & reliability", duration: beatDur, visualContent: "Global edge network nodes and 99.99% uptime telemetry HUD", animation: "Map pulse & counter HUD" },
+            ...(sceneCount > 3 ? [{ id: "b4", purpose: "Official call to action & start free", duration: beatDur, visualContent: "Verified product logo, developer docs link, and call to action", animation: "Glow climax & button shine" }] : []),
           ],
           copy: {
-            headlines: ["EMERALD WILLPOWER", "GUY GARDNER", "BEWARE MY POWER"],
-            callToAction: "COMING SOON TO DC",
+            headlines: ["RETHINK CLOUD COMPUTING", "AUTONOMOUS SPEED", "ZERO-DOWNTIME SCALE", "DEPLOY IN SECONDS"],
+            callToAction: "START FREE TRIAL",
           },
-          technique: ["Cinematic Ken Burns camera scale", "Hard-light construct glow", "Emerald chromatic dispersion"],
-          negatives: ["no corporate presentation cards", "no generic charts", "no bat symbols"],
+          technique: ["Glassmorphism telemetry cards", "Kinetic typography reveals", "Animated edge network topology"],
+          negatives: ["no cartoon comics", "no generic stock photos", "no low-contrast elements"],
         },
         audioPlan: {
           isSilent,
-          backgroundMusicDescription: isSilent ? undefined : "Epic pulsing superhero synth and brass with emerald energy hum",
+          backgroundMusicDescription: isSilent ? undefined : "Modern tech ambient pulse with subtle driving synthesizer rhythm",
         },
-        intendedAudience: "DC fans, comic book enthusiasts, streaming audiences",
-        visualAtmosphere: "Deep cosmic void with radiant emerald green aurora, floating space particles, and hard-light neon constructs",
+        intendedAudience: "Software engineers, CTOs, tech leads, digital creators",
+        visualAtmosphere: "Deep obsidian void with radiant electric indigo and cyan ambient illumination",
         colorPalette: {
-          primary: "#00FF66",
-          secondary: "#ADFF2F",
-          accent: "#00FF88",
-          backgroundColor: "#030A05",
-          surfaceColor: "rgba(4, 28, 12, 0.7)",
+          primary: "#6366F1",
+          secondary: "#00F5FF",
+          accent: "#38BDF8",
+          backgroundColor: "#050811",
+          surfaceColor: "rgba(15, 23, 42, 0.75)",
           textColor: "#FFFFFF",
-          textMutedColor: "#86EFAC",
-          glowColor: "rgba(0, 255, 102, 0.5)",
-          borderColor: "rgba(0, 255, 102, 0.35)",
+          textMutedColor: "#94A3B8",
+          glowColor: "rgba(99, 102, 241, 0.45)",
+          borderColor: "rgba(0, 245, 255, 0.25)",
         },
         typography: {
-          displayFont: "Bebas Neue",
-          bodyFont: "Montserrat",
+          displayFont: "Space Grotesk",
+          bodyFont: "Inter",
           weights: ["400", "700", "900"],
           headlineTransform: "uppercase",
         },
         narrativeProgression: [
-          "Scene 1: The Emerald Power Ring of Oa awakening",
-          "Scene 2: Guy Gardner presentation with hard-light construct fist",
-          "Scene 3: In Brightest Day oath climax & DC Lanterns title reveal",
+          "Scene 1: Next-generation cloud software breakthrough",
+          "Scene 2: Core microservices architecture & intelligence",
+          "Scene 3: Enterprise global telemetry & performance",
+          ...(sceneCount > 3 ? ["Scene 4: Instant developer deployment & call to action"] : []),
         ],
-        sceneCount: 3,
+        sceneCount,
         totalDuration: duration,
-        requiredImages: assets.map((a) => a.name || a.originalFilename || "asset.jpg"),
-        animationStyle: "Cosmic hard-light construct flare and emerald pulse",
-        cameraMovement: "Slow push-in scale 1.0 to 1.06",
-        closingMessage: "BEWARE MY POWER",
-        callToAction: "COMING SOON TO DC",
-        aiProvider: "offline-synthesizer",
-      };
-    }
-
-    // SCENARIO 5C: DC Superman / Clark Kent Presentation
-    if (isSuperman) {
-      return {
-        title: "DC Superman: Clark Kent",
-        subject: "30-second cinematic DC Superman presentation spotlighting Clark Kent, the Daily Planet, and the iconic House of El S-Shield with voiceover and photorealistic artwork",
-        videoType: "cinematic_animation",
-        category: "cinematic-trailer",
-        promptComponents: {
-          route: "cinematic_animation",
-          spec: {
-            durationSeconds: duration,
-            resolution: "1920x1080",
-            frameRate: 30,
-            aspectRatio: "16:9",
-            visualStyle: "Kryptonian solar radiance, Metropolis golden dusk atmosphere, and textured chainmail S-shield with cinematic flares",
-            colorPalette: ["#E52521", "#FFD700", "#0047AB"],
-            typography: "Bebas Neue",
-            cameraMovement: "Slow cinematic push",
-            sceneCount: 5,
-          },
-          beats: [
-            { id: "b1", purpose: "The S-Shield of Hope", duration: 6, visualContent: "Glowing Kryptonian S-Shield chest crest bathed in solar rays", animation: "Solar flare reveal" },
-            { id: "b2", purpose: "Clark Kent: Daily Planet", duration: 6, visualContent: "Clark Kent portrait in bustling Daily Planet newsroom with dossier telemetry", animation: "Reporter HUD reveal" },
-            { id: "b3", purpose: "Metropolis Investigative Dossier", duration: 6, visualContent: "Daily Planet typewriter, globe, and investigative press dossier", animation: "Press credentials" },
-            { id: "b4", purpose: "Solar Power Overcharge", duration: 6, visualContent: "Kryptonian solar radiation telemetry and yellow sun energy absorption", animation: "Solar energy surge" },
-            { id: "b5", purpose: "Look Up In The Sky Climax", duration: 6, visualContent: "Man of Steel title card, cosmic blue atmosphere, and DC Studios reveal", animation: "Heroic flight climax" },
-          ],
-          copy: {
-            headlines: ["HOPE FROM THE STARS", "CLARK KENT", "TRUTH AND JUSTICE", "SOLAR RADIANCE", "LOOK UP IN THE SKY"],
-            callToAction: "EXPERIENCE SUPERMAN",
-          },
-          technique: ["Cinematic Ken Burns camera scale", "Solar lens flare dispersion", "Metropolis glassmorphic telemetry"],
-          negatives: ["no corporate slides", "no green lantern rings", "no plain black boxes"],
-        },
-        audioPlan: {
-          isSilent,
-          backgroundMusicDescription: isSilent ? undefined : "Triumphant soaring orchestral brass and solar synth strings",
-        },
-        intendedAudience: "DC fans, comic book enthusiasts, cinema audiences",
-        visualAtmosphere: "Metropolis golden hour dusk with deep Kryptonian royal blue void and radiant solar flares",
-        colorPalette: {
-          primary: "#E52521",
-          secondary: "#FFD700",
-          accent: "#00E5FF",
-          backgroundColor: "#050B14",
-          surfaceColor: "rgba(10, 25, 49, 0.75)",
-          textColor: "#FFFFFF",
-          textMutedColor: "#93C5FD",
-          glowColor: "rgba(229, 37, 33, 0.45)",
-          borderColor: "rgba(255, 215, 0, 0.35)",
-        },
-        typography: {
-          displayFont: "Bebas Neue",
-          bodyFont: "Montserrat",
-          weights: ["400", "700", "900"],
-          headlineTransform: "uppercase",
-        },
-        narrativeProgression: [
-          "Scene 1: The S-Shield of Hope forged on Krypton",
-          "Scene 2: Clark Kent: Daily Planet investigative reporter",
-          "Scene 3: Fighting for Truth, Justice, and a better tomorrow",
-          "Scene 4: Powered by the radiant yellow sun of Earth",
-          "Scene 5: Look up in the sky... It's Superman!",
-        ],
-        sceneCount: 5,
-        totalDuration: duration,
-        requiredImages: assets.map((a) => a.name || a.originalFilename || "asset.jpg"),
-        animationStyle: "Majestic solar scale and Kryptonian HUD sweep",
-        cameraMovement: "Slow push-in scale 1.0 to 1.06",
-        closingMessage: "TRUTH. JUSTICE. HOPE.",
-        callToAction: "EXPERIENCE SUPERMAN",
+        requiredImages: assets.map((a) => a.name || a.originalFilename || "software.jpg"),
+        animationStyle: "Precision UI telemetry sweeps and kinetic typography",
+        cameraMovement: "Subtle zoom 1.0 to 1.05",
+        closingMessage: "BUILD WITHOUT LIMITS",
+        callToAction: "START FREE TRIAL",
         aiProvider: "offline-synthesizer",
       };
     }
@@ -1117,6 +1097,105 @@ export class AIGenerator {
       callToAction: "EXPLORE NOW",
       aiProvider: "offline-synthesizer",
     };
+  }
+
+  /**
+   * Stage 4 Targeted Fix: Directly repairs a single failing scene using the LLM with targeted error context
+   * and auto-heals the resulting HTML to guarantee HyperFrames compliance.
+   */
+  public async correctScene(
+    userPrompt: string,
+    creativeBrief: CreativeBrief,
+    scene: any,
+    currentHtml: string,
+    errors: string[],
+    model?: string,
+  ): Promise<string> {
+    const systemPrompt = `You are an elite HyperFrames and GSAP motion design engineer.
+Your task is to fix a specific scene HTML file that failed validation or lint checks.
+You must return ONLY the complete corrected HTML file starting with <!DOCTYPE html> or <html> and ending with </html>.
+DO NOT wrap in markdown code blocks. DO NOT provide conversational explanations.`;
+
+    const hasOverlap = errors.some((e) => e.includes("content_overlap") || e.includes("text_occluded"));
+    const layoutInstructions = hasOverlap
+      ? `\n5. CRITICAL FIX FOR LAYOUT OVERLAP / OCCLUSION:
+   - Give each text block, headline, badge, and floating card its own distinct vertical or horizontal zone using Flexbox/Grid (e.g. display: flex; flex-direction: column; gap: 24px;).
+   - NEVER place multiple text elements at overlapping absolute coordinates.
+   - For all cards, text blocks, badges, and floating elements, mark intentional layering: data-layout-allow-overlap="true" data-layout-allow-occlusion="true".`
+      : "";
+
+    const userMessage = `The following HyperFrames subcomposition scene '${scene.id}' failed validation:
+
+Original Request: "${userPrompt}"
+Scene Purpose: "${scene.purpose || scene.title || "Scene"}"
+Duration: ${scene.duration}s
+
+ERRORS FOUND:
+${errors.map((e) => `- ${e}`).join("\n")}
+
+CURRENT SCENE HTML:
+\`\`\`html
+${currentHtml}
+\`\`\`
+
+REQUIREMENTS FOR FIX:
+1. Root element must have id="root" data-composition-id="${scene.id}" data-width="1920" data-height="1080" data-duration="${scene.duration}".
+2. Animation MUST be deterministic: register window.__timelines["${scene.id}"] = tl; and pause it: const tl = gsap.timeline({ paused: true }); tl.seek(0);
+3. Keep all typography legible, high contrast, and visually striking.
+4. Return ONLY the complete, raw HTML code for this scene.${layoutInstructions}`;
+
+    try {
+      const response = await this.provider.complete(
+        [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
+        ],
+        0.2,
+        model,
+      );
+
+      let cleanHtml = response.trim();
+
+      // Unwrap JSON if LLM returned structured JSON
+      try {
+        const trimmed = cleanHtml.trim();
+        if (
+          (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+          (trimmed.startsWith("{") && (trimmed.includes('"html"') || trimmed.includes('"code"') || trimmed.includes('"content"') || trimmed.includes('"sceneHtml"')))
+        ) {
+          const repaired = jsonrepair(trimmed);
+          const parsed = JSON.parse(repaired);
+          const candidate = parsed.html || parsed.code || parsed.content || parsed.sceneHtml || parsed.scene_html;
+          if (typeof candidate === "string" && candidate.trim().length > 0) {
+            cleanHtml = candidate.trim();
+          }
+        }
+      } catch {}
+
+      const codeBlockMatch = cleanHtml.match(/```(?:html)?\s*([\s\S]*?)\s*```/i);
+      if (codeBlockMatch) {
+        cleanHtml = codeBlockMatch[1].trim();
+      }
+
+      if (cleanHtml.includes("<html") || cleanHtml.includes("<!DOCTYPE html>")) {
+        return CompositionSynthesizer.autoHealSceneHtml(
+          cleanHtml,
+          scene,
+          { width: 1920, height: 1080, fps: 30 },
+          creativeBrief,
+        );
+      }
+    } catch (err: any) {
+      console.warn(`[AIGenerator] targeted scene correction LLM notice: ${err.message}`);
+    }
+
+    // Fall back to auto-healing existing scene HTML
+    return CompositionSynthesizer.autoHealSceneHtml(
+      currentHtml,
+      scene,
+      { width: 1920, height: 1080, fps: 30 },
+      creativeBrief,
+    );
   }
 
   public async correctProject(

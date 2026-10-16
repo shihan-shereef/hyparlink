@@ -73,6 +73,8 @@ export default function ProjectLiveEditorPage() {
     projectId ? { projectId } : "skip",
   );
 
+  const effectiveWs = (convexProject as any)?.workspaceId || current || "";
+
   // View mode: companion Inspector (default for remote/tunnel), official Studio, or Rendered Video
   const [activeView, setActiveView] = useState<
     "studio" | "inspector" | "video"
@@ -170,7 +172,7 @@ export default function ProjectLiveEditorPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-workspace-id": current || "",
+          "x-workspace-id": effectiveWs,
         },
       });
 
@@ -182,10 +184,23 @@ export default function ProjectLiveEditorPage() {
       }
 
       let finalStudioUrl = data.studioUrl;
-      if (
+      const isHttps =
+        typeof window !== "undefined" && window.location.protocol === "https:";
+      const isLocalhost =
         typeof window !== "undefined" &&
-        window.location.hostname === "localhost"
+        (window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1");
+
+      if (
+        isHttps &&
+        !isLocalhost &&
+        (data.tunnelStudioUrl || process.env.NEXT_PUBLIC_STUDIO_URL)
       ) {
+        const tunnelBase =
+          data.tunnelStudioUrl ||
+          `${process.env.NEXT_PUBLIC_STUDIO_URL}/#project/${data.projectName || data.sessionId}`;
+        finalStudioUrl = tunnelBase;
+      } else if (isLocalhost) {
         finalStudioUrl = finalStudioUrl.replace("127.0.0.1", "localhost");
       }
 
@@ -214,7 +229,7 @@ export default function ProjectLiveEditorPage() {
       );
       toast.error(`Studio startup error: ${err.message}`);
     }
-  }, [projectId, current, backendUrl]);
+  }, [projectId, effectiveWs, backendUrl]);
 
   // 2. Load Project Structure & Companion Files
   const loadProjectData = useCallback(async () => {
@@ -222,10 +237,10 @@ export default function ProjectLiveEditorPage() {
     try {
       setProjectLoading(true);
       const res = await fetch(
-        `${backendUrl}/editor/project/${projectId}?workspaceId=${current || ""}`,
+        `${backendUrl}/editor/project/${projectId}?workspaceId=${effectiveWs}`,
         {
           headers: {
-            "x-workspace-id": current || "",
+            "x-workspace-id": effectiveWs,
           },
         },
       );
@@ -253,7 +268,7 @@ export default function ProjectLiveEditorPage() {
     } finally {
       setProjectLoading(false);
     }
-  }, [projectId, current, backendUrl]);
+  }, [projectId, effectiveWs, backendUrl]);
 
   useEffect(() => {
     if (projectId) {
@@ -286,7 +301,7 @@ export default function ProjectLiveEditorPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-workspace-id": current || "",
+            "x-workspace-id": effectiveWs,
           },
           body: JSON.stringify({
             files,
@@ -326,7 +341,7 @@ export default function ProjectLiveEditorPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-workspace-id": current || "",
+            "x-workspace-id": effectiveWs,
           },
           body: JSON.stringify({
             files,
@@ -404,7 +419,7 @@ export default function ProjectLiveEditorPage() {
         `${backendUrl}/editor/project/${projectId}/desktop-open`,
         {
           method: "POST",
-          headers: { "x-workspace-id": current || "" },
+          headers: { "x-workspace-id": effectiveWs },
         },
       );
       const data = await res.json();
@@ -423,7 +438,7 @@ export default function ProjectLiveEditorPage() {
   // Export ZIP
   const handleExportZip = () => {
     window.open(
-      `${backendUrl}/editor/project/${projectId}/export?workspaceId=${current || ""}`,
+      `${backendUrl}/editor/project/${projectId}/export?workspaceId=${effectiveWs}`,
       "_blank",
     );
   };
@@ -507,6 +522,19 @@ export default function ProjectLiveEditorPage() {
           >
             <Tv className="h-3.5 w-3.5" /> Official Studio
           </button>
+
+          {session?.studioUrl && (
+            <a
+              href={session.studioUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden lg:flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 transition"
+              title="Open HyperFrames Studio in an independent browser tab"
+            >
+              <ExternalLink className="h-3 w-3" />
+              <span>Open Tab</span>
+            </a>
+          )}
 
           <button
             type="button"
@@ -718,13 +746,44 @@ export default function ProjectLiveEditorPage() {
 
             {/* Embedded Official HyperFrames Studio iframe */}
             {session && session.studioUrl && (
-              <iframe
-                src={session.studioUrl}
-                title={`HyperFrames Studio - ${projectTitle}`}
-                className="w-full h-full border-0 bg-neutral-950"
-                allow="clipboard-read; clipboard-write; fullscreen"
-                onLoad={() => setIframeLoaded(true)}
-              />
+              <div className="relative w-full h-full flex flex-col">
+                <div className="flex h-7 shrink-0 items-center justify-between border-b border-border/60 bg-card/70 px-3 text-[11px] text-primary/70">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+                    <span className="font-medium text-primary">Official HyperFrames Studio Canvas</span>
+                    <span className="text-primary/50 font-mono">
+                      ({session.studioUrl.includes("trycloudflare") ? "Secure Tunnel" : `:${session.port}`})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <a
+                      href={session.studioUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-purple-400 hover:text-purple-300 font-medium hover:underline"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      <span>Open Studio in New Window</span>
+                    </a>
+                    <span className="text-border">&bull;</span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveView("inspector")}
+                      className="text-primary/70 hover:text-primary transition"
+                    >
+                      Switch to Scene Inspector
+                    </button>
+                  </div>
+                </div>
+                <iframe
+                  src={session.studioUrl}
+                  title={`HyperFrames Studio - ${projectTitle}`}
+                  className="flex-1 w-full border-0 bg-neutral-950"
+                  allow="clipboard-read; clipboard-write; fullscreen"
+                  allowFullScreen
+                  onLoad={() => setIframeLoaded(true)}
+                />
+              </div>
             )}
           </div>
         )}

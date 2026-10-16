@@ -122,7 +122,6 @@ export const getVideoPlaybackUrl = query({
 });
 
 function deriveProjectName(rawName: string, prompt: string): string {
-  const pLower = prompt.trim().toLowerCase();
   const trimmed = rawName.trim();
   const isPresetOrGeneric =
     !trimmed ||
@@ -133,10 +132,6 @@ function deriveProjectName(rawName: string, prompt: string): string {
     trimmed.toLowerCase() === "ai video project";
 
   if (isPresetOrGeneric) {
-    if (pLower.includes("batman")) return "Absolute Batman";
-    if (pLower.includes("lantern") || pLower.includes("guy gardner")) return "DC Lanterns: Guy Gardner";
-    if (pLower.includes("ollima")) return "Ollima Ad";
-    if (pLower.includes("networks home")) return "Networks Home";
     const cleaned = prompt
       .trim()
       .replace(
@@ -149,7 +144,7 @@ function deriveProjectName(rawName: string, prompt: string): string {
       )
       .trim();
     if (cleaned.length > 2) {
-      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1, 40);
+      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1, 45);
     }
     return "AI Video Project";
   }
@@ -168,6 +163,15 @@ export const create = mutation({
     fps: v.optional(v.number()),
     assetIds: v.optional(v.array(v.id("assets"))),
     model: v.optional(v.string()),
+    avatarId: v.optional(v.string()),
+    avatarName: v.optional(v.string()),
+    voiceId: v.optional(v.string()),
+    voiceName: v.optional(v.string()),
+    generationMode: v.optional(v.string()), // "hyperframes_only" | "avatar_mixed" | "avatar_presenter"
+    isAvatarVideo: v.optional(v.boolean()),
+    mode: v.optional(v.string()), // "plan" | "autopilot"
+    productionPlan: v.optional(v.any()),
+    planStatus: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     let userId = await getAuthUserId(ctx);
@@ -193,32 +197,115 @@ export const create = mutation({
     const fps = args.fps ?? 30;
     const now = Date.now();
     const finalName = deriveProjectName(args.name, args.prompt);
+    const mode = args.mode || "autopilot";
+    const isPlanOnly = mode === "plan" && args.planStatus !== "approved";
 
-    // 1. Create project record in "generating" state
+    // Mode-aware Avatar & Voice Resolution:
+    // 1. If user explicitly chose "hyperframes_only", avatar is disabled.
+    // 2. If user chose "avatar_presenter" or "avatar_mixed", or explicitly provided avatarId, respect it directly!
+    // 3. Fallback to prompt detection only if not explicitly configured.
+    const isExplicitNoAvatar = args.generationMode === "hyperframes_only" || /\b(do\s*not\s*create\s*(?:a\s*)?(?:potcast|podcast)|don'?t\s*create\s*(?:a\s*)?(?:potcast|podcast)|no\s*(?:potcast|podcast|avatar|presenter)|without\s*avatar|remove\s*(?:the\s*)?avatar|not\s*(?:a\s*)?(?:potcast|podcast))\b/i.test(args.prompt);
+    
+    let finalAvatarId: string | undefined = undefined;
+    let finalVoiceId: string | undefined = undefined;
+    let finalIsAvatar = false;
+    let finalGenerationMode = args.generationMode || "hyperframes_only";
+
+    if (!isExplicitNoAvatar) {
+      if (args.avatarId && args.avatarId.trim().length > 0) {
+        finalAvatarId = args.avatarId.trim();
+        finalVoiceId = (args.voiceId && args.voiceId.trim().length > 0) ? args.voiceId.trim() : undefined;
+        finalIsAvatar = true;
+        if (!args.generationMode || args.generationMode === "hyperframes_only") {
+          finalGenerationMode = "avatar_mixed";
+        }
+      } else if (args.generationMode === "avatar_presenter" || args.generationMode === "avatar_mixed") {
+        finalAvatarId = args.avatarId || "a9cde5fa12fc417d9739643969360ae3";
+        finalVoiceId = args.voiceId || "71fbdde04ea841c59adab70e41caeb97";
+        finalIsAvatar = true;
+      } else {
+        const hasExplicitAvatarDemand = /\b(avath?ar\s*(?:id|is|named|presenter)?|talking\s+avath?ar|talking\s+head|spokesperson|heygen\s+avath?ar|presenter\s+video)\b/i.test(args.prompt);
+        if (hasExplicitAvatarDemand) {
+          const avMatch = args.prompt.match(/(?:(?:heygen\s+)?avath?ar(?:_id|\s+id)?|avath?ar)(?:[:=]|\s+(?:id|is|named)?[:=\s]?)\s*["']?([a-zA-Z0-9_\-]+)["']?/i);
+          const vcMatch = args.prompt.match(/(?:(?:heygen\s+)?voice(?:_id|\s+id)?|voice)(?:[:=]|\s+(?:id|is|named)?[:=\s]?)\s*["']?([a-zA-Z0-9_\-]+)["']?/i);
+          finalAvatarId = avMatch ? avMatch[1] : "a9cde5fa12fc417d9739643969360ae3";
+          finalVoiceId = vcMatch ? vcMatch[1] : "71fbdde04ea841c59adab70e41caeb97";
+          finalIsAvatar = true;
+          finalGenerationMode = "avatar_mixed";
+        }
+      }
+    }
+
+    // Auto-resolve workspace asset records if not provided but prompt references them
+    let effectiveAssetIds = args.assetIds || [];
+    if (effectiveAssetIds.length === 0) {
+      const promptLower = (args.prompt || "").toLowerCase();
+      const mentionsAssets = /\b(workspace\s*assets|reference\s*media|attached|attach|photo|image|picture|logo|vikas|swami|ollasoftware|networkers)\b/i.test(promptLower);
+      if (mentionsAssets) {
+        const wsAssets = await ctx.db
+          .query("assets")
+          .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
+          .collect();
+        const matched = wsAssets.filter((a) => {
+          const name = (a.name || a.originalFilename || "").toLowerCase();
+          const baseName = name ? name.split(".")[0] : "";
+          return (
+            Boolean(baseName && promptLower.includes(baseName)) ||
+            promptLower.includes("workspace assets") ||
+            promptLower.includes("attached") ||
+            promptLower.includes("reference media")
+          );
+        });
+        if (matched.length > 0) {
+          effectiveAssetIds = matched.map((a) => a._id);
+        } else if (wsAssets.length > 0) {
+          effectiveAssetIds = wsAssets.map((a) => a._id);
+        }
+      }
+    }
+
+    // 1. Create project record
     const projectId = await ctx.db.insert("projects", {
       workspaceId: args.workspaceId,
       userId,
       name: finalName,
       description: args.description,
       prompt: args.prompt.trim(),
-      status: "generating",
+      status: isPlanOnly ? "plan_ready" : "generating",
       duration,
       width,
       height,
       fps,
       hyperframesVersion: "0.8.139",
       aiProvider: "ollima",
-      aiModel: args.model || "deepseek-v4-flash",
-      assetIds: args.assetIds,
+      aiModel: args.model || "gemini-3-flash",
+      assetIds: effectiveAssetIds.length > 0 ? effectiveAssetIds : undefined,
+      avatarId: finalAvatarId,
+      avatarName: args.avatarName,
+      voiceId: finalVoiceId,
+      voiceName: args.voiceName,
+      generationMode: finalGenerationMode,
+      isAvatarVideo: finalIsAvatar,
+      mode,
+      productionPlan: args.productionPlan,
+      planStatus: args.planStatus || (isPlanOnly ? "ready" : undefined),
+      chatHistory: args.productionPlan
+        ? [
+            {
+              role: "assistant",
+              content: "I have drafted the complete video production plan. Review the scenes, script, and visual direction, or let me know what changes you would like to make.",
+              timestamp: now,
+            },
+          ]
+        : undefined,
       createdAt: now,
       updatedAt: now,
     });
 
-
     // Resolve workspace asset records if provided (Phase 8D & Phase 9)
     const resolvedAssets = [];
-    if (args.assetIds && args.assetIds.length > 0) {
-      for (const assetId of args.assetIds) {
+    if (effectiveAssetIds.length > 0) {
+      for (const assetId of effectiveAssetIds) {
         const asset = await ctx.db.get(assetId);
         if (asset && asset.workspaceId === args.workspaceId) {
           resolvedAssets.push({
@@ -237,24 +324,184 @@ export const create = mutation({
       }
     }
 
-    // 2. Create corresponding job in jobs table
-    const jobInput = {
+    // 2. If in Autopilot mode or already approved, create job in jobs table immediately
+    let jobId: any = null;
+    if (!isPlanOnly && mode !== "direct_code") {
+      const jobInput = {
+        projectId,
+        workspaceId: args.workspaceId,
+        prompt: args.prompt.trim(),
+        duration,
+        width,
+        height,
+        fps,
+        resolution: width === 1920 ? "1080p" : "720p",
+        assetIds: args.assetIds,
+        assets: resolvedAssets,
+        model: args.model || "gemini-3-flash",
+        aiModel: args.model || "gemini-3-flash",
+        avatarId: args.avatarId,
+        voiceId: args.voiceId,
+        isAvatarVideo: args.isAvatarVideo,
+        mode,
+        productionPlan: args.productionPlan,
+      };
+
+      jobId = await ctx.db.insert("jobs", {
+        workspaceId: args.workspaceId,
+        userId,
+        kind: "video.generate",
+        status: "pending",
+        input: jobInput,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Link jobId to project
+      await ctx.db.patch(projectId, { jobId, updatedAt: now });
+      await recordUsage(ctx, args.workspaceId, "jobs.created");
+    }
+
+    // Usage and counters
+    await recordUsage(ctx, args.workspaceId, "videos.created");
+    await audit(ctx, args.workspaceId, userId, "project.create", {
       projectId,
-      workspaceId: args.workspaceId,
-      prompt: args.prompt.trim(),
-      duration,
-      width,
-      height,
-      fps,
-      resolution: width === 1920 ? "1080p" : "720p",
-      assetIds: args.assetIds,
+      jobId,
+      prompt: args.prompt,
+      mode,
+    });
+
+    if (jobId) {
+      await bump(ctx, args.workspaceId, "jobs", 1);
+      await bump(ctx, args.workspaceId, "openJobs", 1);
+      await ctx.scheduler.runAfter(0, internal.jobs.processJob, { jobId });
+    }
+
+    return { projectId, jobId, mode };
+  },
+});
+
+export const saveProductionPlan = mutation({
+  args: {
+    projectId: v.id("projects"),
+    productionPlan: v.any(),
+    planStatus: v.optional(v.string()),
+    chatMessage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) throw new Error("Project not found");
+    const now = Date.now();
+    const chatHistory = [...(project.chatHistory || [])];
+    if (args.chatMessage) {
+      chatHistory.push({
+        role: "user",
+        content: args.chatMessage,
+        timestamp: now,
+      });
+      chatHistory.push({
+        role: "assistant",
+        content: "I have updated the video production plan based on your feedback. Please review the updated scenes and script.",
+        timestamp: now + 1,
+      });
+    }
+    await ctx.db.patch(args.projectId, {
+      productionPlan: args.productionPlan,
+      planStatus: args.planStatus || "ready",
+      chatHistory,
+      updatedAt: now,
+    });
+    return { success: true };
+  },
+});
+
+export const addChatMessage = mutation({
+  args: {
+    projectId: v.id("projects"),
+    role: v.string(),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) throw new Error("Project not found");
+    const now = Date.now();
+    const chatHistory = [...(project.chatHistory || [])];
+    chatHistory.push({
+      role: args.role,
+      content: args.content,
+      timestamp: now,
+    });
+    await ctx.db.patch(args.projectId, {
+      chatHistory,
+      updatedAt: now,
+    });
+    return { success: true };
+  },
+});
+
+export const approveAndRenderPlan = mutation({
+  args: {
+    projectId: v.id("projects"),
+    model: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const project = await ctx.db.get(args.projectId);
+    if (!project) throw new Error("Project not found");
+    let userId = await getAuthUserId(ctx);
+    if (!userId) {
+      userId = project.userId;
+    }
+    const now = Date.now();
+    await ctx.db.patch(args.projectId, {
+      planStatus: "approved",
+      status: "generating",
+      updatedAt: now,
+    });
+
+    // Resolve assets for plan execution
+    const resolvedAssets = [];
+    if (project.assetIds && project.assetIds.length > 0) {
+      for (const assetId of project.assetIds) {
+        const asset = await ctx.db.get(assetId);
+        if (asset && asset.workspaceId === project.workspaceId) {
+          resolvedAssets.push({
+            id: String(asset._id),
+            name: asset.name,
+            originalFilename: asset.originalFilename,
+            type: asset.type,
+            mimeType: asset.mimeType,
+            size: asset.size,
+            storageProvider: asset.storageProvider,
+            storageKey: asset.storageKey,
+            storageUrl: asset.storageUrl,
+            cdnUrl: asset.cdnUrl,
+          });
+        }
+      }
+    }
+
+    const jobInput = {
+      projectId: project._id,
+      workspaceId: project.workspaceId,
+      prompt: project.prompt,
+      duration: project.duration,
+      width: project.width,
+      height: project.height,
+      fps: project.fps,
+      resolution: project.width === 1920 ? "1080p" : "720p",
+      assetIds: project.assetIds,
       assets: resolvedAssets,
-      model: args.model || "deepseek-v4-flash",
-      aiModel: args.model || "deepseek-v4-flash",
+      model: args.model || project.aiModel || "gemini-3-flash",
+      aiModel: args.model || project.aiModel || "gemini-3-flash",
+      avatarId: project.avatarId,
+      voiceId: project.voiceId,
+      isAvatarVideo: project.isAvatarVideo,
+      productionPlan: project.productionPlan,
+      mode: "plan",
     };
 
     const jobId = await ctx.db.insert("jobs", {
-      workspaceId: args.workspaceId,
+      workspaceId: project.workspaceId,
       userId,
       kind: "video.generate",
       status: "pending",
@@ -263,24 +510,16 @@ export const create = mutation({
       updatedAt: now,
     });
 
-    // Link jobId to project
-    await ctx.db.patch(projectId, { jobId, updatedAt: now });
-
-    // Usage and counters
-    await recordUsage(ctx, args.workspaceId, "videos.created");
-    await recordUsage(ctx, args.workspaceId, "jobs.created");
-    await audit(ctx, args.workspaceId, userId, "project.create", {
-      projectId,
+    await ctx.db.patch(project._id, { jobId, updatedAt: now });
+    await recordUsage(ctx, project.workspaceId, "videos.rendered");
+    await audit(ctx, project.workspaceId, userId, "project.render_plan", {
+      projectId: project._id,
       jobId,
-      prompt: args.prompt,
     });
-    await bump(ctx, args.workspaceId, "jobs", 1);
-    await bump(ctx, args.workspaceId, "openJobs", 1);
-
-    // Schedule background execution to backend service
+    await bump(ctx, project.workspaceId, "jobs", 1);
+    await bump(ctx, project.workspaceId, "openJobs", 1);
     await ctx.scheduler.runAfter(0, internal.jobs.processJob, { jobId });
-
-    return { projectId, jobId };
+    return { success: true, jobId };
   },
 });
 

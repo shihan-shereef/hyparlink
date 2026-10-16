@@ -39,13 +39,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     setCurrent((prev) => {
+      const PRIMARY_WS = "mh7eadmg10g11yqwbjtyc41yjs8fxx17" as Id<"workspaces">;
       if (prev && workspaces.some((w) => w._id === prev)) return prev;
       const saved =
         typeof window !== "undefined"
           ? window.localStorage.getItem("ws")
           : null;
       const match = workspaces.find((w) => w._id === saved);
-      return match?._id ?? workspaces[0]?._id ?? prev;
+      return match?._id ?? workspaces.find((w) => w._id === PRIMARY_WS)?._id ?? workspaces[0]?._id ?? prev;
     });
   }, [workspaces, ensure, ensuring]);
 

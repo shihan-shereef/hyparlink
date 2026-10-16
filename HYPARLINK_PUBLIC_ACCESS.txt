@@ -1,47 +1,56 @@
 ================================================================================
 HYPARLINK DASHBOARD & HYPERFRAMES EDITOR — PUBLIC CLOUDFLARE ACCESS
-Generated: 2026-10-12 10:59:39
-Status: PERSISTENT DAEMONS RUNNING DETACHED (PPID 1 / launchd)
+Generated: 2026-10-15 09:48:22 IST
+Status: PERSISTENT DAEMONS RUNNING IN BACKGROUND (Independent of Antigravity)
 ================================================================================
 
 PUBLIC DASHBOARD URL:
-https://macro-excited-ralph-drain.trycloudflare.com
+https://cigarette-foo-label-temperature.trycloudflare.com
+
+CREATE VIDEO PAGE (AI Video Production Agent):
+https://cigarette-foo-label-temperature.trycloudflare.com/create-video
 
 HYPERFRAMES EDITOR DIRECT URL (Absolute Batman Video Project):
-https://macro-excited-ralph-drain.trycloudflare.com/editor/m579g6v1s41trb1d80re8jfdds8g27n3
+https://cigarette-foo-label-temperature.trycloudflare.com/editor/m579g6v1s41trb1d80re8jfdds8g27n3
 
 LIVE COMPOSITION PREVIEW (HTML/GSAP Timeline):
-https://macro-excited-ralph-drain.trycloudflare.com/editor/project/m579g6v1s41trb1d80re8jfdds8g27n3/raw/index.html
+https://cigarette-foo-label-temperature.trycloudflare.com/editor/project/m579g6v1s41trb1d80re8jfdds8g27n3/raw/index.html
 
 RENDERED VIDEO CDN STREAM:
-https://macro-excited-ralph-drain.trycloudflare.com/cdn/workspaces/mh7eadmg10g11yqwbjtyc41yjs8fxx17/projects/m579g6v1s41trb1d80re8jfdds8g27n3/renders/ks748m9rrs7r2krtpngf9m49q18g2955/video.mp4
+https://cigarette-foo-label-temperature.trycloudflare.com/cdn/workspaces/mh7eadmg10g11yqwbjtyc41yjs8fxx17/projects/m579g6v1s41trb1d80re8jfdds8g27n3/renders/ks748m9rrs7r2krtpngf9m49q18g2955/video.mp4
 
 CONVEX BACKEND TUNNEL:
-https://partial-incidence-briefly-documentation.trycloudflare.com
+https://background-victory-opponents-lat.trycloudflare.com
+
+HYPERFRAMES STUDIO:
+https://phentermine-uni-enrolled-duration.trycloudflare.com
 
 --------------------------------------------------------------------------------
 PROCESS HEALTH & VERIFICATION:
 - Dashboard:        HTTP 200 OK
+- Create Video:     HTTP 200 OK
 - Editor:           HTTP 200 OK
 - Composition:      HTTP 200 OK
 - Convex Sync:      HTTP 200 OK
-- Backend Echo PID: 42382 (Port 4000)
-- Next.js PID:      42393 (Port 3000)
-- Convex Tunnel PID:42389
-- App Tunnel PID:   42402
+- Studio:           HTTP 200 OK
+- Backend Echo PID: 6750 (Port 4000)
+- Next.js PID:      7173 (Port 3000)
+- Convex Tunnel PID:6757
+- Studio Tunnel PID:7133
+- App Tunnel PID:   7186
 
 --------------------------------------------------------------------------------
 SURVIVES ANTIGRAVITY EXIT:
-All 4 daemons are running with start_new_session=True (detached POSIX sessions).
-They have NO controlling terminal and are reparented directly to PID 1 (launchd).
-Even if you QUIT Antigravity IDE, these URLs will remain 100% active and working!
-
-Logs are saved at:
+These daemons are running with nohup in detached process groups with logging to:
 - /Users/apple/Desktop/hyparlink dashbord/logs/next-app.log
 - /Users/apple/Desktop/hyparlink dashbord/logs/backend-echo.log
 - /Users/apple/Desktop/hyparlink dashbord/logs/tunnel-app.log
 - /Users/apple/Desktop/hyparlink dashbord/logs/tunnel-convex.log
+- /Users/apple/Desktop/hyparlink dashbord/logs/tunnel-studio.log
 
-TO STOP ALL SERVICES:
+Even if you QUIT Antigravity IDE, these URLs will remain live and accessible!
+
+TO STOP SERVICES:
 Run: /Users/apple/Desktop/hyparlink dashbord/scripts/stop-public-services.sh
 ================================================================================
+

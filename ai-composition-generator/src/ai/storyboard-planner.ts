@@ -200,6 +200,9 @@ export class StoryboardPlanner {
     const lower = raw.toLowerCase();
 
     // 0. Explicit keyword prioritizations
+    if (/\b(?:vikas|vices)\s+swami\b/i.test(raw) || (/\b(?:swami|vikas)\b/i.test(raw) && /\b(?:ollasoftware|networkers)\b/i.test(raw))) {
+      return "Vikas Swami";
+    }
     if (/\b(?:absolute|absalut)\s+batman\b/i.test(raw) || (/\bbatman\b/i.test(raw) && /\b(?:absolute|absalut)\b/i.test(raw))) {
       return "Absolute Batman";
     }
@@ -556,6 +559,28 @@ export class StoryboardPlanner {
     topic?: string,
   ) {
     const topicLower = (topic || "").toLowerCase();
+
+    // White and Blue theme requested explicitly in prompt
+    const isWhiteAndBlue =
+      /\bwhite\s+and\s+blue\b/i.test(promptLower) ||
+      /\bblue\s+and\s+white\b/i.test(promptLower) ||
+      (/\bwhite\b/i.test(promptLower) && /\bblue\b/i.test(promptLower) && /\b(?:color|theme|theam|bg|background)\b/i.test(promptLower));
+
+    if (isWhiteAndBlue) {
+      return {
+        primary: "#1d4ed8", // Corporate Royal Blue
+        secondary: "#2563eb", // Vibrant Blue
+        accent: "#0284c7", // Bright Sky Accent
+        bgPrimary: "#f8fafc", // Clean White / Light Slate
+        bgSecondary: "#eff6ff", // Soft Blue Mist
+        textColor: "#0f172a", // Deep Slate / Navy
+        textMuted: "#475569", // Slate Muted
+        surface: "rgba(255, 255, 255, 0.95)", // White Card Surface
+        border: "rgba(37, 99, 235, 0.25)", // Crisp Blue Border
+        glow: "rgba(37, 99, 235, 0.15)", // Soft Blue Shadow / Glow
+      };
+    }
+
     if (
       topicLower.includes("networks home") ||
       topicLower.includes("network") ||
@@ -793,6 +818,14 @@ export class StoryboardPlanner {
     topic: string,
     count: number,
   ): string[] {
+    if (topic.toLowerCase().includes("swami") || topic.toLowerCase().includes("vikas") || topic.toLowerCase().includes("ollasoftware")) {
+      return [
+        "Vikas Swami: Enterprise Architect, Dual Founder & Pioneer",
+        "Networkers Home: 18+ Years Transforming 25,000+ Cisco Engineers",
+        "Ollasoftware: Next-Gen Autonomous AI & Digital Transformation",
+        "Pioneering Dual-Track Innovation Across Global Scale",
+      ];
+    }
     if (topic.toLowerCase().includes("batman")) {
       return [
         "Built from Gotham's Concrete: No Billions, 100% Grit",

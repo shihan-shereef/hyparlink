@@ -17,6 +17,7 @@ const isPublicRoute = createRouteMatcher([
   "/storage(.*)",
   "/cdn(.*)",
   "/outputs(.*)",
+  "/audio(.*)",
   "/api(.*)",
   "/ai(.*)",
   "/assets/upload(.*)",
@@ -41,7 +42,7 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|api|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|api|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp3|wav|ogg|m4a|aac)$).*)",
 
     // all routes except static assets
     "/((?!.*\\..*|_next).*)",

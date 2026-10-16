@@ -32,6 +32,13 @@ else
   echo "[2/3] Dashboard App already running on :3000."
 fi
 
+# 2.5 Start Cloudflare Tunnel for Studio on :3055 if not already tunneled
+mkdir -p logs
+if ! pgrep -f "cloudflared tunnel --url http://127.0.0.1:3055" > /dev/null && ! pgrep -f "cloudflared tunnel --url http://localhost:3055" > /dev/null; then
+  echo "[2.5/4] Starting Cloudflare Tunnel for HyperFrames Studio (:3055)..."
+  "./bin/cloudflared" tunnel --url http://127.0.0.1:3055 > logs/tunnel-studio.log 2>&1 &
+fi
+
 # 3. Start Cloudflare Tunnel
 echo "[3/3] Launching Cloudflare Tunnel for Internet Access..."
 echo "----------------------------------------------------------"

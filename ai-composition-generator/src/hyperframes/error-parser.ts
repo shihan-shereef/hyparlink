@@ -26,7 +26,7 @@ export class ErrorParser {
                   type: section as any,
                   message: `${f.code || "error"}: ${f.message}${f.fixHint ? ` (${f.fixHint})` : ""}`,
                   code: f.code,
-                  file: f.sourceFile,
+                  file: f.sourceFile || f.file || f.composition,
                 });
               }
             }

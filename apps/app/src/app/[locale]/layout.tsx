@@ -25,8 +25,11 @@ function getLiveConvexUrl(): string {
 }
 
 export const metadata: Metadata = {
-  title: "Create v1",
-  description: "Production ready Next.js app",
+  title: "Ollastar",
+  description: "High-performance AI & direct-code motion video generation engine",
+  icons: {
+    icon: "/ollastar-logo.png",
+  },
 };
 
 export const viewport = {

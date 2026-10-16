@@ -67,3 +67,6 @@ ai-composition-generator/dist/
 outputs/
 generated-projects/
 verify_*.jpg
+scratch/
+ai-composition-generator/job-store.json
+ai-composition-generator/project-store.json

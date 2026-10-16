@@ -23,6 +23,11 @@ import {
   Upload,
   Globe,
   Plus,
+  Code2,
+  Terminal,
+  FileCode,
+  Presentation,
+  FileText,
   Play,
   X,
   Check,
@@ -30,21 +35,35 @@ import {
   Smartphone,
   Flame,
   ChevronRight,
+  ChevronDown,
   Info,
   HelpCircle,
   Tv,
   ArrowUp,
   Sliders,
   Eye,
+  EyeOff,
   Search,
   Cpu,
   Activity,
   CheckCheck,
   Trash2,
+  ExternalLink,
+  Bot,
+  Mic,
+  User,
+  Key,
+  ShieldCheck,
+  Music,
+  Volume2,
+  VolumeX,
+  Pause,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { DependencyStatusCard } from "@/components/dependency-status-card";
+import { VideoProductionPlanStudio } from "@/components/video-production-plan-studio";
+import { SurgicalSceneRevision } from "@/components/surgical-scene-revision";
 
 interface InspirationItem {
   id: string;
@@ -69,108 +88,76 @@ interface InspirationItem {
 
 const INSPIRATIONS: InspirationItem[] = [
   {
-    id: "metric-counter",
-    title: "1,000,000 Developers",
+    id: "counterform",
+    title: "Counterform",
     category: "Motion graphics",
-    author: "By Eric Ciarla (hiring)",
+    author: "Counterform Studio",
     duration: 15,
     aspectRatio: "16:9",
-    prompt:
-      "Create an authoritative milestone celebration video featuring '1,000,000 Developers' with dynamic numerical counter animations, clean grid lines, and kinetic typography.",
-    description: "Bold animated milestone counter, grid lines, timeline dots, 15s preset",
-    accentColor: "#ff4d29",
+    prompt: "Create a bold Swiss typographic layout with high-contrast text, geometric accent circles, and smooth staggered transitions.",
+    description: "Bold Swiss typography, geometric accents, staggered motion",
+    accentColor: "#f43f5e",
     visualType: "counter",
   },
   {
-    id: "revenue-chart",
-    title: "Quarterly Revenue & Analytics",
+    id: "salt-air",
+    title: "Salt Air",
     category: "Motion graphics",
-    author: "By Leon Fucak",
+    author: "Salt Air Design",
     duration: 15,
     aspectRatio: "16:9",
-    prompt:
-      "Create a modern animated analytics and growth report with dynamic pastel bar charts, financial KPI metrics, and smooth node transitions.",
-    description: "Clean pastel bar charts, revenue growth metrics, and KPI callouts",
-    accentColor: "#8b5cf6",
-    visualType: "chart",
-  },
-  {
-    id: "speaker-spotlight",
-    title: "Creator Studio Spotlight",
-    category: "A-roll Cuts",
-    author: "By Alex Vance",
-    duration: 15,
-    aspectRatio: "16:9",
-    prompt:
-      "Create a professional creator spotlight video with talking head framing, elegant lower-third title card, and synchronized visual highlights.",
-    description: "Talking head portrait cut with animated lower third and audio waveforms",
-    accentColor: "#ec4899",
-    visualType: "speaker",
-  },
-  {
-    id: "kinetic-terminal",
-    title: "Limit Close Orders",
-    category: "Motion graphics",
-    author: "By Quantum Labs",
-    duration: 10,
-    aspectRatio: "16:9",
-    prompt:
-      "Create a futuristic dark-mode fintech presentation with kinetic typography for 'limit close orders', glowing neon gridlines, and high-frequency data columns.",
-    description: "Dark minimalist fintech UI with neon typography and glowing grid",
-    accentColor: "#06b6d4",
-    visualType: "kinetic",
-  },
-  {
-    id: "iridescent-waves",
-    title: "Fluid Iridescent Waves",
-    category: "Shaders",
-    author: "By Studio Chroma",
-    duration: 15,
-    aspectRatio: "16:9",
-    prompt:
-      "Create an ambient brand identity video featuring hypnotic iridescent gradient waves with fluid distortion, glowing color shifts, and cinematic title reveals.",
-    description: "Hypnotic fluid wave physics with violet, magenta, and amber chromatic glow",
-    accentColor: "#f97316",
+    prompt: "Create an organic coastal aesthetic presentation with soothing ocean-green tones, scenic photography, and elegant serif typography.",
+    description: "Scenic coastal aesthetics, serif titles, atmospheric motion",
+    accentColor: "#0d9488",
     visualType: "shader",
   },
   {
-    id: "mobile-launch-story",
-    title: "Mobile App Launch Story",
-    category: "Mobile Ads",
-    author: "By AppCraft",
+    id: "rosette",
+    title: "Rosette",
+    category: "Motion graphics",
+    author: "Rosette Creative",
     duration: 15,
-    aspectRatio: "9:16",
-    prompt:
-      "Create a high-converting 9:16 vertical mobile video ad for our app launch, featuring 3D smartphone frame animations, smooth UI gestures, and an App Store CTA.",
-    description: "9:16 vertical smartphone frame with sleek gesture animations and CTA",
-    accentColor: "#3b82f6",
+    aspectRatio: "16:9",
+    prompt: "Create a vibrant celebratory showcase with vivid lilac and magenta color blocking, playful geometric stickers, and lively photo montages.",
+    description: "Celebration motifs, lilac and magenta gradients, dynamic cutouts",
+    accentColor: "#d946ef",
+    visualType: "kinetic",
+  },
+  {
+    id: "daktilo-dispatch",
+    title: "Daktilo Dispatch",
+    category: "Motion graphics",
+    author: "Daktilo Editorial",
+    duration: 15,
+    aspectRatio: "16:9",
+    prompt: "Create a modern investigative editorial deck with brutalist newspaper gridlines, financial callouts, and monochrome documentation textures.",
+    description: "Brutalist editorial grids, headline hierarchy, financial callouts",
+    accentColor: "#64748b",
+    visualType: "chart",
+  },
+  {
+    id: "tangerine-pulse",
+    title: "Tangerine (Pulse)",
+    category: "Motion graphics",
+    author: "Pulse Studio",
+    duration: 15,
+    aspectRatio: "16:9",
+    prompt: "Create a high-energy growth marketing presentation with warm tangerine sunburst gradients, bold sans-serif headlines, and kinetic CTA buttons.",
+    description: "Warm gradient glows, growth metrics, bold sans-serif headlines",
+    accentColor: "#f97316",
     visualType: "mobile",
   },
   {
-    id: "neural-network",
-    title: "Neural Architecture Explainer",
+    id: "further-study",
+    title: "Further Study",
     category: "Motion graphics",
-    author: "By Synth AI",
+    author: "Further Lab",
     duration: 15,
     aspectRatio: "16:9",
-    prompt:
-      "Create an AI architecture explainer video visualizing neural network layers, glowing synaptic connections, and tensor data pipelines.",
-    description: "Interconnected neural network nodes with pulsating synaptic vectors",
-    accentColor: "#10b981",
-    visualType: "neural",
-  },
-  {
-    id: "clean-tech",
-    title: "EcoEnergy Clean Tech",
-    category: "Motion graphics",
-    author: "By GreenGrid",
-    duration: 15,
-    aspectRatio: "16:9",
-    prompt:
-      "Create an eco-tech sustainability presentation highlighting renewable energy metrics, emerald glassmorphism, and clean circular lifecycle diagrams.",
-    description: "Clean energy presentation with emerald glow and lifecycle vector nodes",
-    accentColor: "#14b8a6",
-    visualType: "eco",
+    prompt: "Create an ambient gradient atmosphere with warm copper and terracotta diffuse lighting, subtle dust textures, and thoughtful essay prose.",
+    description: "Diffuse sunset gradients, essay typographic layout, ambient glow",
+    accentColor: "#ea580c",
+    visualType: "shader",
   },
 ];
 
@@ -184,64 +171,131 @@ const CATEGORIES = [
 
 const PIPELINE_STAGES = [
   {
-    id: "writing_composition",
-    label: "Writing composition",
-    desc: "Understanding prompt intent, creative brief & visual layouts",
+    id: "prompt_analysis",
+    label: "Analysing prompt & scene planning",
+    desc: "Understanding video intent, scriptwriting & storyboard planning with Ollima LLM",
   },
   {
-    id: "timing_clips",
-    label: "Timing clips",
-    desc: "Planning frame-accurate timeline & scene boundaries",
+    id: "heygen_avatar",
+    label: "HeyGen avatar & voice generation",
+    desc: "Synthesizing HeyGen avatar performance with synchronised speech audio",
   },
   {
-    id: "animating_elements",
-    label: "Animating elements",
-    desc: "Synthesizing GPU transforms & GSAP motion rigs",
+    id: "asset_preparation",
+    label: "Preparing assets & timeline synchronization",
+    desc: "Aligning presenter footage, licensed visuals & frame-accurate audio bed",
   },
   {
-    id: "checking_composition",
-    label: "Checking its own work",
-    desc: "Auditing compliance, HyperFrames linting & self-repair",
+    id: "building_composition",
+    label: "HyperFrames composition assembly",
+    desc: "Authoring HTML/CSS layouts, GSAP cinematic animations & typography",
   },
   {
     id: "rendering_video",
-    label: "Rendering the video",
-    desc: "Headless 1080p rendering & FFprobe stream verification",
+    label: "HyperFrames rendering & FFmpeg mixing",
+    desc: "Headless 1080p composition rendering & speech-ducked audio multiplexing",
+  },
+  {
+    id: "validating_output",
+    label: "Output validation with FFprobe",
+    desc: "Validating streams, codecs, duration and audiovisual synchronization",
   },
 ];
 
 const getStageIndex = (statusStr: string): number => {
   const s = (statusStr || "").toLowerCase();
   switch (s) {
+    case "prompt_analysis":
     case "writing_composition":
+    case "script_generation":
     case "understanding_prompt":
     case "preparing_brief":
-    case "analyzing_assets":
       return 0;
-    case "timing_clips":
-    case "planning_scenes":
+    case "heygen_avatar":
+    case "heygen_submission":
+    case "heygen_processing":
+    case "generating_avatar":
       return 1;
+    case "timing_clips":
+    case "asset_preparation":
+    case "avatar_asset_retrieval":
+    case "planning_scenes":
+    case "analyzing_assets":
+      return 2;
+    case "building_composition":
     case "animating_elements":
     case "generating":
     case "generating_composition":
-      return 2;
+    case "hyperframes_composition":
+      return 3;
+    case "rendering":
+    case "rendering_video":
+    case "audio_processing":
+    case "audio_mixing":
+      return 4;
     case "checking_composition":
     case "checking_own_work":
     case "validating":
     case "validating_project":
-    case "correcting_errors":
-      return 3;
-    case "rendering":
-    case "rendering_video":
-    case "uploading":
     case "verifying_output":
-      return 4;
-    case "completed":
+    case "output_validation":
       return 5;
+    case "completed":
+      return 6;
     default:
       return 0;
   }
 };
+
+/**
+ * Robust JSON fetch parser that safely extracts server responses,
+ * preventing Safari / WebKit DOMException 12 "The string did not match the expected pattern".
+ */
+async function safeJsonFetch<T = any>(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
+  try {
+    const res = await fetch(input, init);
+    const text = await res.text();
+    let data: any = null;
+    if (text && text.trim()) {
+      try {
+        data = JSON.parse(text);
+      } catch (jsonErr) {
+        let errMsg = text;
+        if (text.includes("<html") || text.includes("<!DOCTYPE") || text.includes("<body")) {
+          const titleMatch = text.match(/<title>(.*?)<\/title>/i) || text.match(/<h1>(.*?)<\/h1>/i);
+          errMsg = titleMatch && titleMatch[1] ? titleMatch[1].trim() : `Server error (HTTP ${res.status})`;
+        }
+        return {
+          ok: false,
+          status: res.status,
+          data: null,
+          error: errMsg || `Invalid response format (HTTP ${res.status})`,
+        };
+      }
+    }
+    const isSuccess = res.ok && data?.success !== false;
+    const errorMsg =
+      data?.error ||
+      data?.message ||
+      (!res.ok ? `Request failed with status ${res.status}` : undefined);
+    return {
+      ok: isSuccess,
+      status: res.status,
+      data,
+      error: errorMsg,
+    };
+  } catch (netErr: any) {
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      error: netErr?.message || "Network connection failed",
+    };
+  }
+}
 
 export default function CreateVideoPage() {
   const router = useRouter();
@@ -259,8 +313,16 @@ export default function CreateVideoPage() {
   }, [current, workspaces, select]);
 
   const createProject = useMutation(api.projects.create);
+  const saveProductionPlan = useMutation(api.projects.saveProductionPlan);
+  const approveAndRenderPlan = useMutation(api.projects.approveAndRenderPlan);
   const createAsset = useMutation(api.assets.create);
   const removeAsset = useMutation(api.assets.remove);
+
+  // HeyGen Video Agent: Creation Modes & Interactive Plan State
+  const [creationMode, setCreationMode] = useState<"plan" | "autopilot">("plan");
+  const [videoPlan, setVideoPlan] = useState<any>(null);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState<boolean>(false);
+  const [isRevisingPlan, setIsRevisingPlan] = useState<boolean>(false);
 
   const [prompt, setPrompt] = useState("");
   const [name, setName] = useState("");
@@ -284,19 +346,803 @@ export default function CreateVideoPage() {
   const [showStepByStep, setShowStepByStep] = useState(false);
   const [showEnvCard, setShowEnvCard] = useState(false);
 
-  // Typography Engine & HeyGen Custom Avatar Integration
+  // Typography Engine
   const [selectedTypographyStyle, setSelectedTypographyStyle] = useState<string>("auto");
-  const [savedHeyGenAvatarId, setSavedHeyGenAvatarId] = useState<string>("");
-  const [savedHeyGenVoiceId, setSavedHeyGenVoiceId] = useState<string>("");
+
+  // PHASE TWO: Creation Mode Selection (AI Prompt Mode vs Direct Code Mode)
+  const [pipelineMode, setPipelineMode] = useState<"ai_prompt" | "direct_code">("ai_prompt");
+  const [codeTab, setCodeTab] = useState<"html" | "css" | "js">("html");
+  const [directHtml, setDirectHtml] = useState<string>(`<!-- HyperFrames HTML Composition -->
+<div class="ollastar-card">
+  <div class="brand-badge">
+    <span class="dot"></span>
+    <span>Ollastar Motion Studio</span>
+  </div>
+  <h1 class="main-heading">Create at the Speed of Thought</h1>
+  <p class="sub-heading">High-performance 60 FPS motion graphics generated directly from code.</p>
+  <div class="metrics-row">
+    <div class="metric-item">
+      <span class="metric-val">40s</span>
+      <span class="metric-lbl">Full Duration</span>
+    </div>
+    <div class="metric-item">
+      <span class="metric-val">1080p</span>
+      <span class="metric-lbl">Crisp Output</span>
+    </div>
+    <div class="metric-item">
+      <span class="metric-val">60 FPS</span>
+      <span class="metric-lbl">Silk Smooth</span>
+    </div>
+  </div>
+</div>`);
+  const [directCss, setDirectCss] = useState<string>(`/* HyperFrames CSS Styling */
+.ollastar-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 30%, #1e1b4b 0%, #09090b 100%);
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  text-align: center;
+  padding: 48px;
+}
+
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 9999px;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  font-size: 13px;
+  font-weight: 600;
+  color: #818cf8;
+  margin-bottom: 24px;
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.brand-badge .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #818cf8;
+  box-shadow: 0 0 10px #818cf8;
+}
+
+.main-heading {
+  font-size: 56px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #94a3b8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 16px;
+  line-height: 1.1;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.sub-heading {
+  font-size: 20px;
+  color: #94a3b8;
+  max-width: 650px;
+  line-height: 1.5;
+  margin-bottom: 40px;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.metrics-row {
+  display: flex;
+  gap: 32px;
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.metric-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 16px 28px;
+  border-radius: 16px;
+}
+
+.metric-val {
+  font-size: 28px;
+  font-weight: 800;
+  color: #38bdf8;
+  font-family: monospace;
+}
+
+.metric-lbl {
+  font-size: 12px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+}`);
+  const [directJs, setDirectJs] = useState<string>(`// Register GSAP animation timeline on window.__timelines["main"]
+const tl = gsap.timeline({ paused: true });
+
+tl.to(".brand-badge", {
+  opacity: 1,
+  y: 0,
+  duration: 0.8,
+  ease: "power3.out"
+}, 0.2);
+
+tl.to(".main-heading", {
+  opacity: 1,
+  y: 0,
+  duration: 1.0,
+  ease: "power3.out"
+}, 0.5);
+
+tl.to(".sub-heading", {
+  opacity: 1,
+  y: 0,
+  duration: 0.9,
+  ease: "power2.out"
+}, 0.9);
+
+tl.to(".metrics-row", {
+  opacity: 1,
+  scale: 1,
+  duration: 0.8,
+  ease: "back.out(1.5)"
+}, 1.3);
+
+// Hold through the full duration (e.g. 40s)
+tl.to(".ollastar-card", {
+  background: "radial-gradient(circle at 50% 30%, #1e293b 0%, #030712 100%)",
+  duration: 6,
+  ease: "none"
+}, 2.0);
+
+window.__timelines = window.__timelines || {};
+window.__timelines["main"] = tl;`);
+  const [directDuration, setDirectDuration] = useState<number>(40);
+  const [directResolution, setDirectResolution] = useState<string>("1080p");
+  const [directFps, setDirectFps] = useState<number>(30);
+  const [directTitle, setDirectTitle] = useState<string>("Ollastar Motion Project");
+  const [validationResult, setValidationResult] = useState<{
+    valid?: boolean;
+    errors?: string[];
+    parsedErrors?: any[];
+  } | null>(null);
+  const [isValidatingCode, setIsValidatingCode] = useState<boolean>(false);
+  const [recentTab, setRecentTab] = useState<"work" | "chats">("work");
+
+  const handleValidateDirectCode = async () => {
+    setIsValidatingCode(true);
+    setValidationResult(null);
+    try {
+      const { ok, data, error } = await safeJsonFetch("/api/direct-code/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          html: directHtml,
+          css: directCss,
+          js: directJs,
+          duration: directDuration,
+          width: directResolution === "720p" ? 1280 : 1920,
+          height: directResolution === "720p" ? 720 : 1080,
+          fps: directFps,
+        }),
+      });
+      if (ok && data) {
+        setValidationResult(data);
+        if (data.valid) {
+          toast.success("Source code validated! Ready to render.");
+        } else {
+          toast.error(`Validation warnings: ${(data.errors || []).join("; ")}`);
+        }
+      } else {
+        toast.error(error || "Validation failed");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to validate source code");
+    } finally {
+      setIsValidatingCode(false);
+    }
+  };
+
+  const handleRenderDirectCode = async (overrideHtml?: string | React.SyntheticEvent) => {
+    const htmlToRender = (typeof overrideHtml === "string" ? overrideHtml : directHtml).trim();
+    if (!htmlToRender) {
+      toast.error("Please enter HTML source code");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const targetWs = current || activeWorkspaceId;
+      const width = directResolution === "720p" ? 1280 : 1920;
+      const height = directResolution === "720p" ? 720 : 1080;
+
+      let projId = `proj_code_${Date.now()}`;
+      try {
+        const res: any = await createProject({
+          workspaceId: targetWs,
+          name: directTitle || "Direct Code Video",
+          prompt: "DIRECT_CODE_RENDER",
+          duration: directDuration,
+          width,
+          height,
+          fps: directFps,
+          mode: "direct_code",
+        });
+        if (res?.projectId) projId = res.projectId;
+      } catch (e) {}
+
+      setActiveProjectId(projId as any);
+      setPolledProject({
+        _id: projId,
+        name: directTitle || "Direct Code Video",
+        prompt: "DIRECT_CODE_RENDER",
+        status: "validating",
+        stage: "validating",
+        duration: directDuration,
+      });
+
+      const { ok, data, error } = await safeJsonFetch("/api/direct-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: projId,
+          html: htmlToRender,
+          css: directCss,
+          js: directJs,
+          duration: directDuration,
+          width,
+          height,
+          fps: directFps,
+          title: directTitle || "Direct Code Video",
+          workspaceId: targetWs,
+        }),
+      });
+
+      if (!ok || !data?.ok) {
+        throw new Error(error || data?.error || "Failed to trigger direct code render");
+      }
+      toast.success("Direct code render initiated! Tracking progress...");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to start direct code render");
+      setIsSubmitting(false);
+    }
+  };
+
+  // Soundtrack & Background Music Studio State
+  const [autoMusicEnabled, setAutoMusicEnabled] = useState<boolean>(true);
+  const [selectedMusicStyle, setSelectedMusicStyle] = useState<string>("Cinematic");
+  const [selectedMusicSource, setSelectedMusicSource] = useState<string>("auto");
+  const [selectedBgmTrack, setSelectedBgmTrack] = useState<string>("auto");
+  const [bgmVolume, setBgmVolume] = useState<number>(0.35);
+  const [musicDuckingEnabled, setMusicDuckingEnabled] = useState<boolean>(true);
+  const [preserveNarrationSetting, setPreserveNarrationSetting] = useState<boolean>(true);
+  const [fadeInDuration, setFadeInDuration] = useState<number>(1.0);
+  const [fadeOutDuration, setFadeOutDuration] = useState<number>(2.0);
+  const [musicCandidatesList, setMusicCandidatesList] = useState<any[]>([]);
+  const [showMusicSettingsDrawer, setShowMusicSettingsDrawer] = useState<boolean>(false);
+  const [testedMusicProvider, setTestedMusicProvider] = useState<Record<string, { ok: boolean; msg: string; sampleCount?: number }>>({});
+  const [isTestingMusicProvider, setIsTestingMusicProvider] = useState<string | null>(null);
+
+  const [aiRecommendedTrack, setAiRecommendedTrack] = useState<{
+    id: string;
+    title: string;
+    artist: string;
+    genre: string;
+    moods: string[];
+    bpm: number;
+    url: string;
+    license: string;
+    licenseInfo?: {
+      name: string;
+      url: string;
+      commercialSafe: boolean;
+      attributionRequired: boolean;
+      attributionText: string;
+      verified: boolean;
+      permittedUseSummary?: string;
+    };
+    hasVocals: boolean;
+    rankingScore?: number;
+    provider?: string;
+  } | null>({
+    id: "cinematic_luxury",
+    title: "Cinematic Luxury & Elegance",
+    artist: "Hyparlink Audio Labs",
+    genre: "Cinematic Orchestral",
+    moods: ["luxury", "prestigious", "elegant", "calm"],
+    bpm: 75,
+    url: "/audio/bgm/cinematic_luxury.mp3",
+    license: "Royalty-Free Commercial",
+    licenseInfo: {
+      name: "Hyparlink Commercial Royalty-Free",
+      url: "https://hyparlink.ai/licenses/commercial-royalty-free",
+      commercialSafe: true,
+      attributionRequired: false,
+      attributionText: "Music: 'Cinematic Luxury & Elegance' by Hyparlink Audio Labs",
+      verified: true,
+      permittedUseSummary: "Perpetual worldwide commercial video synchronization",
+    },
+    hasVocals: false,
+    rankingScore: 92,
+    provider: "internal_catalog",
+  });
+  const [aiMusicReason, setAiMusicReason] = useState<string>(
+    "Acoustically aligned with cinematic luxury branding & dynamic speech ducking"
+  );
+  const [isRecommendingMusic, setIsRecommendingMusic] = useState<boolean>(false);
+  const [musicRefinementInput, setMusicRefinementInput] = useState<string>("");
+  const [showCatalogDrawer, setShowCatalogDrawer] = useState<boolean>(false);
+
+  const [customBgm, setCustomBgm] = useState<{
+    filename: string;
+    name: string;
+    audioUrl: string;
+    localPath: string;
+    duration: number;
+  } | null>(null);
+  const [isUploadingBgm, setIsUploadingBgm] = useState<boolean>(false);
+  const [previewTrackId, setPreviewTrackId] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [showSettingsPopover, setShowSettingsPopover] = useState<boolean>(false);
+  const [activeFormatPill, setActiveFormatPill] = useState<string>("Presentation");
+  const [showAdvancedStudio, setShowAdvancedStudio] = useState<boolean>(false);
+
+  const handleTestMusicProvider = async (provider: string) => {
+    setIsTestingMusicProvider(provider);
+    try {
+      const res = await safeJsonFetch("/api/music/test-provider", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider }),
+      });
+      if (res.ok && res.data) {
+        setTestedMusicProvider((prev) => ({
+          ...prev,
+          [provider]: {
+            ok: res.data.success,
+            msg: res.data.message || res.data.licenseNote || "Provider connected",
+            sampleCount: res.data.sampleCount,
+          },
+        }));
+        toast.success(res.data.message || `${provider} connected successfully`);
+      } else {
+        throw new Error(res.error || "Provider test failed");
+      }
+    } catch (err: any) {
+      setTestedMusicProvider((prev) => ({
+        ...prev,
+        [provider]: { ok: false, msg: err.message },
+      }));
+      toast.error(err.message);
+    } finally {
+      setIsTestingMusicProvider(null);
+    }
+  };
+
+  const requestMusicRecommendation = async (customPrompt?: string) => {
+    const promptToAnalyze = customPrompt || prompt;
+    if (!promptToAnalyze.trim()) {
+      toast.error("Please enter a video prompt first to analyze musical tone.");
+      return;
+    }
+    setIsRecommendingMusic(true);
+    const toastId = toast.loading("Analyzing video content & scoring soundtracks...");
+    try {
+      const res = await safeJsonFetch("/api/music/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: promptToAnalyze,
+          duration: Math.round(duration || 60),
+          voiceoverEnabled: false,
+          hasAvatar: Boolean(avatarId),
+        }),
+      });
+
+      if (res.ok && res.data?.selectedTrack) {
+        setAiRecommendedTrack(res.data.selectedTrack);
+        setAiMusicReason(res.data.selectionReason || "Best acoustic match for video theme");
+        if (Array.isArray(res.data.candidates)) {
+          setMusicCandidatesList(res.data.candidates);
+        }
+        setSelectedBgmTrack("auto");
+        toast.success(`Selected "${res.data.selectedTrack.title}" (${res.data.selectedTrack.genre})`, { id: toastId });
+      } else {
+        throw new Error(res.error || "Recommendation engine could not evaluate candidates");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to analyze music recommendation", { id: toastId });
+    } finally {
+      setIsRecommendingMusic(false);
+    }
+  };
+
+  const refineMusicRecommendation = async (instruction: string) => {
+    if (!instruction.trim()) return;
+    setIsRecommendingMusic(true);
+    const toastId = toast.loading(`Refining soundtrack for "${instruction}"...`);
+    try {
+      const res = await safeJsonFetch("/api/music/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          duration: Math.round(duration || 60),
+          currentTrackId: aiRecommendedTrack?.id || "cinematic_luxury",
+          refinementInstruction: instruction,
+        }),
+      });
+
+      if (res.ok && res.data?.selectedTrack) {
+        setAiRecommendedTrack(res.data.selectedTrack);
+        setAiMusicReason(res.data.selectionReason);
+        setSelectedBgmTrack("auto");
+        setMusicRefinementInput("");
+        toast.success(`Updated to "${res.data.selectedTrack.title}"!`, { id: toastId });
+      } else {
+        throw new Error(res.error || "Refinement failed");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to refine music selection", { id: toastId });
+    } finally {
+      setIsRecommendingMusic(false);
+    }
+  };
+
+  const togglePlayPreview = (trackId: string, audioUrl: string) => {
+    if (previewTrackId === trackId) {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+      }
+      setPreviewTrackId(null);
+    } else {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+      }
+      const audio = new Audio(audioUrl);
+      audio.volume = bgmVolume;
+      audio.onended = () => setPreviewTrackId(null);
+      audio.onerror = () => {
+        toast.error("Audio preview not available for this track");
+        setPreviewTrackId(null);
+      };
+      audio.play().catch(() => setPreviewTrackId(null));
+      previewAudioRef.current = audio;
+      setPreviewTrackId(trackId);
+    }
+  };
+
+  const handleCustomBgmUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingBgm(true);
+    const toastId = toast.loading(`Uploading audio track "${file.name}"...`);
+    try {
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const res = reader.result as string;
+          const base64 = res.split(",")[1];
+          resolve(base64 || "");
+        };
+        reader.onerror = reject;
+      });
+      reader.readAsDataURL(file);
+      const data = await base64Promise;
+
+      const res = await safeJsonFetch("/api/audio/upload-bgm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: file.name,
+          data,
+        }),
+      });
+
+      if (!res.ok || !res.data) {
+        throw new Error(res.error || "Failed to upload audio file");
+      }
+
+      setCustomBgm({
+        filename: res.data.filename,
+        name: file.name,
+        audioUrl: res.data.audioUrl,
+        localPath: res.data.localPath,
+        duration: res.data.duration,
+      });
+      setSelectedBgmTrack("custom");
+      toast.success(`Attached custom soundtrack: ${file.name} (${res.data.duration}s)!`, { id: toastId });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload audio file", { id: toastId });
+    } finally {
+      setIsUploadingBgm(false);
+    }
+  };
+
+  // HeyGen AI Avatar & Cinematic Composition Studio State
+  const [compositionMode, setCompositionMode] = useState<"auto" | "mode_a" | "mode_b" | "mode_c" | "hyperframes_only">("auto");
+  const [visualStyle, setVisualStyle] = useState<string>("cinematic");
+  const [avatarLanguage, setAvatarLanguage] = useState<string>("all");
+  const [availableAvatars, setAvailableAvatars] = useState<any[]>([]);
+  const [availableVoices, setAvailableVoices] = useState<any[]>([]);
+  const [isLoadingAvatars, setIsLoadingAvatars] = useState<boolean>(false);
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
+
+  const [generationMode, setGenerationMode] = useState<"hyperframes_only" | "avatar_mixed" | "avatar_presenter">("avatar_mixed");
+  const [avatarId, setAvatarId] = useState<string>("sarah_studio");
+  const [avatarName, setAvatarName] = useState<string>("Sarah Jenkins");
+  const [voiceId, setVoiceId] = useState<string>("en-US-JennyNeural");
+  const [voiceName, setVoiceName] = useState<string>("Jenny (US)");
+  const [heygenApiKey, setHeygenApiKey] = useState<string>("");
+  const [showApiKey, setShowApiKey] = useState<boolean>(false);
+  const [apiKeyValidating, setApiKeyValidating] = useState<boolean>(false);
+  const [apiKeyStatus, setApiKeyStatus] = useState<{
+    valid: boolean;
+    mode: "cloud" | "sandbox" | "invalid";
+    message: string;
+  }>({
+    valid: false,
+    mode: "sandbox",
+    message: "Free Studio Sandbox Active (FFmpeg + Local Speech)",
+  });
+  const [customPresenterVideo, setCustomPresenterVideo] = useState<{
+    filename: string;
+    videoUrl: string;
+    localPath: string;
+    duration: number;
+    name?: string;
+  } | null>(null);
+  const [isUploadingPresenter, setIsUploadingPresenter] = useState<boolean>(false);
+  const [captionsEnabled, setCaptionsEnabled] = useState<boolean>(true);
+  const [bgMusicEnabled, setBgMusicEnabled] = useState<boolean>(true);
+  const [isSavedConfig, setIsSavedConfig] = useState<boolean>(false);
+
+  const handlePlayVoicePreview = (v: any) => {
+    if (playingVoiceId === v.id) {
+      if (audioPreviewRef.current) {
+        audioPreviewRef.current.pause();
+        audioPreviewRef.current = null;
+      }
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      setPlayingVoiceId(null);
+      return;
+    }
+
+    if (audioPreviewRef.current) {
+      audioPreviewRef.current.pause();
+      audioPreviewRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    if (v.previewAudio) {
+      const audio = new Audio(v.previewAudio);
+      audioPreviewRef.current = audio;
+      setPlayingVoiceId(v.id);
+      audio.onended = () => setPlayingVoiceId(null);
+      audio.onerror = () => setPlayingVoiceId(null);
+      audio.play().catch(() => setPlayingVoiceId(null));
+    } else {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        const text = v.sampleText || "Welcome to Hyparlink. Transform your ideas into high production value videos.";
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.0;
+        utterance.onend = () => setPlayingVoiceId(null);
+        utterance.onerror = () => setPlayingVoiceId(null);
+        setPlayingVoiceId(v.id);
+        window.speechSynthesis.speak(utterance);
+      } else {
+        toast.info(`Voice selected: ${v.name} (${v.tone || v.accent || "Standard"})`);
+      }
+    }
+  };
+
+  const verifyHeyGenKey = async (keyToTest: string) => {
+    if (!keyToTest.trim()) {
+      setApiKeyStatus({
+        valid: false,
+        mode: "sandbox",
+        message: "Sandbox Mode: Free Local Studio Engine Active.",
+      });
+      return;
+    }
+    setApiKeyValidating(true);
+    try {
+      const res = await fetch("/api/heygen/verify-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: keyToTest.trim() }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setApiKeyStatus({
+          valid: true,
+          mode: "cloud",
+          message: "HeyGen Account Connected: Live Cloud Rendering Active.",
+        });
+        localStorage.setItem("heygen_api_key", keyToTest.trim());
+      } else {
+        setApiKeyStatus({
+          valid: false,
+          mode: "sandbox",
+          message: data.message || "Invalid HeyGen API key. Free local studio engine will be used.",
+        });
+      }
+    } catch {
+      setApiKeyStatus({
+        valid: false,
+        mode: "sandbox",
+        message: "Failed to verify key. Free local studio engine will be used.",
+      });
+    } finally {
+      setApiKeyValidating(false);
+    }
+  };
+
+  // Intelligent Visual Asset Discovery & Sourcing State
+  const [imageDiscoveryEnabled, setImageDiscoveryEnabled] = useState<boolean>(true);
+  const [imageReviewMode, setImageReviewMode] = useState<"auto" | "review">("auto");
+  const [wikimediaEnabled, setWikimediaEnabled] = useState<boolean>(true);
+  const [pexelsEnabled, setPexelsEnabled] = useState<boolean>(false);
+  const [pexelsApiKey, setPexelsApiKey] = useState<string>("");
+  const [unsplashEnabled, setUnsplashEnabled] = useState<boolean>(false);
+  const [unsplashAccessKey, setUnsplashAccessKey] = useState<string>("");
+  const [aiImageFallback, setAiImageFallback] = useState<boolean>(true);
+  const [providerTesting, setProviderTesting] = useState<string | null>(null);
+  const [providerStatus, setProviderStatus] = useState<Record<string, { ok: boolean; msg: string }>>({});
+  const [visualAssetPlan, setVisualAssetPlan] = useState<any>(null);
+  const [isPlanningAssets, setIsPlanningAssets] = useState<boolean>(false);
+  const [showImageSettingsDrawer, setShowImageSettingsDrawer] = useState<boolean>(false);
+
+  const handleTestImageProvider = async (provider: string, apiKey?: string) => {
+    setProviderTesting(provider);
+    try {
+      const res = await safeJsonFetch("/api/images/test-provider", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, apiKey }),
+      });
+      if (res.ok && res.data?.success) {
+        setProviderStatus((prev) => ({
+          ...prev,
+          [provider]: { ok: true, msg: res.data.message },
+        }));
+        toast.success(res.data.message);
+      } else {
+        const msg = res.data?.message || res.error || "Connection test notice";
+        setProviderStatus((prev) => ({
+          ...prev,
+          [provider]: { ok: false, msg },
+        }));
+        toast.error(msg);
+      }
+    } catch (err: any) {
+      setProviderStatus((prev) => ({
+        ...prev,
+        [provider]: { ok: false, msg: err.message },
+      }));
+      toast.error(err.message);
+    } finally {
+      setProviderTesting(null);
+    }
+  };
+
+  const handlePlanVisualAssets = async () => {
+    const p = prompt || selectedInspirations[0]?.prompt;
+    if (!p) {
+      toast.error("Please enter a prompt first to generate a visual asset plan.");
+      return;
+    }
+    setIsPlanningAssets(true);
+    try {
+      toast.info("Analyzing video scenes and authoring visual asset plan with AI...");
+      const res = await safeJsonFetch("/api/images/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: p, sceneCount: 4 }),
+      });
+      if (res.ok && res.data?.plan) {
+        setVisualAssetPlan(res.data.plan);
+        toast.success(`Visual Asset Plan generated (${res.data.plan.sceneRequirements.length} scenes planned)!`);
+      } else {
+        throw new Error(res.error || "Failed to generate plan");
+      }
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setIsPlanningAssets(false);
+    }
+  };
 
   useEffect(() => {
     try {
-      const avId = localStorage.getItem("heygen_custom_avatar_id");
-      if (avId) setSavedHeyGenAvatarId(avId);
-      const vcId = localStorage.getItem("heygen_custom_voice_id");
-      if (vcId) setSavedHeyGenVoiceId(vcId);
+      const savedKey = localStorage.getItem("heygen_api_key");
+      if (savedKey) {
+        setHeygenApiKey(savedKey);
+        verifyHeyGenKey(savedKey);
+      }
+      const savedBgm = localStorage.getItem("hyparlink_bgm_track");
+      if (savedBgm && savedBgm !== "cinematic_luxury") {
+        setSelectedBgmTrack(savedBgm);
+      } else {
+        setSelectedBgmTrack("auto");
+      }
+      const savedVol = localStorage.getItem("hyparlink_bgm_volume");
+      if (savedVol) {
+        const v = parseFloat(savedVol);
+        if (!isNaN(v)) setBgmVolume(v);
+      }
     } catch {}
+
+    const loadHeyGenCatalog = async () => {
+      setIsLoadingAvatars(true);
+      try {
+        const [avRes, vcRes] = await Promise.all([
+          safeJsonFetch("/api/heygen/avatars"),
+          safeJsonFetch("/api/heygen/voices"),
+        ]);
+        if (avRes?.data?.avatars && avRes.data.avatars.length > 0) {
+          setAvailableAvatars(avRes.data.avatars);
+          if (!avatarId) {
+            setAvatarId(avRes.data.avatars[0].id);
+            setAvatarName(avRes.data.avatars[0].name);
+          }
+        }
+        if (vcRes?.data?.voices && vcRes.data.voices.length > 0) {
+          setAvailableVoices(vcRes.data.voices);
+          if (!voiceId) {
+            setVoiceId(vcRes.data.voices[0].id);
+            setVoiceName(vcRes.data.voices[0].name);
+          }
+        }
+      } catch (err: any) {
+        console.warn("[HeyGen] Notice loading avatar catalog:", err.message);
+      } finally {
+        setIsLoadingAvatars(false);
+      }
+    };
+    loadHeyGenCatalog();
   }, []);
+
+  const handleSaveAvatarConfig = () => {
+    try {
+      localStorage.setItem("hyparlink_bgm_track", selectedBgmTrack);
+      localStorage.setItem("hyparlink_bgm_volume", String(bgmVolume));
+      toast.success("Soundtrack configuration saved!");
+    } catch {
+      toast.error("Failed to save configuration locally.");
+    }
+  };
+
+  const handleClearAvatarConfig = () => {
+    try {
+      localStorage.removeItem("hyparlink_avatar_voice_config");
+      localStorage.removeItem("heygen_custom_avatar_id");
+      localStorage.removeItem("heygen_custom_voice_id");
+      setAvatarId("");
+      setAvatarName("");
+      setVoiceId("");
+      setVoiceName("");
+      setSelectedBgmTrack("cinematic_luxury");
+      setBgmVolume(0.85);
+      setIsSavedConfig(false);
+      toast.info("Audio configuration reset to Cinematic Luxury.");
+    } catch {}
+  };
 
   // Helper: Extract authoritative duration from prompt
   const extractDuration = (text: string): number | null => {
@@ -351,9 +1197,8 @@ export default function CreateVideoPage() {
   const fetchAiStatus = async () => {
     setIsLoadingStatus(true);
     try {
-      const res = await fetch("/api/ai/status");
-      if (res.ok) {
-        const data = await res.json();
+      const { ok, status, data, error } = await safeJsonFetch("/api/ai/status");
+      if (ok && data) {
         setAiStatus(data);
       } else {
         setAiStatus({
@@ -362,7 +1207,7 @@ export default function CreateVideoPage() {
           configured: false,
           status: "error",
           statusLabel: "Status Check Failed",
-          message: `HTTP ${res.status}`,
+          message: error || `HTTP ${status}`,
         });
       }
     } catch (err: any) {
@@ -397,24 +1242,31 @@ export default function CreateVideoPage() {
     error?: string;
     errorCategory?: string;
   } | null>(null);
+  const [showModelDropdown, setShowModelDropdown] = useState<boolean>(false);
+  const modelDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
+        setShowModelDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const fetchModels = async () => {
     setIsLoadingModels(true);
     setModelError(null);
     try {
-      const res = await fetch("/api/ai/models");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.models)) {
-          setModels(data.models);
-          if (data.defaultModel && (!selectedModel || selectedModel === "default-model")) {
-            setSelectedModel(data.defaultModel);
-          }
-        } else {
-          setModelError(data.error || "Failed to load models");
+      const { ok, status, data, error } = await safeJsonFetch("/api/ai/models");
+      if (ok && data && Array.isArray(data.models)) {
+        setModels(data.models);
+        if (data.defaultModel && (!selectedModel || selectedModel === "default-model")) {
+          setSelectedModel(data.defaultModel);
         }
       } else {
-        setModelError(`HTTP ${res.status}: Failed to reach models endpoint`);
+        setModelError(error || data?.error || `HTTP ${status}: Failed to reach models endpoint`);
       }
     } catch (err: any) {
       setModelError(err.message || "Network error loading models");
@@ -428,13 +1280,12 @@ export default function CreateVideoPage() {
     setTestStatus("testing");
     setTestResult(null);
     try {
-      const res = await fetch("/api/ai/test", {
+      const { ok, data, error } = await safeJsonFetch("/api/ai/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: selectedModel }),
       });
-      const data = await res.json();
-      if (data.success) {
+      if (ok && data) {
         setTestStatus("success");
         setTestResult({
           latencyMs: data.latencyMs,
@@ -444,11 +1295,11 @@ export default function CreateVideoPage() {
       } else {
         setTestStatus("error");
         setTestResult({
-          latencyMs: data.latencyMs,
-          error: data.error || "Connection test failed",
-          errorCategory: data.errorCategory || "ERROR",
+          latencyMs: data?.latencyMs,
+          error: error || data?.error || "Connection test failed",
+          errorCategory: data?.errorCategory || "ERROR",
         });
-        toast.error(data.error || `Connection test failed for ${selectedModel}`);
+        toast.error(error || data?.error || `Connection test failed for ${selectedModel}`);
       }
     } catch (err: any) {
       setTestStatus("error");
@@ -477,6 +1328,12 @@ export default function CreateVideoPage() {
     activeWorkspaceId ? { workspaceId: activeWorkspaceId } : "skip",
   );
 
+  // Query recent projects for Recent Work section
+  const recentProjects = useQuery(
+    api.projects.list,
+    activeWorkspaceId ? { workspaceId: activeWorkspaceId } : "skip",
+  );
+
   useEffect(() => {
     const assetIdParam = searchParams.get("assetId");
     if (
@@ -499,12 +1356,25 @@ export default function CreateVideoPage() {
         setAspectRatio(searchParams.get("aspectRatio")!);
       }
     }
+
+    const projIdParam = searchParams.get("projectId") || searchParams.get("id");
+    if (projIdParam && !activeProjectId) {
+      setActiveProjectId(projIdParam as any);
+    }
   }, [searchParams]);
+
+  const isConvexProjectId =
+    typeof activeProjectId === "string" &&
+    !activeProjectId.startsWith("plan_") &&
+    !activeProjectId.startsWith("proj_") &&
+    !activeProjectId.startsWith("temp_") &&
+    !activeProjectId.includes("_") &&
+    activeProjectId.length > 20;
 
   // Reactive subscription to active project status
   const liveActiveProject = useQuery(
     api.projects.get,
-    activeProjectId ? { projectId: activeProjectId } : "skip",
+    isConvexProjectId ? { projectId: activeProjectId as Id<"projects"> } : "skip",
   );
 
   const [polledProject, setPolledProject] = useState<any>(null);
@@ -518,28 +1388,27 @@ export default function CreateVideoPage() {
 
     let isMounted = true;
     const pollStatus = async () => {
-      try {
-        const convexUrl =
-          (typeof window !== "undefined" &&
-            document
-              .querySelector('meta[name="convex-url"]')
-              ?.getAttribute("content")) ||
-          process.env.NEXT_PUBLIC_CONVEX_URL ||
-          "http://127.0.0.1:3210";
+      if (isConvexProjectId) {
+        try {
+          const convexUrl =
+            (typeof window !== "undefined" &&
+              document
+                .querySelector('meta[name="convex-url"]')
+                ?.getAttribute("content")) ||
+            process.env.NEXT_PUBLIC_CONVEX_URL ||
+            "http://127.0.0.1:3210";
 
-        const res = await fetch(`${convexUrl}/api/query`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            path: "projects:get",
-            args: { projectId: activeProjectId },
-            format: "json",
-          }),
-        });
+          const { ok, data } = await safeJsonFetch(`${convexUrl}/api/query`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              path: "projects:get",
+              args: { projectId: activeProjectId },
+              format: "json",
+            }),
+          });
 
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted && data?.value) {
+          if (ok && isMounted && data?.value) {
             setPolledProject(data.value);
             if (
               data.value.status === "completed" ||
@@ -549,27 +1418,24 @@ export default function CreateVideoPage() {
             }
             return;
           }
+        } catch (err) {
+          // Silently continue to direct API check
         }
-      } catch (err) {
-        // Silently continue to direct API check
       }
 
       // Direct API Status Check Fallback (for Cloudflare tunnel & offline Convex)
       try {
-        const directRes = await fetch(
+        const { ok, data } = await safeJsonFetch(
           `/api/generate/status?projectId=${activeProjectId}`,
         );
-        if (directRes.ok) {
-          const data = await directRes.json();
-          if (isMounted && data) {
-            setPolledProject((prev: any) => ({
-              ...prev,
-              ...data,
-              _id: activeProjectId,
-            }));
-            if (data.status === "completed" || data.status === "failed") {
-              setIsSubmitting(false);
-            }
+        if (ok && isMounted && data) {
+          setPolledProject((prev: any) => ({
+            ...prev,
+            ...data,
+            _id: activeProjectId,
+          }));
+          if (data.status === "completed" || data.status === "failed") {
+            setIsSubmitting(false);
           }
         }
       } catch (directErr) {
@@ -600,6 +1466,12 @@ export default function CreateVideoPage() {
     }
     return { ...polledProject, ...liveActiveProject };
   }, [liveActiveProject, polledProject]);
+
+  useEffect(() => {
+    if (activeProject?.productionPlan && !videoPlan) {
+      setVideoPlan(activeProject.productionPlan);
+    }
+  }, [activeProject, videoPlan]);
 
   const toggleAsset = (assetId: Id<"assets">) => {
     setSelectedAssetIds((prev) =>
@@ -709,7 +1581,7 @@ export default function CreateVideoPage() {
         reader.readAsDataURL(file);
         const data = await base64Promise;
 
-        const uploadRes = await fetch(`/assets/upload`, {
+        const { ok, data: uploadData, error } = await safeJsonFetch(`/assets/upload`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -724,14 +1596,11 @@ export default function CreateVideoPage() {
           }),
         });
 
-        if (!uploadRes.ok) {
-          const errJson = await uploadRes.json().catch(() => ({}));
+        if (!ok || !uploadData) {
           throw new Error(
-            errJson.error || `Upload failed with status ${uploadRes.status}`,
+            error || `Upload failed for ${file.name}`,
           );
         }
-
-        const uploadData = await uploadRes.json();
 
         const newAssetId = await createAsset({
           workspaceId: targetWs,
@@ -801,6 +1670,21 @@ export default function CreateVideoPage() {
       return;
     }
 
+    // Intelligent Direct HTML Auto-detection:
+    // If user pastes HTML source code into the prompt box, automatically route to Direct Code Mode
+    const isDirectHtml =
+      /^\s*<(!doctype|html|div|section|main|head|body|svg)/i.test(promptValue) ||
+      (promptValue.includes("<div") && promptValue.includes("</div>")) ||
+      (promptValue.includes("<style") && promptValue.includes("</style>")) ||
+      (promptValue.includes("<h1") && promptValue.includes("</h1>"));
+
+    if (isDirectHtml) {
+      toast.info("Direct HTML detected! Rendering your custom HTML directly without AI alteration...");
+      setDirectHtml(promptValue);
+      setPipelineMode("direct_code");
+      return handleRenderDirectCode(promptValue);
+    }
+
     if (selectedTypographyStyle === "comic_hero" && !promptValue.toLowerCase().includes("bebas")) {
       promptValue += " (Typography: Bebas Neue bold display headers, Montserrat body)";
     } else if (selectedTypographyStyle === "cyberpunk" && !promptValue.toLowerCase().includes("orbitron")) {
@@ -865,10 +1749,145 @@ export default function CreateVideoPage() {
 
       const promptDur = extractDuration(promptValue);
       const effectiveDuration = promptDur || duration;
+
+      // HeyGen Avatar + HyperFrames Composition Integration
+      const isAvatarRequested = compositionMode !== "hyperframes_only";
+      const effectiveAvatarId: string | undefined = isAvatarRequested ? (avatarId || "sarah_studio") : undefined;
+      const effectiveAvatarName: string | undefined = isAvatarRequested ? (avatarName || "Sarah Jenkins") : undefined;
+      const effectiveVoiceId: string | undefined = isAvatarRequested ? (voiceId || "en-US-JennyNeural") : undefined;
+      const effectiveVoiceName: string | undefined = isAvatarRequested ? (voiceName || "Jenny (US)") : undefined;
+      const isAvatarVideo = isAvatarRequested;
+      const effectiveGenerationMode = isAvatarRequested ? "avatar_mixed" : "hyperframes_only";
+
+      // Auto-resolve workspace assets if none explicitly checked but prompt references them
+      let effectiveSelectedAssetIds = [...selectedAssetIds];
+      if (effectiveSelectedAssetIds.length === 0 && workspaceAssets && workspaceAssets.length > 0) {
+        const mentionsAssets = /\b(workspace\s*assets|reference\s*media|attached|attach|photo|image|picture|logo|vikas|swami|ollasoftware|networkers)\b/i.test(promptValue);
+        if (mentionsAssets) {
+          const matched = workspaceAssets.filter((a: any) => {
+            const name = (a.name || a.originalFilename || "").toLowerCase();
+            const pLow = promptValue.toLowerCase();
+            return (
+              (name && pLow.includes(name.split(".")[0])) ||
+              pLow.includes("workspace assets") ||
+              pLow.includes("attached") ||
+              pLow.includes("reference media")
+            );
+          });
+          if (matched.length > 0) {
+            effectiveSelectedAssetIds = matched.map((a: any) => a._id);
+          } else {
+            effectiveSelectedAssetIds = workspaceAssets.map((a: any) => a._id);
+          }
+        }
+      }
+      const effectiveAssets = (workspaceAssets || []).filter((a: any) => effectiveSelectedAssetIds.includes(a._id));
+
       let projectId: any = null;
+
+      // =========================================================================
+      // MODE A: PLAN MODE (Review & Refine Plan before Rendering)
+      // =========================================================================
+      if (creationMode === "plan") {
+        setIsGeneratingPlan(true);
+        toast.info("AI Video Agent is analyzing prompt and developing video production plan...");
+
+        try {
+          const { ok, data: planData, error } = await safeJsonFetch("/api/agent/plan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: promptValue,
+              duration: effectiveDuration,
+              orientation: aspectRatio === "9:16" ? "portrait" : aspectRatio === "1:1" ? "square" : "landscape",
+              width,
+              height,
+              fps,
+              workspaceId: targetWs,
+              assets: effectiveAssets,
+              compositionMode,
+              visualStyle,
+              avatarLanguage: avatarLanguage !== "all" ? avatarLanguage : undefined,
+              avatarId: effectiveAvatarId,
+              avatarName: effectiveAvatarName,
+              voiceId: effectiveVoiceId,
+              voiceName: effectiveVoiceName,
+              apiKey: heygenApiKey || undefined,
+              generationMode: effectiveGenerationMode,
+              isAvatarVideo,
+              bgmTrack: autoMusicEnabled ? selectedBgmTrack : "none",
+              bgmVolume,
+              enableDucking: musicDuckingEnabled,
+              preserveNarration: preserveNarrationSetting,
+              musicStyle: selectedMusicStyle,
+              musicSource: selectedMusicSource,
+              customBgmPath: customBgm?.localPath,
+              model: selectedModel,
+              mode: "plan",
+            }),
+          });
+          if (!ok || !planData || !planData.plan) {
+            throw new Error(error || planData?.error || "Failed to generate video production plan");
+          }
+          const generatedPlan = planData.plan;
+          setVideoPlan(generatedPlan);
+
+          try {
+            const validAssetIds = effectiveSelectedAssetIds.filter(
+              (id) => typeof id === "string" && !id.includes("_") && id.length > 20,
+            );
+            const res: any = await createProject({
+              workspaceId: targetWs,
+              name: projectName,
+              prompt: promptValue,
+              duration: effectiveDuration,
+              width,
+              height,
+              fps,
+              assetIds: validAssetIds.length > 0 ? (validAssetIds as Id<"assets">[]) : undefined,
+              model: selectedModel,
+              avatarId: effectiveAvatarId,
+              avatarName: effectiveAvatarName,
+              voiceId: effectiveVoiceId,
+              voiceName: effectiveVoiceName,
+              generationMode: effectiveGenerationMode,
+              isAvatarVideo,
+              mode: "plan",
+              productionPlan: generatedPlan,
+              planStatus: "ready",
+            });
+            projectId = res.projectId;
+          } catch (convexErr) {
+            projectId = `plan_${Date.now()}`;
+          }
+
+          setActiveProjectId(projectId);
+          setPolledProject({
+            _id: projectId,
+            name: projectName,
+            prompt: promptValue,
+            status: "plan_ready",
+            planStatus: "ready",
+            duration: effectiveDuration,
+            productionPlan: generatedPlan,
+          });
+          toast.success("Production plan ready! Review scenes, direction, and script below.");
+        } finally {
+          setIsGeneratingPlan(false);
+          setIsSubmitting(false);
+        }
+        return;
+      }
+
+      // =========================================================================
+      // MODE B: AUTOPILOT MODE (Autonomous end-to-end plan & render)
+      // =========================================================================
       try {
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Convex connection timeout")), 2000),
+        );
+        const validAssetIds = effectiveSelectedAssetIds.filter(
+          (id) => typeof id === "string" && !id.includes("_") && id.length > 20,
         );
         const res: any = await Promise.race([
           createProject({
@@ -879,15 +1898,22 @@ export default function CreateVideoPage() {
             width,
             height,
             fps,
-            assetIds: selectedAssetIds.length > 0 ? selectedAssetIds : undefined,
+            assetIds: validAssetIds.length > 0 ? (validAssetIds as Id<"assets">[]) : undefined,
             model: selectedModel,
+            avatarId: effectiveAvatarId,
+            avatarName: effectiveAvatarName,
+            voiceId: effectiveVoiceId,
+            voiceName: effectiveVoiceName,
+            generationMode: effectiveGenerationMode,
+            isAvatarVideo,
+            mode: "autopilot",
           }),
           timeoutPromise,
         ]);
         projectId = res.projectId;
       } catch (convexErr: any) {
         console.warn("[Convex Notice] Using direct /api/generate pipeline fallback:", convexErr?.message || convexErr);
-        const directRes = await fetch("/api/generate", {
+        const { ok, data: directData, error } = await safeJsonFetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -897,12 +1923,46 @@ export default function CreateVideoPage() {
             height,
             fps,
             model: selectedModel,
+            compositionMode,
+            visualStyle,
+            avatarLanguage: avatarLanguage !== "all" ? avatarLanguage : undefined,
+            avatarId: effectiveAvatarId,
+            avatarName: effectiveAvatarName,
+            voiceId: effectiveVoiceId,
+            voiceName: effectiveVoiceName,
+            apiKey: heygenApiKey || undefined,
+            generationMode: effectiveGenerationMode,
+            isAvatarVideo,
+            bgmTrack: autoMusicEnabled ? selectedBgmTrack : "none",
+            bgmVolume,
+            enableDucking: musicDuckingEnabled,
+            preserveNarration: preserveNarrationSetting,
+            musicStyle: selectedMusicStyle,
+            musicSource: selectedMusicSource,
+            customBgmPath: customBgm?.localPath,
+            mode: "autopilot",
+            workspaceId: targetWs,
+            assets: effectiveAssets,
+            assetIds: effectiveSelectedAssetIds.length > 0 ? effectiveSelectedAssetIds : undefined,
+            imageSettings: {
+              wikimediaEnabled,
+              pexelsEnabled: Boolean(pexelsApiKey.trim()) || pexelsEnabled,
+              pexelsApiKey: pexelsApiKey.trim(),
+              unsplashEnabled: Boolean(unsplashAccessKey.trim()) || unsplashEnabled,
+              unsplashAccessKey: unsplashAccessKey.trim(),
+              workspaceEnabled: true,
+              aiFallbackEnabled: aiImageFallback,
+              imageReviewMode,
+              searchPriority: ["workspace", "wikimedia", "pexels", "unsplash"],
+              maxImagesPerVideo: 10,
+              requireLicenseVerification: true,
+              displayAttribution: true,
+            },
           }),
         });
-        if (!directRes.ok) {
-          throw new Error(`Generation failed: ${directRes.statusText}`);
+        if (!ok || !directData) {
+          throw new Error(error || "Generation failed to start");
         }
-        const directData = await directRes.json();
         projectId = directData.projectId;
         setPolledProject({
           _id: projectId,
@@ -914,10 +1974,135 @@ export default function CreateVideoPage() {
       }
 
       setActiveProjectId(projectId);
-      toast.success("Video generation job created!");
+      toast.success("Video generation job created in Autopilot Mode!");
     } catch (err: any) {
       toast.error(err.message || "Failed to start generation");
       setIsSubmitting(false);
+    }
+  };
+
+  const handleApproveAndRender = async () => {
+    if (!videoPlan) return;
+    setIsSubmitting(true);
+    try {
+      toast.info("Approving plan and dispatching autonomous video render...");
+      if (activeProjectId && typeof activeProjectId === "string" && !activeProjectId.startsWith("plan_") && !activeProjectId.startsWith("proj_")) {
+        try {
+          await approveAndRenderPlan({
+            projectId: activeProjectId as Id<"projects">,
+            model: selectedModel,
+          });
+        } catch (convexErr) {
+          console.warn("[Convex Notice] Using direct backend trigger:", convexErr);
+        }
+      }
+
+      const width = videoPlan.creativeBrief?.width || (aspectRatio === "9:16" ? 1080 : 1920);
+      const height = videoPlan.creativeBrief?.height || (aspectRatio === "9:16" ? 1920 : 1080);
+      const dur = videoPlan.creativeBrief?.duration || duration;
+
+      const { ok, data: directData, error } = await safeJsonFetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: activeProjectId || `proj_${Date.now()}`,
+          prompt: videoPlan.prompt,
+          duration: dur,
+          width,
+          height,
+          fps: videoPlan.creativeBrief?.fps || fps,
+          model: selectedModel,
+          productionPlan: videoPlan,
+          compositionMode,
+          visualStyle,
+          avatarLanguage: avatarLanguage !== "all" ? avatarLanguage : undefined,
+          avatarId: compositionMode !== "hyperframes_only" ? (avatarId || "sarah_studio") : undefined,
+          avatarName: compositionMode !== "hyperframes_only" ? (avatarName || "Sarah Jenkins") : undefined,
+          voiceId: compositionMode !== "hyperframes_only" ? (voiceId || "en-US-JennyNeural") : undefined,
+          voiceName: compositionMode !== "hyperframes_only" ? (voiceName || "Jenny (US)") : undefined,
+          apiKey: heygenApiKey || undefined,
+          generationMode: compositionMode !== "hyperframes_only" ? "avatar_mixed" : "hyperframes_only",
+          isAvatarVideo: compositionMode !== "hyperframes_only",
+            bgmTrack: autoMusicEnabled ? selectedBgmTrack : "none",
+            bgmVolume,
+            enableDucking: musicDuckingEnabled,
+            preserveNarration: preserveNarrationSetting,
+            musicStyle: selectedMusicStyle,
+            musicSource: selectedMusicSource,
+            customBgmPath: customBgm?.localPath,
+            mode: "plan",
+            workspaceId: activeWorkspaceId,
+            assets: videoPlan.mediaPlan?.userAssets || (workspaceAssets || []).filter((a: any) => selectedAssetIds.includes(a._id)),
+            assetIds: selectedAssetIds.length > 0 ? selectedAssetIds : undefined,
+            imageSettings: {
+              wikimediaEnabled,
+              pexelsEnabled: Boolean(pexelsApiKey.trim()) || pexelsEnabled,
+              pexelsApiKey: pexelsApiKey.trim(),
+              unsplashEnabled: Boolean(unsplashAccessKey.trim()) || unsplashEnabled,
+              unsplashAccessKey: unsplashAccessKey.trim(),
+              workspaceEnabled: true,
+              aiFallbackEnabled: aiImageFallback,
+              imageReviewMode,
+              searchPriority: ["workspace", "wikimedia", "pexels", "unsplash"],
+              maxImagesPerVideo: 10,
+              requireLicenseVerification: true,
+              displayAttribution: true,
+            },
+          }),
+      });
+
+      if (!ok || !directData) {
+        throw new Error(error || "Failed to start render");
+      }
+      const realProjectId = directData.projectId || activeProjectId;
+      setActiveProjectId(realProjectId);
+      setPolledProject({
+        _id: realProjectId,
+        name: videoPlan.creativeBrief?.title || "AI Video Project",
+        prompt: videoPlan.prompt,
+        status: "writing_composition",
+        duration: dur,
+        productionPlan: videoPlan,
+      });
+      toast.success("Plan approved! Rendering HyperFrames video...");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to start render");
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRefinePlan = async (feedback: string) => {
+    if (!feedback.trim() || !videoPlan || isRevisingPlan) return;
+    setIsRevisingPlan(true);
+    try {
+      const { ok, data, error } = await safeJsonFetch("/api/agent/revise-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPlan: videoPlan,
+          feedback: feedback.trim(),
+          model: selectedModel,
+        }),
+      });
+      if (!ok || !data?.plan) {
+        throw new Error(error || data?.error || "Failed to revise production plan");
+      }
+      setVideoPlan(data.plan);
+
+      if (activeProjectId && typeof activeProjectId === "string" && !activeProjectId.startsWith("plan_") && !activeProjectId.startsWith("proj_")) {
+        try {
+          await saveProductionPlan({
+            projectId: activeProjectId as Id<"projects">,
+            productionPlan: data.plan,
+            chatMessage: feedback.trim(),
+          });
+        } catch (e) {}
+      }
+      toast.success("Production plan revised by AI Video Agent!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update plan");
+    } finally {
+      setIsRevisingPlan(false);
     }
   };
 
@@ -940,10 +2125,16 @@ export default function CreateVideoPage() {
     stepIndex: number,
   ): "waiting" | "in_progress" | "completed" | "failed" => {
     if (!activeProject) return "waiting";
-    const status = activeProject.status.toLowerCase();
-    const currentIdx = getStageIndex(status);
+    const status = (activeProject.status || "").toLowerCase();
+    const stageStr = (activeProject.stage || "").toLowerCase();
+    let currentIdx = getStageIndex(stageStr && stageStr !== "failed" ? stageStr : status);
 
     if (status === "failed") {
+      if (currentIdx === 0 && (activeProject.error || "").match(/check|validat|overlap|occlu|lint|repair/i)) {
+        currentIdx = 3; // Checking its own work
+      } else if (currentIdx === 0 && (activeProject.error || "").match(/render|ffmpeg|ffprobe/i)) {
+        currentIdx = 4; // Rendering the video
+      }
       if (stepIndex === currentIdx) return "failed";
       if (stepIndex < currentIdx) return "completed";
       return "waiting";
@@ -963,7 +2154,7 @@ export default function CreateVideoPage() {
     if (status === "failed") return 100;
 
     const idx = getStageIndex(status);
-    const progressMap = [20, 40, 60, 80, 92, 100];
+    const progressMap = [15, 32, 50, 70, 85, 95, 100];
     return progressMap[idx] || 15;
   };
 
@@ -986,61 +2177,45 @@ export default function CreateVideoPage() {
   });
 
   return (
-    <div className="flex h-full w-full bg-[#0a0a0f] text-white px-6 py-8 overflow-y-auto">
-      <div className="z-10 mx-auto w-full max-w-5xl space-y-10">
-        {/* HEADER SECTION (Matching Image 2) */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-6">
-          <div>
-            <h1 className="text-4xl font-extrabold tracking-tight text-white flex items-center gap-3">
-              Make something.
-            </h1>
-            <p className="mt-1.5 text-sm text-neutral-400">
-              Transform prompts, inspirations, and reference videos into frame-accurate HyperFrames compositions.
-            </p>
+    <div className="relative flex min-h-[calc(100vh-3.5rem)] w-full flex-col justify-between bg-[#fcfdfe] dark:bg-[#090d14] text-slate-800 dark:text-slate-100 px-4 py-8 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center my-auto space-y-6">
+
+        {/* BRAND LOGO & MOTTO (Ollastar with Coconut Tree Logo) */}
+        <div className="flex flex-col items-center justify-center space-y-3 pt-2">
+          <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-white p-2 shadow-md border border-slate-200/90 dark:border-neutral-800 dark:bg-[#121620]">
+            <img
+              src="/ollastar-logo.png"
+              alt="Ollastar"
+              className="h-full w-full object-contain"
+            />
           </div>
-          <div className="flex items-center gap-3">
-            <a
-              href="https://discord.com"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs text-neutral-300 hover:bg-white/10 hover:text-white transition"
-            >
-              <svg className="h-4 w-4 fill-current text-[#5865F2]" viewBox="0 0 24 24">
-                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
-              </svg>
-              <span>Talk to the team</span>
-            </a>
-            <button
-              type="button"
-              onClick={() => setShowEnvCard(!showEnvCard)}
-              className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs text-emerald-400 hover:bg-emerald-500/20 transition cursor-pointer"
-              title="Click to view server rendering dependencies & system health"
-            >
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Rendering Environment Ready ✓</span>
-            </button>
+          <div className="text-center space-y-1">
+            <h1 className="text-center text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              Create videos at the speed of thought
+            </h1>
           </div>
         </div>
 
-        {/* SERVER RENDERING DEPENDENCY STATUS PANEL */}
-        {showEnvCard && (
-          <div className="relative animate-in fade-in slide-in-from-top-2 duration-200">
-            <button
-              type="button"
-              onClick={() => setShowEnvCard(false)}
-              className="absolute top-6 right-6 z-10 text-neutral-400 hover:text-white transition"
-              title="Close panel"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <DependencyStatusCard />
-          </div>
+
+        {/* HEYGEN VIDEO AGENT: PLAN MODE STUDIO */}
+        {videoPlan && (!activeProject || activeProject.status === "plan_ready") && !isSubmitting && (
+          <VideoProductionPlanStudio
+            plan={videoPlan}
+            onApproveAndRender={handleApproveAndRender}
+            onRefinePlan={handleRefinePlan}
+            isRevising={isRevisingPlan}
+            isRendering={isSubmitting}
+            onDismiss={() => {
+              setVideoPlan(null);
+              setActiveProjectId(null);
+            }}
+          />
         )}
 
         {/* ACTIVE JOB PROGRESS OVERLAY / CARD */}
-        {activeProjectId && activeProject && (
-          <div className="overflow-hidden rounded-2xl border border-white/15 bg-neutral-900/90 p-6 shadow-2xl backdrop-blur-md">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        {activeProjectId && activeProject && activeProject.status !== "plan_ready" && (
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <span
                   className={`flex h-3 w-3 rounded-full ${
@@ -1052,29 +2227,29 @@ export default function CreateVideoPage() {
                   }`}
                 />
                 <div>
-                  <h3 className="font-semibold text-white">
+                  <h3 className="font-bold text-slate-900 dark:text-white text-base">
                     {activeProject.status === "completed"
                       ? "Video Generated Successfully"
                       : activeProject.status === "failed"
                         ? "Video Generation Failed"
                         : "Generating HyperFrames Composition..."}
                   </h3>
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-xs text-slate-500 dark:text-neutral-400">
                     Stage:{" "}
-                    <span className="font-mono uppercase font-bold text-neutral-200">
+                    <span className="font-mono uppercase font-bold text-slate-800 dark:text-neutral-200">
                       {activeProject.status.replace(/_/g, " ")}
                     </span>
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <span className="font-mono text-sm font-bold text-emerald-400">
+                <span className="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">
                   {calculateProgressPercent()}%
                 </span>
               </div>
             </div>
 
-            <div className="my-4 h-2 w-full overflow-hidden rounded-full bg-white/10">
+            <div className="my-4 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-neutral-800">
               <div
                 className={`h-full transition-all duration-500 ${
                   activeProject.status === "failed"
@@ -1099,62 +2274,62 @@ export default function CreateVideoPage() {
                     key={st.id}
                     className={`flex items-center justify-between rounded-xl px-4 py-3 border transition-colors ${
                       sState === "in_progress"
-                        ? "border-blue-500/40 bg-blue-500/10 shadow-sm"
+                        ? "border-blue-300 bg-blue-50/80 shadow-xs dark:border-blue-500/40 dark:bg-blue-500/10"
                         : sState === "completed"
-                          ? "border-white/10 bg-white/5"
+                          ? "border-slate-200/90 bg-slate-50/70 dark:border-neutral-800 dark:bg-white/5"
                           : sState === "failed"
-                            ? "border-rose-500/30 bg-rose-500/10"
-                            : "border-white/5 bg-transparent opacity-60"
+                            ? "border-rose-300 bg-rose-50/80 dark:border-rose-500/30 dark:bg-rose-500/10"
+                            : "border-slate-100 bg-white/40 opacity-60 dark:border-white/5 dark:bg-transparent"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       {sState === "completed" ? (
-                        <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       ) : sState === "in_progress" ? (
-                        <RefreshCw className="h-5 w-5 animate-spin text-blue-400 shrink-0" />
+                        <RefreshCw className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400 shrink-0" />
                       ) : sState === "failed" ? (
-                        <AlertCircle className="h-5 w-5 text-rose-400 shrink-0" />
+                        <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0" />
                       ) : (
-                        <Clock className="h-5 w-5 text-neutral-500 shrink-0" />
+                        <Clock className="h-5 w-5 text-slate-400 dark:text-neutral-500 shrink-0" />
                       )}
                       <div>
                         <span
                           className={`font-semibold text-sm ${
                             sState === "in_progress"
-                              ? "text-blue-200"
+                              ? "text-blue-800 dark:text-blue-200"
                               : sState === "completed"
-                                ? "text-white"
+                                ? "text-slate-900 dark:text-white"
                                 : sState === "failed"
-                                  ? "text-rose-200"
-                                  : "text-neutral-400"
+                                  ? "text-rose-800 dark:text-rose-200"
+                                  : "text-slate-500 dark:text-neutral-400"
                           }`}
                         >
                           {st.label}
                         </span>
-                        <p className="text-xs text-neutral-400">{st.desc}</p>
+                        <p className="text-xs text-slate-500 dark:text-neutral-400">{st.desc}</p>
                       </div>
                     </div>
 
                     <div>
                       {sState === "completed" && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300 border border-emerald-500/30">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30">
                           <CheckCircle2 className="h-3.5 w-3.5" /> Completed
                         </span>
                       )}
                       {sState === "in_progress" && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-300 border border-blue-500/30">
-                          <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30">
+                          <span className="h-2 w-2 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse" />
                           {isCorrection ? "Self-repairing" : "In progress"}
                         </span>
                       )}
                       {sState === "failed" && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/15 px-3 py-1 text-xs font-semibold text-rose-300 border border-rose-500/30">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 border border-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/30">
                           <AlertCircle className="h-3.5 w-3.5" /> Failed
                         </span>
                       )}
                       {sState === "waiting" && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1 text-xs font-medium text-neutral-400 border border-white/10">
-                          <span className="h-1.5 w-1.5 rounded-full bg-neutral-500" /> Waiting
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500 border border-slate-200/80 dark:bg-white/5 dark:text-neutral-400 dark:border-white/10">
+                          <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-neutral-500" /> Waiting
                         </span>
                       )}
                     </div>
@@ -1163,33 +2338,123 @@ export default function CreateVideoPage() {
               })}
             </div>
 
+            {/* Video Player & Conversational Surgical Scene Revision */}
             {activeProject.status === "completed" && (
-              <div className="mt-4 flex items-center justify-between rounded-xl bg-emerald-500/10 p-4 border border-emerald-500/20">
-                <div className="flex items-center gap-2.5 text-emerald-300">
-                  <Video className="h-5 w-5" />
-                  <span className="font-semibold text-sm">Video is rendered & ready in 1080p!</span>
-                </div>
-                <Link
-                  href={`/projects/${activeProjectId}`}
-                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-black hover:bg-emerald-400 transition"
-                >
-                  View Video <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
+              <div className="mt-6 border-t border-slate-100 pt-6">
+                <SurgicalSceneRevision
+                  projectId={String(activeProjectId)}
+                  videoUrl={activeProject.videoUrl || activeProject.outputUrl || `/outputs/${activeProjectId}.mp4`}
+                  scenes={activeProject.productionPlan?.scenes || videoPlan?.scenes || []}
+                  onRevisionSuccess={(newUrl) => {
+                    setPolledProject((prev: any) => ({
+                      ...prev,
+                      videoUrl: newUrl,
+                      outputUrl: newUrl,
+                    }));
+                  }}
+                />
+
+                {/* Verified Visual Asset Sources & License Attributions Card */}
+                {activeProject.assetAttributions && activeProject.assetAttributions.length > 0 && (
+                  <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-neutral-900/60">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                          <Globe className="h-3.5 w-3.5" />
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                          Verified Visual Asset Sources & Licences ({activeProject.assetAttributions.length})
+                        </h4>
+                      </div>
+                      <span className="text-[10px] text-slate-500 dark:text-neutral-400 font-mono">
+                        Legitimate Open-Web Sourcing
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                      {activeProject.assetAttributions.map((attr: any, idx: number) => (
+                        <div key={idx} className="rounded-lg border border-slate-200 bg-white p-2.5 text-xs flex flex-col justify-between shadow-2xs dark:border-white/5 dark:bg-black/40">
+                          <div>
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className="text-[10px] font-bold text-slate-500 dark:text-neutral-400">Scene {attr.sceneIndex}</span>
+                              <span className="rounded bg-blue-50 border border-blue-200 px-1.5 py-0.5 text-[9px] font-bold text-blue-700 uppercase dark:bg-blue-500/15 dark:border-blue-500/30 dark:text-blue-300">
+                                {attr.provider}
+                              </span>
+                            </div>
+                            <p className="font-semibold text-slate-900 dark:text-neutral-200 line-clamp-1">{attr.assetTitle}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-neutral-400 mt-0.5 line-clamp-1">{attr.attributionText}</p>
+                          </div>
+                          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-[10px] text-slate-500 dark:text-neutral-500">
+                            <span className="font-mono text-emerald-600 dark:text-emerald-400">{attr.license}</span>
+                            {attr.sourceUrl && (
+                              <a href={attr.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-900 dark:text-neutral-400 dark:hover:text-white flex items-center gap-0.5">
+                                Source <ExternalLink className="h-2.5 w-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {activeProject.status === "failed" && (
               <div className="mt-4 rounded-xl bg-rose-500/10 p-4 border border-rose-500/20 text-rose-300">
-                <div className="flex items-center gap-2 font-semibold text-sm">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  <span>Generation halted</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-semibold text-sm">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>Generation Notice</span>
+                  </div>
+                  {activeProject.error && (activeProject.error.includes("overlap") || activeProject.error.includes("occlu")) && (
+                    <span className="text-[11px] font-medium bg-rose-500/20 text-rose-200 px-2.5 py-0.5 rounded-full border border-rose-500/30">
+                      Layering Notice Auto-Fix Available
+                    </span>
+                  )}
                 </div>
-                <p className="mt-1 text-xs opacity-90">{activeProject.error || "Render error occurred."}</p>
-                <div className="mt-3 flex gap-2">
+                <p className="mt-1 text-xs opacity-90">{activeProject.error || "Render notice occurred."}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" onClick={() => setActiveProjectId(null)}>
                     Dismiss
                   </Button>
                   <Button
+                    size="sm"
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium"
+                    onClick={async () => {
+                      if (activeProjectId) {
+                        try {
+                          toast.loading("Auto-repairing layout and re-rendering...", { id: "repair" });
+                          const { ok, data: json, error } = await safeJsonFetch("/api/agent/repair-layout", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ projectId: String(activeProjectId) }),
+                          });
+                          if (ok && json?.videoUrl) {
+                            toast.success("Layout repaired & video rendered!", { id: "repair" });
+                            setPolledProject((prev: any) => ({
+                              ...prev,
+                              status: "completed",
+                              stage: "completed",
+                              videoUrl: json.videoUrl,
+                              outputUrl: json.videoUrl,
+                            }));
+                            return;
+                          }
+                          if (error) {
+                            throw new Error(error);
+                          }
+                        } catch (e: any) {
+                          toast.error(e.message || "Auto-repair notice", { id: "repair" });
+                        }
+                      }
+                      setActiveProjectId(null);
+                      setIsSubmitting(false);
+                    }}
+                  >
+                    Auto-Repair & Render
+                  </Button>
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => {
                       setActiveProjectId(null);
@@ -1204,1103 +2469,787 @@ export default function CreateVideoPage() {
           </div>
         )}
 
-        {/* STEP BY STEP ONBOARDING GUIDE MODAL */}
-        {showStepByStep && (
-          <div className="rounded-2xl border border-white/20 bg-neutral-900/95 p-6 shadow-2xl relative">
-            <button
-              onClick={() => setShowStepByStep(false)}
-              className="absolute top-4 right-4 text-neutral-400 hover:text-white"
+
+        {/* CREATION MODE CONTENT: AI PROMPT MODE OR DIRECT CODE MODE */}
+        {pipelineMode === "ai_prompt" ? (
+          /* MAIN PROMPT CARD (Matching Gamma Center Prompt Box) */
+          <form onSubmit={handleSubmit} className="w-full max-w-3xl space-y-4">
+            <div
+              onClick={() => promptInputRef.current?.focus()}
+              className="group relative rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xl shadow-slate-200/40 dark:border-neutral-800 dark:bg-[#111520] dark:shadow-none transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-100 dark:focus-within:ring-indigo-950/50 cursor-text"
             >
-              <X className="h-5 w-5" />
-            </button>
-            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-indigo-400" />
-              How HyperFrames Video Generation Works
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
-              <div className="p-3.5 rounded-xl border border-white/10 bg-white/5">
-                <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase mb-1">
-                  <span>1. Pick Inspiration</span>
+              {/* Attached Reference Media Chips */}
+              {attachedAssets.length > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Attached Media ({attachedAssets.length}):
+                  </span>
+                  {attachedAssets.map((asset: any) => (
+                    <div
+                      key={asset._id}
+                      className="flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-300"
+                    >
+                      {asset.type === "video" ? (
+                        <FileVideo className="h-3 w-3 text-purple-500" />
+                      ) : (
+                        <FileImage className="h-3 w-3 text-blue-500" />
+                      )}
+                      <span className="max-w-[140px] truncate font-medium">{asset.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleAsset(asset._id)}
+                        className="ml-1 text-indigo-400 hover:text-indigo-800 dark:hover:text-white"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                <p className="text-xs text-neutral-300">
-                  Select a template below (Motion Graphics, Mobile Ads, or Shaders) or start from your own text prompt.
-                </p>
+              )}
+
+              {/* Large Textarea */}
+              <textarea
+                ref={promptInputRef}
+                required
+                rows={3}
+                value={prompt}
+                onChange={(e) => {
+                  const newPrompt = e.target.value;
+                  setPrompt(newPrompt);
+                  const val = newPrompt.toLowerCase();
+                  if (val.includes("ollima")) {
+                    setName("Ollima Commercial");
+                  } else if (val.includes("networks home")) {
+                    setName("Networks Home");
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    handleSubmit(e);
+                  }
+                }}
+                placeholder="This document was written for engineers. Rewrite it as a document for customers: plain language, no jargon, and a short FAQ at the end."
+                className="w-full resize-none bg-transparent text-sm sm:text-base leading-relaxed text-slate-900 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500"
+              />
+
+              {/* Bottom Toolbar inside the box (Matching Gamma) */}
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-neutral-800/80">
+                {/* Left Controls: + (Attach), Sliders (Settings), and Mode Toggle */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-300 dark:hover:bg-neutral-700 transition shadow-2xs cursor-pointer shrink-0"
+                    title="Attach media or files"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowSettingsPopover(!showSettingsPopover);
+                      }}
+                      className={`flex h-8 w-8 items-center justify-center rounded-full border transition shadow-2xs cursor-pointer ${
+                        showSettingsPopover
+                          ? "border-indigo-400 bg-indigo-50 text-indigo-600 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-300"
+                      }`}
+                      title="Video Settings (Duration, Ratio, Resolution)"
+                    >
+                      <Sliders className="h-3.5 w-3.5" />
+                    </button>
+
+                    {/* Settings Popover */}
+                    {showSettingsPopover && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute bottom-10 left-0 z-50 w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl dark:border-neutral-800 dark:bg-[#121622] animate-in fade-in zoom-in-95 duration-100"
+                      >
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-neutral-800">
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">Video Controls</span>
+                          <button type="button" onClick={() => setShowSettingsPopover(false)} className="text-slate-400 hover:text-slate-600">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <div className="space-y-3 pt-3">
+                          <div>
+                            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Duration</label>
+                            <div className="grid grid-cols-4 gap-1.5 mt-1">
+                              {[5, 15, 30, 40, 60].map((d) => (
+                                <button
+                                  key={d}
+                                  type="button"
+                                  onClick={() => setDuration(d)}
+                                  className={`rounded-lg py-1 text-xs font-bold transition cursor-pointer ${
+                                    duration === d
+                                      ? "bg-indigo-600 text-white shadow-xs"
+                                      : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-300"
+                                  }`}
+                                >
+                                  {d}s
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Aspect Ratio</label>
+                            <div className="grid grid-cols-3 gap-1.5 mt-1">
+                              {[
+                                { label: "16:9", val: "16:9" },
+                                { label: "9:16", val: "9:16" },
+                                { label: "1:1", val: "1:1" },
+                              ].map((ar) => (
+                                <button
+                                  key={ar.val}
+                                  type="button"
+                                  onClick={() => setAspectRatio(ar.val)}
+                                  className={`rounded-lg py-1 text-xs font-bold transition cursor-pointer ${
+                                    aspectRatio === ar.val
+                                      ? "bg-indigo-600 text-white shadow-xs"
+                                      : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-300"
+                                  }`}
+                                >
+                                  {ar.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Resolution</label>
+                            <div className="grid grid-cols-2 gap-1.5 mt-1">
+                              {["1080p", "4k"].map((res) => (
+                                <button
+                                  key={res}
+                                  type="button"
+                                  onClick={() => setResolution(res)}
+                                  className={`rounded-lg py-1 text-xs font-bold transition cursor-pointer ${
+                                    resolution === res
+                                      ? "bg-indigo-600 text-white shadow-xs"
+                                      : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-300"
+                                  }`}
+                                >
+                                  {res}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mode Switcher inside prompt bar with smaller icons */}
+                  <div className="flex items-center gap-1 rounded-full border border-slate-200/90 bg-slate-50/90 p-0.5 dark:border-neutral-700 dark:bg-neutral-800/90 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setPipelineMode("ai_prompt")}
+                      className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold bg-white text-indigo-600 shadow-2xs dark:bg-neutral-900 dark:text-indigo-400 transition cursor-pointer"
+                    >
+                      <Sparkles className="h-3 w-3 shrink-0" />
+                      <span>AI Prompt Mode</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPipelineMode("direct_code")}
+                      className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition cursor-pointer"
+                    >
+                      <Code2 className="h-3 w-3 shrink-0" />
+                      <span>Direct Code Mode</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right Controls: Model Selector Pill, Mic, and Send Button */}
+                <div className="flex items-center gap-2">
+                  {/* Model Selector Pill (Gamma style) */}
+                  <div className="relative" ref={modelDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowModelDropdown(!showModelDropdown);
+                      }}
+                      className="flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-300 transition cursor-pointer"
+                    >
+                      <span className="text-[10px] text-slate-400">∷</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        {selectedModel.includes("gemini") ? "Gemini" : selectedModel.includes("deepseek") ? "DeepSeek" : "Lite"}
+                      </span>
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    </button>
+
+                    {/* Model dropdown popover */}
+                    {showModelDropdown && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute bottom-10 right-0 z-50 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl dark:border-neutral-800 dark:bg-[#121622] animate-in fade-in zoom-in-95 duration-100"
+                      >
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-neutral-800">
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">AI Engine</span>
+                          <span className="text-[10px] text-slate-400 font-mono">({models.length} models)</span>
+                        </div>
+                        <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
+                          {models.slice(0, 10).map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedModel(m.id);
+                                setShowModelDropdown(false);
+                              }}
+                              className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left transition cursor-pointer ${
+                                selectedModel === m.id
+                                  ? "bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
+                                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-neutral-800"
+                              }`}
+                            >
+                              <span className="truncate">{m.name || m.id}</span>
+                              {selectedModel === m.id && <Check className="h-3.5 w-3.5 text-indigo-600" />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mic Icon */}
+                  <button
+                    type="button"
+                    onClick={() => toast.info("Voice prompt ready (start speaking)")}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-neutral-800 dark:hover:text-white transition cursor-pointer"
+                    title="Voice prompt"
+                  >
+                    <Mic className="h-4 w-4" />
+                  </button>
+
+                  {/* Submit Circle Button */}
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || isGeneratingPlan || !prompt.trim()}
+                    className={`flex h-9 w-9 items-center justify-center rounded-full transition shadow-xs cursor-pointer ${
+                      prompt.trim()
+                        ? "bg-slate-900 text-white hover:bg-indigo-600 dark:bg-white dark:text-slate-900"
+                        : "bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-600"
+                    }`}
+                    title="Generate (Cmd+Enter)"
+                  >
+                    {isSubmitting || isGeneratingPlan ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ArrowUp className="h-4 w-4 stroke-[2.5]" />
+                    )}
+                  </button>
+                </div>
               </div>
-              <div className="p-3.5 rounded-xl border border-white/10 bg-white/5">
-                <div className="flex items-center gap-2 text-pink-400 font-bold text-xs uppercase mb-1">
-                  <span>2. Attach Video / Media</span>
+            </div>
+          </form>
+        ) : (
+          /* DIRECT CODE MODE EDITOR (Phase 2 & Phase 3 — Strict Ollima Bypass) */
+          <div className="w-full max-w-3xl space-y-4 rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xl shadow-slate-200/40 dark:border-neutral-800 dark:bg-[#111520] dark:shadow-none animate-in fade-in duration-200">
+            {/* Header with Title and Tabs */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-neutral-800">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400">
+                  <Code2 className="h-5 w-5" />
                 </div>
-                <p className="text-xs text-neutral-300">
-                  Upload a reference video or logo. HyperFrames will feature it or match its timing and visual rhythm.
-                </p>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Direct Code Mode
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-neutral-400">
+                    Bypasses Ollima & AI. Directly compiles to HyperFrames & FFmpeg.
+                  </p>
+                </div>
               </div>
-              <div className="p-3.5 rounded-xl border border-white/10 bg-white/5">
-                <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase mb-1">
-                  <span>3. AI Timeline Synthesis</span>
+
+              {/* Right Controls: Mode Toggle + Language Tabs */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1 rounded-full border border-slate-200/90 bg-slate-50/90 p-0.5 dark:border-neutral-700 dark:bg-neutral-800/90">
+                  <button
+                    type="button"
+                    onClick={() => setPipelineMode("ai_prompt")}
+                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition cursor-pointer"
+                  >
+                    <Sparkles className="h-3 w-3 shrink-0" />
+                    <span>AI Prompt Mode</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPipelineMode("direct_code")}
+                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold bg-white text-indigo-600 shadow-2xs dark:bg-neutral-900 dark:text-indigo-400 transition cursor-pointer"
+                  >
+                    <Code2 className="h-3 w-3 shrink-0" />
+                    <span>Direct Code Mode</span>
+                  </button>
                 </div>
-                <p className="text-xs text-neutral-300">
-                  Generates frame-accurate HTML, CSS, SVG, and GSAP timelines calibrated to your exact target duration.
-                </p>
+
+                {/* Code Language Tabs */}
+                <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-neutral-800">
+                  {(["html", "css", "js"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setCodeTab(tab)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition cursor-pointer ${
+                        codeTab === tab
+                          ? "bg-white text-indigo-600 shadow-xs dark:bg-neutral-900 dark:text-indigo-400"
+                          : "text-slate-500 hover:text-slate-800 dark:text-neutral-400 dark:hover:text-white"
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="p-3.5 rounded-xl border border-white/10 bg-white/5">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase mb-1">
-                  <span>4. Metal GPU Rendering</span>
+            </div>
+
+            {/* Code Editor Area */}
+            <div className="relative rounded-2xl border border-slate-800 bg-[#0c1017] p-4 font-mono text-xs shadow-inner">
+              <div className="mb-2 flex items-center justify-between border-b border-neutral-800/80 pb-2 text-[11px] text-slate-400">
+                <span className="flex items-center gap-2">
+                  <Terminal className="h-3.5 w-3.5 text-indigo-400" />
+                  <span className="font-semibold text-slate-300">
+                    {codeTab === "html" ? "index.html" : codeTab === "css" ? "styles.css" : "script.js"}
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-sans">
+                    {codeTab === "html" ? "(HyperFrames Composition Layout)" : codeTab === "css" ? "(Visual Styles)" : "(Timeline & Motion Choreography)"}
+                  </span>
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  {codeTab === "html" ? `${directHtml.split("\n").length} lines` : codeTab === "css" ? `${directCss.split("\n").length} lines` : `${directJs.split("\n").length} lines`}
+                </span>
+              </div>
+
+              {codeTab === "html" && (
+                <textarea
+                  value={directHtml}
+                  onChange={(e) => setDirectHtml(e.target.value)}
+                  rows={11}
+                  className="w-full resize-y bg-transparent font-mono text-xs leading-relaxed text-slate-200 placeholder:text-slate-600 focus:outline-none"
+                  placeholder="<!-- Enter HTML here -->"
+                  spellCheck={false}
+                />
+              )}
+              {codeTab === "css" && (
+                <textarea
+                  value={directCss}
+                  onChange={(e) => setDirectCss(e.target.value)}
+                  rows={11}
+                  className="w-full resize-y bg-transparent font-mono text-xs leading-relaxed text-indigo-200 placeholder:text-slate-600 focus:outline-none"
+                  placeholder="/* Enter CSS here */"
+                  spellCheck={false}
+                />
+              )}
+              {codeTab === "js" && (
+                <textarea
+                  value={directJs}
+                  onChange={(e) => setDirectJs(e.target.value)}
+                  rows={11}
+                  className="w-full resize-y bg-transparent font-mono text-xs leading-relaxed text-emerald-200 placeholder:text-slate-600 focus:outline-none"
+                  placeholder="// Enter GSAP timeline registration here"
+                  spellCheck={false}
+                />
+              )}
+            </div>
+
+            {/* Validation Feedback */}
+            {validationResult && (
+              <div className={`rounded-xl p-3 text-xs ${
+                validationResult.valid
+                  ? "border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                  : "border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+              }`}>
+                <div className="flex items-center gap-2 font-bold">
+                  {validationResult.valid ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-amber-600" />}
+                  <span>{validationResult.valid ? "Source code is valid and ready to render." : "Validation warnings:"}</span>
                 </div>
-                <p className="text-xs text-neutral-300">
-                  HyperFrames validates the composition, executes headless rendering, and outputs an ultra-sharp MP4.
-                </p>
+                {validationResult.errors && validationResult.errors.length > 0 && (
+                  <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-[11px] opacity-90">
+                    {validationResult.errors.map((err: string, i: number) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {/* Direct Code Controls & Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 pt-4 dark:border-neutral-800">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase">Duration:</span>
+                  {[5, 15, 30, 40, 60].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setDirectDuration(d)}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
+                        directDuration === d
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-300"
+                      }`}
+                    >
+                      {d}s
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase">Res:</span>
+                  {["1080p", "720p", "4k"].map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setDirectResolution(r)}
+                      className={`rounded-lg px-2 py-1 text-xs font-bold transition cursor-pointer ${
+                        directResolution === r
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-300"
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isValidatingCode || isSubmitting}
+                  onClick={handleValidateDirectCode}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-slate-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-200 transition cursor-pointer"
+                >
+                  {isValidatingCode ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />}
+                  <span>Validate Syntax</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isSubmitting || isValidatingCode || !directHtml.trim()}
+                  onClick={handleRenderDirectCode}
+                  className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-xs font-bold text-white shadow-md transition cursor-pointer ${
+                    isSubmitting
+                      ? "bg-slate-400 cursor-not-allowed"
+                      : "bg-indigo-600 hover:bg-indigo-700"
+                  }`}
+                >
+                  {isSubmitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5 fill-current" />}
+                  <span>Render Video ({directDuration}s)</span>
+                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* MAIN PROMPT CARD (Matching Image 2) */}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div
-            onClick={() => promptInputRef.current?.focus()}
-            className="relative rounded-2xl border border-white/15 bg-neutral-900/60 p-5 shadow-2xl backdrop-blur-xl transition focus-within:border-white/30 focus-within:ring-2 focus-within:ring-white/10 cursor-text"
-          >
-            {/* Live Web Crawler & Autonomous Media Banner */}
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
-              <div className="flex items-center gap-2">
-                <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="font-semibold uppercase tracking-wider text-[11px]">
-                  Autonomous Web Crawler & Real Media Extractor Active
-                </span>
-              </div>
-              <span className="text-[11px] text-emerald-300/80">
-                Type any topic or paste a URL (e.g. https://...) to fetch live data & real photos directly
-              </span>
-            </div>
 
-            {/* Active Inspirations Chips */}
-            {selectedInspirations.length > 0 && (
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  <span className="text-neutral-400">
-                    Active Inspiration{selectedInspirations.length > 1 ? `s (${selectedInspirations.length} combined)` : ""}:
-                  </span>
-                  {selectedInspirations.map((item) => (
-                    <span
-                      key={item.id}
-                      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-white/10 text-white border border-white/10"
-                    >
-                      <span
-                        className="h-1.5 w-1.5 rounded-full"
-                        style={{ backgroundColor: item.accentColor }}
-                      />
-                      {item.title}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSelectInspiration(item);
-                        }}
-                        className="ml-0.5 rounded-full p-0.5 text-neutral-400 hover:text-white hover:bg-white/10 transition"
-                        title={`Remove ${item.title}`}
-                      >
-                        <X className="h-2.5 w-2.5" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleClearInspiration}
-                  className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-white transition cursor-pointer"
-                >
-                  <X className="h-3.5 w-3.5" /> Clear all
-                </button>
-              </div>
-            )}
+        {/* SUGGESTED TEMPLATES SECTION (Matching 6 clean cards in Image 3) */}
+        <div className="w-full pt-2">
+          <h3 className="text-center text-xs font-semibold text-slate-500 dark:text-neutral-400 mb-3">
+            Suggested templates
+          </h3>
 
-            {/* Attached Reference Media Chips */}
-            {attachedAssets.length > 0 && (
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
-                  Attached Media ({attachedAssets.length}):
-                </span>
-                {attachedAssets.map((asset: any) => (
-                  <div
-                    key={asset._id}
-                    className="flex items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 text-xs text-indigo-300"
-                  >
-                    {asset.type === "video" ? (
-                      <FileVideo className="h-3 w-3 text-purple-400" />
-                    ) : (
-                      <FileImage className="h-3 w-3 text-blue-400" />
-                    )}
-                    <span className="max-w-[140px] truncate font-medium">{asset.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleAsset(asset._id)}
-                      className="ml-1 text-indigo-400 hover:text-white"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Input Row */}
-            <div className="flex items-start gap-4">
-              {/* Left Sketch Icon (Matching Image 2) */}
-              <div className="hidden sm:flex mt-1 h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-neutral-400">
-                <div className="relative">
-                  <div className="h-4 w-5 rounded border border-neutral-400 bg-transparent rotate-[-8deg]" />
-                  <div className="absolute inset-0 h-4 w-5 rounded border border-neutral-400 bg-neutral-900 rotate-[8deg] flex items-center justify-center text-[10px] font-bold">
-                    +
-                  </div>
-                </div>
-              </div>
-
-              {/* Textarea */}
-              <div className="flex-1">
-                <textarea
-                  ref={promptInputRef}
-                  required
-                  rows={3}
-                  value={prompt}
-                  onChange={(e) => {
-                    const newPrompt = e.target.value;
-                    setPrompt(newPrompt);
-                    const val = newPrompt.toLowerCase();
-                    if (val.includes("ollima")) {
-                      setName("Ollima Commercial");
-                    } else if (val.includes("networks home")) {
-                      setName("Networks Home");
-                    } else if (
-                      name &&
-                      (name.toLowerCase().includes("quarterly") ||
-                        name === "Tech Academy Ad" ||
-                        name === "Cinematic Product Video")
-                    ) {
-                      setName("");
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                      handleSubmit(e);
-                    }
-                  }}
-                  placeholder="Describe your video or paste a website URL (e.g. https://en.wikipedia.org/wiki/Superman). Press Cmd+Enter to generate..."
-                  className="w-full resize-none bg-transparent text-sm md:text-base text-white placeholder:text-neutral-400 focus:outline-none"
-                />
-
-                {/* Quick Prompts Bar */}
-                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs border-t border-white/5 pt-2">
-                  <span className="text-neutral-400 text-[11px] font-medium mr-1">
-                    Quick Prompts:
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPrompt("Create a 30-second cinematic DC superman ad for clurk Kent with voice and logo of the superman and presentation of Clark Kent");
-                      setDuration(30);
-                      setAspectRatio("16:9");
-                      promptInputRef.current?.focus();
-                    }}
-                    className="rounded-full border border-white/10 bg-white/5 hover:bg-white/10 px-2.5 py-0.5 text-[11px] text-neutral-300 transition"
-                  >
-                    🦸‍♂️ Superman (Clark Kent)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPrompt("Create a 30-second ad of green lantern series of dc with voice and logo of the lantern ring and presentation of guy gardner");
-                      setDuration(30);
-                      setAspectRatio("16:9");
-                      promptInputRef.current?.focus();
-                    }}
-                    className="rounded-full border border-white/10 bg-white/5 hover:bg-white/10 px-2.5 py-0.5 text-[11px] text-neutral-300 transition"
-                  >
-                    🟢 Green Lantern (Guy Gardner)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPrompt("https://en.wikipedia.org/wiki/Superman Create a 30-second video presentation with facts and photos");
-                      setDuration(30);
-                      setAspectRatio("16:9");
-                      promptInputRef.current?.focus();
-                    }}
-                    className="rounded-full border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-0.5 text-[11px] text-emerald-300 transition"
-                  >
-                    🌐 Crawl URL: Wikipedia Superman
-                  </button>
-                </div>
-              </div>
-
-              {/* Submit Arrow Button */}
-              <button
-                type="submit"
-                disabled={isSubmitting || !prompt.trim()}
-                className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-black hover:bg-neutral-200 transition disabled:opacity-40 disabled:hover:bg-white cursor-pointer"
-                title="Generate Video (Cmd+Enter)"
-              >
-                {isSubmitting ? (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ArrowUp className="h-4 w-4 stroke-[2.5]" />
-                )}
-              </button>
-            </div>
-
-            {/* Bottom Actions inside Prompt Card */}
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3">
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Hidden File Input for Video/Media Upload (Supports multiple simultaneous file selection) */}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleMediaUpload}
-                  accept="video/mp4,video/webm,video/quicktime,video/x-m4v,video/*,image/*"
-                  multiple
-                  className="hidden"
-                />
-
-                {/* Add Video & Media Button */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploadingMedia}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-semibold text-purple-300 hover:bg-purple-500/20 transition disabled:opacity-50"
-                >
-                  {isUploadingMedia ? (
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Video className="h-3.5 w-3.5 text-purple-400" />
-                  )}
-                  <span>{isUploadingMedia ? "Uploading..." : "Add Reference Video / Media"}</span>
-                </button>
-
-                {/* Quick Presets */}
-                <span className="text-[11px] text-neutral-500 hidden sm:inline">Presets:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPrompt(
-                      "Create a 15-second technology advertisement for a networking academy with modern server-room visuals and animated typography.",
-                    );
-                    setName("Tech Academy Ad");
-                    setDuration(15);
-                  }}
-                  className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-neutral-300 hover:bg-white/10 transition"
-                >
-                  Tech Ad
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPrompt(
-                      "Create a 30-second cinematic product advertisement with three scenes, smooth transitions and a final call-to-action.",
-                    );
-                    setName("Cinematic Product Video");
-                    setDuration(30);
-                  }}
-                  className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-neutral-300 hover:bg-white/10 transition"
-                >
-                  Cinematic 30s
-                </button>
-              </div>
-
-              {/* Optional Project Name */}
-              <div className="flex items-center gap-2 text-xs text-neutral-400">
-                <span>Title:</span>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Optional custom title"
-                  className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-white/30"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* AI MODEL SELECTOR (Ollima LLM Intelligence) */}
-          <div className="rounded-xl border border-cyan-500/20 bg-neutral-900/60 p-4 shadow-xl backdrop-blur-md">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
-                  <Cpu className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-white">AI LLM Model Selector</h3>
-                    <span className="rounded-full bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 text-[10px] font-semibold text-cyan-300">
-                      Ollima API
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-neutral-400">
-                    Select verified model for natural language prompt analysis &amp; scene storyboard planning.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="rounded-full bg-white/5 border border-white/10 px-2.5 py-1 text-[11px] font-mono text-neutral-300">
-                  {isLoadingModels ? "Loading models..." : `${models.length} models returned`}
-                </span>
-                <button
-                  type="button"
-                  onClick={fetchModels}
-                  disabled={isLoadingModels}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-neutral-300 hover:bg-white/10 hover:text-white transition disabled:opacity-50"
-                  title="Refresh models from Ollima API"
-                >
-                  <RefreshCw className={`h-3 w-3 ${isLoadingModels ? "animate-spin text-cyan-400" : ""}`} />
-                  <span>Refresh</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Model Selector Bar */}
-            <div className="mt-3.5 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-              {/* Filter search */}
-              <div className="md:col-span-4 relative">
-                <input
-                  type="text"
-                  value={modelSearch}
-                  onChange={(e) => setModelSearch(e.target.value)}
-                  placeholder={`Search ${models.length} models...`}
-                  className="w-full rounded-lg border border-white/10 bg-neutral-800/90 pl-8 pr-7 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
-                />
-                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-neutral-500" />
-                {modelSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setModelSearch("")}
-                    className="absolute right-2 top-2.5 text-neutral-400 hover:text-white"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Dropdown Select */}
-              <div className="md:col-span-5">
-                <select
-                  value={selectedModel}
-                  onChange={(e) => {
-                    setSelectedModel(e.target.value);
-                    setTestStatus("idle");
-                    setTestResult(null);
-                  }}
-                  className="w-full rounded-lg border border-white/10 bg-neutral-800/90 px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 font-mono"
-                >
-                  {filteredModels.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name || m.id} {m.isVerifiedFree ? " ★ (Free Tier Verified)" : ""}
-                    </option>
-                  ))}
-                  {filteredModels.length === 0 && (
-                    <option disabled value="">
-                      No models matching &quot;{modelSearch}&quot;
-                    </option>
-                  )}
-                </select>
-              </div>
-
-              {/* Test Connection Button */}
-              <div className="md:col-span-3 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleTestConnection}
-                  disabled={testStatus === "testing" || !selectedModel}
-                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/20 transition disabled:opacity-50"
-                >
-                  {testStatus === "testing" ? (
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Activity className="h-3.5 w-3.5 text-cyan-400" />
-                  )}
-                  <span>{testStatus === "testing" ? "Testing..." : "Test Connection"}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Selected Model Status & Test Feedback Indicator */}
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2.5 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="text-neutral-400 text-[11px]">Selected LLM:</span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-mono font-semibold text-emerald-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  {selectedModel}
-                </span>
-                {["deepseek-v4-flash", "gemma4", "gemini-3-flash"].includes(selectedModel) && (
-                  <span className="text-[10px] text-neutral-400">(Free Tier Verified)</span>
-                )}
-              </div>
-
-              {/* Live Test Diagnostic Result */}
-              {testStatus === "success" && testResult && (
-                <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[11px] text-emerald-300 font-medium">
-                  <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                  <span>{testResult.message}</span>
-                </div>
-              )}
-
-              {testStatus === "error" && testResult && (
-                <div className="flex items-center gap-1.5 rounded-full bg-rose-500/15 border border-rose-500/30 px-2.5 py-0.5 text-[11px] text-rose-300 font-medium">
-                  <AlertCircle className="h-3 w-3 text-rose-400 shrink-0" />
-                  <span className="max-w-[400px] truncate">{testResult.error}</span>
-                </div>
-              )}
-
-              {testStatus === "idle" && (
-                <span className="text-[11px] text-neutral-500">
-                  Click &apos;Test Connection&apos; to verify API latency &amp; model response.
-                </span>
-              )}
-            </div>
-
-            {/* Error banner if model test failed with details */}
-            {testStatus === "error" && testResult?.error && (
-              <div className="mt-2.5 rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs text-rose-300 flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-semibold">{testResult.errorCategory === "PAID_PLAN_REQUIRED" ? "Paid Plan Required" : "Connection Error"}</p>
-                  <p className="mt-0.5 text-[11px] opacity-90">{testResult.error}</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ADVANCED VIDEO CONTROLS ACCORDION / BAR */}
-          <div className="rounded-xl border border-white/10 bg-neutral-900/40 p-4">
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400">
-                    Duration (Authoritative)
-                  </label>
-                  {promptDetectedDuration && (
-                    <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-0.5">
-                      <Check className="h-2.5 w-2.5" /> Prompt: {promptDetectedDuration}s
-                    </span>
-                  )}
-                </div>
-                <select
-                  value={isCustomDuration ? "custom" : duration}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "custom") {
-                      setIsCustomDuration(true);
-                    } else {
-                      setIsCustomDuration(false);
-                      setDuration(Number(val));
-                    }
-                  }}
-                  className="w-full rounded-lg border border-white/10 bg-neutral-800 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/20"
-                >
-                  <option value={5}>5 seconds</option>
-                  <option value={10}>10 seconds</option>
-                  <option value={15}>15 seconds</option>
-                  <option value={20}>20 seconds</option>
-                  <option value={30}>30 seconds</option>
-                  <option value={45}>45 seconds</option>
-                  <option value={60}>60 seconds (1 min)</option>
-                  <option value="custom">Custom duration...</option>
-                </select>
-
-                {isCustomDuration && (
-                  <div className="mt-1.5 flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      min={3}
-                      max={300}
-                      value={duration}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        setDuration(Math.max(1, Math.min(300, isNaN(val) ? 5 : val)));
-                      }}
-                      className="w-20 rounded-md border border-purple-500/40 bg-neutral-900 px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-400 font-mono"
-                      placeholder="Seconds"
-                    />
-                    <span className="text-[11px] text-neutral-400">
-                      sec ({duration * fps} frames)
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-                  Aspect Ratio
-                </label>
-                <select
-                  value={aspectRatio}
-                  onChange={(e) => setAspectRatio(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-neutral-800 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/20"
-                >
-                  <option value="16:9">16:9 (Landscape - 1920×1080)</option>
-                  <option value="9:16">9:16 (Vertical Mobile - 1080×1920)</option>
-                  <option value="1:1">1:1 (Square - 1080×1080)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-                  Resolution
-                </label>
-                <select
-                  value={resolution}
-                  onChange={(e) => setResolution(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-neutral-800 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/20"
-                >
-                  <option value="1080p">1080p Full HD</option>
-                  <option value="720p">720p HD</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-                  Frame Rate
-                </label>
-                <select
-                  value={fps}
-                  onChange={(e) => setFps(Number(e.target.value))}
-                  className="w-full rounded-lg border border-white/10 bg-neutral-800 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/20"
-                >
-                  <option value={30}>30 fps (Standard)</option>
-                  <option value={60}>60 fps (Smooth Motion)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1">
-                  Typography &amp; Fonts
-                </label>
-                <select
-                  value={selectedTypographyStyle}
-                  onChange={(e) => setSelectedTypographyStyle(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-neutral-800 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/20"
-                >
-                  <option value="auto">Auto-Adaptive (AI Genre)</option>
-                  <option value="comic_hero">Bebas Neue (Heroic Comic)</option>
-                  <option value="cyberpunk">Orbitron (Cyber / Tech)</option>
-                  <option value="luxury">Playfair Display (Luxury)</option>
-                  <option value="kinetic">Syne (Kinetic Bold)</option>
-                  <option value="saas">Plus Jakarta (Modern SaaS)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* AI Provider Status Bar */}
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-3 text-[11px] text-neutral-400">
-              <div className="flex items-center gap-2">
-                <span>AI Pipeline:</span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  {aiStatus?.statusLabel || "Connected (Deterministic Engine)"}
-                </span>
-                {aiStatus?.model && (
-                  <span className="font-mono text-neutral-500">({aiStatus.model})</span>
-                )}
-              </div>
-              <span className="text-neutral-500">
-                Authoritative duration normalization active
-              </span>
-            </div>
-          </div>
-
-          {/* HEYGEN AI AVATAR PRESENTER INTEGRATION BANNER */}
-          <div className="rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-neutral-900/40 p-4 backdrop-blur-md">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start sm:items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-white">HeyGen Avatar Presenter Studio</h3>
-                    <span className="rounded-full bg-indigo-500/20 border border-indigo-500/40 px-2 py-0.5 text-[10px] font-semibold text-indigo-300">
-                      Direct Avatar ID Integration
-                    </span>
-                  </div>
-                  <p className="text-xs text-neutral-300 mt-0.5">
-                    {savedHeyGenAvatarId ? (
-                      <>
-                        Custom Avatar ID <code className="bg-white/10 px-1 py-0.5 rounded text-[11px] text-white font-mono">{savedHeyGenAvatarId}</code> configured &amp; ready.
-                      </>
-                    ) : (
-                      "Create custom Instant or Studio Avatars in HeyGen, copy your Avatar ID & Voice ID, and generate personalized presenter videos."
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <Link
-                  href="/heygen"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3.5 py-2 text-xs font-semibold text-white shadow-md transition"
-                >
-                  <Film className="h-3.5 w-3.5" />
-                  <span>Launch HeyGen Studio</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {/* GET INSPIRED SECTION (Matching Image 2) */}
-          <div className="space-y-4 pt-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-bold tracking-tight text-white">Get inspired</h2>
-                {selectedInspirationIds.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
-                      {selectedInspirationIds.length} Combined
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleClearInspiration}
-                      className="text-xs text-neutral-400 hover:text-rose-400 underline transition cursor-pointer"
-                    >
-                      Clear all
-                    </button>
-                  </div>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowStepByStep(true)}
-                className="text-xs font-medium text-neutral-400 hover:text-white transition flex items-center gap-1"
-              >
-                New to this? <strong className="text-white underline">Take the step by step &gt;</strong>
-              </button>
-            </div>
-
-            {/* Category Filter Pills (Matching Image 2) */}
-            <div className="flex flex-wrap items-center gap-2">
-              {CATEGORIES.map((cat) => {
-                const isActive = activeCategory === cat;
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setActiveCategory(cat)}
-                    className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
-                      isActive
-                        ? "bg-white text-black shadow-md"
-                        : "border border-white/10 bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white"
-                    }`}
-                  >
-                    {cat === "All" && <Layers className="h-3.5 w-3.5" />}
-                    {cat === "Motion graphics" && <Sliders className="h-3.5 w-3.5" />}
-                    {cat === "A-roll Cuts" && <Video className="h-3.5 w-3.5" />}
-                    {cat === "Mobile Ads" && <Smartphone className="h-3.5 w-3.5" />}
-                    {cat === "Shaders" && <Sparkles className="h-3.5 w-3.5" />}
-                    <span>{cat}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Inspiration Cards Grid (Matching Image 2) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {filteredInspirations.map((item) => {
-                const isSelected = selectedInspirationIds.includes(item.id);
-                const selIndex = selectedInspirationIds.indexOf(item.id);
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => handleSelectInspiration(item)}
-                    className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border transition cursor-pointer ${
-                      isSelected
-                        ? "border-emerald-500 bg-neutral-900 ring-2 ring-emerald-500/30"
-                        : "border-white/10 bg-neutral-900/80 hover:border-white/30 hover:bg-neutral-900"
-                    }`}
-                  >
-                    {/* Visual Preview Artwork */}
-                    <div className="relative h-44 w-full overflow-hidden bg-neutral-950 flex items-center justify-center p-3 select-none">
-                      {/* Metric Counter Art */}
-                      {item.visualType === "counter" && (
-                        <div className="relative w-full h-full flex flex-col items-center justify-center bg-[#fafaf9] rounded-xl text-neutral-900 overflow-hidden">
-                          {/* Grid Background */}
-                          <div
-                            className="absolute inset-0 opacity-20 pointer-events-none"
-                            style={{
-                              backgroundImage:
-                                "linear-gradient(#f97316 1px, transparent 1px), linear-gradient(90deg, #f97316 1px, transparent 1px)",
-                              backgroundSize: "20px 20px",
-                            }}
-                          />
-                          <span className="text-3xl font-extrabold text-[#f97316] tracking-tight">
-                            1,000,000
-                          </span>
-                          <div className="mt-2 flex items-center gap-1.5">
-                            <span className="h-1.5 w-1.5 rounded-full bg-[#f97316]" />
-                            <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-bold shadow-sm border border-neutral-200">
-                              Developers
-                            </span>
-                            <span className="h-1.5 w-1.5 rounded-full bg-[#f97316]" />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Revenue Chart Art */}
-                      {item.visualType === "chart" && (
-                        <div className="relative w-full h-full flex flex-col justify-end bg-gradient-to-b from-neutral-900 to-neutral-950 rounded-xl p-3 border border-white/5">
-                          <div className="flex items-end justify-between gap-1.5 h-24 px-2">
-                            <div className="w-4 rounded-t bg-rose-400/80 h-10 transition-all group-hover:h-12" />
-                            <div className="w-4 rounded-t bg-amber-400/80 h-16 transition-all group-hover:h-18" />
-                            <div className="w-4 rounded-t bg-purple-400/80 h-12 transition-all group-hover:h-14" />
-                            <div className="w-4 rounded-t bg-emerald-400/90 h-22 transition-all group-hover:h-24" />
-                            <div className="w-4 rounded-t bg-blue-400/90 h-18 transition-all group-hover:h-20" />
-                          </div>
-                          <div className="mt-2 flex items-center justify-between text-[9px] text-neutral-400 border-t border-white/10 pt-1">
-                            <span>Q1</span>
-                            <span>Q2</span>
-                            <span>Q3</span>
-                            <span>Q4</span>
-                            <span className="text-emerald-400 font-bold">+48%</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Speaker Spotlight Art */}
-                      {item.visualType === "speaker" && (
-                        <div className="relative w-full h-full rounded-xl overflow-hidden bg-gradient-to-tr from-stone-900 via-amber-950/40 to-neutral-900 flex items-center justify-center border border-white/10">
-                          <div className="h-14 w-14 rounded-full bg-neutral-700/80 flex items-center justify-center text-white font-bold text-lg border border-white/20">
-                            AV
-                          </div>
-                          <div className="absolute bottom-2 left-2 right-2 rounded-lg bg-black/70 backdrop-blur-md p-1.5 border border-white/10 flex items-center justify-between">
-                            <span className="text-[10px] font-semibold text-white">Alex Vance</span>
-                            <span className="flex items-center gap-0.5">
-                              <span className="h-2 w-0.5 bg-pink-400 animate-pulse" />
-                              <span className="h-3 w-0.5 bg-pink-400 animate-pulse delay-75" />
-                              <span className="h-1.5 w-0.5 bg-pink-400 animate-pulse delay-150" />
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Kinetic Terminal Art */}
-                      {item.visualType === "kinetic" && (
-                        <div className="relative w-full h-full rounded-xl bg-black flex flex-col justify-center px-4 border border-cyan-500/20">
-                          <span className="text-[10px] font-mono uppercase text-cyan-400/70 tracking-widest">
-                            [EXECUTE_ORDER]
-                          </span>
-                          <span className="text-lg font-mono font-bold text-white tracking-tight">
-                            limit close orders
-                          </span>
-                          <div className="mt-2 h-1 w-16 bg-gradient-to-r from-cyan-400 to-indigo-500 rounded" />
-                        </div>
-                      )}
-
-                      {/* Fluid Shader Art */}
-                      {item.visualType === "shader" && (
-                        <div className="relative w-full h-full rounded-xl overflow-hidden bg-gradient-to-tr from-purple-900 via-rose-600 to-amber-500 flex items-center justify-center">
-                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.4),transparent_60%)]" />
-                          <span className="relative text-xs font-extrabold uppercase tracking-widest text-white/90 drop-shadow">
-                            Iridescent Waves
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Mobile App Launch Story */}
-                      {item.visualType === "mobile" && (
-                        <div className="relative w-full h-full rounded-xl bg-neutral-900 flex items-center justify-center border border-white/10">
-                          <div className="h-32 w-18 rounded-xl border-2 border-white/20 bg-black flex flex-col justify-between p-1.5 shadow-xl">
-                            <div className="h-1 w-6 bg-white/30 rounded-full mx-auto" />
-                            <div className="h-12 w-full rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-[8px] font-bold text-white">
-                              App UI
-                            </div>
-                            <div className="h-2 w-full bg-white/20 rounded" />
-                          </div>
-                          <span className="absolute top-2 right-2 rounded bg-blue-500 px-1 text-[8px] font-bold">
-                            9:16
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Neural Network Art */}
-                      {item.visualType === "neural" && (
-                        <div className="relative w-full h-full rounded-xl bg-neutral-950 flex items-center justify-center border border-emerald-500/20">
-                          <svg className="h-24 w-28 text-emerald-400 stroke-current opacity-80" viewBox="0 0 100 80">
-                            <circle cx="20" cy="20" r="4" fill="currentColor" />
-                            <circle cx="20" cy="40" r="4" fill="currentColor" />
-                            <circle cx="20" cy="60" r="4" fill="currentColor" />
-                            <circle cx="50" cy="30" r="4" fill="currentColor" />
-                            <circle cx="50" cy="50" r="4" fill="currentColor" />
-                            <circle cx="80" cy="40" r="5" fill="#10b981" />
-                            <line x1="20" y1="20" x2="50" y2="30" strokeWidth="1" opacity="0.4" />
-                            <line x1="20" y1="40" x2="50" y2="30" strokeWidth="1" opacity="0.4" />
-                            <line x1="20" y1="40" x2="50" y2="50" strokeWidth="1" opacity="0.4" />
-                            <line x1="20" y1="60" x2="50" y2="50" strokeWidth="1" opacity="0.4" />
-                            <line x1="50" y1="30" x2="80" y2="40" strokeWidth="1.5" />
-                            <line x1="50" y1="50" x2="80" y2="40" strokeWidth="1.5" />
-                          </svg>
-                        </div>
-                      )}
-
-                      {/* Eco Clean Tech Art */}
-                      {item.visualType === "eco" && (
-                        <div className="relative w-full h-full rounded-xl bg-gradient-to-b from-teal-950 to-neutral-950 flex flex-col items-center justify-center border border-teal-500/20">
-                          <div className="h-12 w-12 rounded-full border border-teal-400/50 bg-teal-500/10 flex items-center justify-center">
-                            <span className="text-xl">⚡</span>
-                          </div>
-                          <span className="mt-1 text-[10px] font-bold text-teal-300">
-                            100% Sustainable
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Selected Indicator Pill */}
-                      {isSelected && (
-                        <div className="absolute top-2 left-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold text-black flex items-center gap-1 shadow-lg">
-                          <Check className="h-3 w-3 stroke-[3]" />
-                          {selectedInspirationIds.length > 1 ? `#${selIndex + 1} Selected` : "Active"}
-                        </div>
-                      )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+            {[
+              {
+                id: "counterform",
+                title: "Counterform",
+                prompt: "Create a bold typographic presentation video featuring Standard Deviation with high-contrast monochrome layout and magenta accents",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-[#111215] flex items-center justify-between p-2.5 overflow-hidden">
+                    <div className="flex flex-col text-left">
+                      <span className="text-[10px] font-black leading-tight tracking-tight text-white uppercase font-sans">
+                        STANDARD
+                      </span>
+                      <span className="text-[10px] font-black leading-tight tracking-tight text-white uppercase font-sans">
+                        DEVIATION
+                      </span>
                     </div>
-
-                    {/* Card Footer */}
-                    <div className="p-3.5">
-                      <h4 className="text-sm font-semibold text-white line-clamp-1 group-hover:text-neutral-200">
-                        {item.title}
-                      </h4>
-                      <p className="mt-1 text-xs text-neutral-400 line-clamp-2">
-                        {item.description}
-                      </p>
-                      <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-2 text-[11px] text-neutral-400">
-                        <span className="truncate">{item.author}</span>
-                        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-neutral-300">
-                          {item.category}
-                        </span>
-                      </div>
-                    </div>
+                    <div className="h-5 w-5 rounded-full bg-[#ec4899] shrink-0 shadow-sm" />
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* WORKSPACE ASSETS & REFERENCE MEDIA SECTION */}
-          <div className="rounded-2xl border border-white/15 bg-neutral-900/60 p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                  <FolderKanban className="h-4 w-4 text-purple-400" />
-                  Workspace Assets & Reference Media
-                </h3>
-                <p className="text-xs text-neutral-400">
-                  Select logos, images, or reference videos to incorporate into scenes.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Upload Multiple Media Button */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploadingMedia}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-purple-500/15 px-3 py-1.5 text-xs font-semibold text-purple-200 hover:bg-purple-500/25 transition disabled:opacity-50 cursor-pointer"
-                >
-                  {isUploadingMedia ? (
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Upload className="h-3.5 w-3.5 text-purple-300" />
-                  )}
-                  <span>{isUploadingMedia ? "Uploading..." : "Add Multiple Images / Media"}</span>
-                </button>
-
-                {/* Type Filter Buttons */}
-                <div className="flex rounded-lg border border-white/10 bg-white/5 p-0.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setAssetFilter("all")}
-                    className={`px-2.5 py-1 rounded-md transition ${
-                      assetFilter === "all" ? "bg-white text-black font-semibold" : "text-neutral-400 hover:text-white"
-                    }`}
-                  >
-                    All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAssetFilter("video")}
-                    className={`px-2.5 py-1 rounded-md transition ${
-                      assetFilter === "video" ? "bg-white text-black font-semibold" : "text-neutral-400 hover:text-white"
-                    }`}
-                  >
-                    Videos
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAssetFilter("image")}
-                    className={`px-2.5 py-1 rounded-md transition ${
-                      assetFilter === "image" ? "bg-white text-black font-semibold" : "text-neutral-400 hover:text-white"
-                    }`}
-                  >
-                    Images
-                  </button>
-                </div>
-
-                <Link
-                  href="/assets"
-                  className="text-xs text-neutral-400 hover:text-white underline transition"
-                >
-                  Manage Library
-                </Link>
-              </div>
-            </div>
-
-            {/* Clickable Multi-Upload Dropzone Banner */}
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="group flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-dashed border-purple-500/30 bg-purple-950/20 hover:border-purple-500/60 hover:bg-purple-950/35 p-3 cursor-pointer transition"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-500/20 text-purple-300 group-hover:scale-105 transition">
-                  <Upload className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-white group-hover:text-purple-300 transition">
-                    Tap here to select multiple images or videos at once
-                  </p>
-                  <p className="text-[11px] text-neutral-400">
-                    Hold Shift / Cmd to pick multiple images simultaneously • Auto-previews images & embeds in video scenes
-                  </p>
-                </div>
-              </div>
-              <span className="rounded-md border border-purple-500/30 bg-purple-500/20 px-3 py-1.5 text-xs font-semibold text-purple-200 shrink-0 group-hover:bg-purple-500/30 transition">
-                Browse Files
-              </span>
-            </div>
-
-            {/* Asset Items */}
-            {!workspaceAssets || workspaceAssets.length === 0 ? (
+                ),
+              },
+              {
+                id: "salt_air",
+                title: "Salt Air",
+                prompt: "Create a serene coastal cinematic video with turquoise ocean wave aerial shots and elegant Salt Air typography",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-gradient-to-tr from-[#0e4e5e] via-[#156e7e] to-[#45b0a5] flex items-center justify-center p-2.5 overflow-hidden">
+                    <span className="text-xs font-serif italic font-bold text-white drop-shadow-md">
+                      Salt Air
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                id: "rosette",
+                title: "Rosette",
+                prompt: "Create a joyful company celebration video for Rosette with pastel confetti bursts and team highlights",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-gradient-to-r from-[#e980a0] via-[#c084fc] to-[#f472b6] flex flex-col items-center justify-center p-2 overflow-hidden text-center">
+                    <span className="text-[10px] font-bold text-white tracking-wide">
+                      Rosette
+                    </span>
+                    <span className="text-[6px] text-white/80 uppercase tracking-tighter mt-0.5">
+                      Celebrations
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                id: "daktilo_dispatch",
+                title: "Daktilo Dispatch",
+                prompt: "Create an investigative financial editorial video in Daktilo Dispatch newspaper style with dynamic headline transitions",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-[#f3f4f6] flex flex-col justify-center p-2.5 overflow-hidden border border-slate-200">
+                    <span className="text-[8px] font-black text-slate-900 tracking-tight leading-tight uppercase font-serif">
+                      WHERE DID THE MONEY GO?
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                id: "tangerine_pulse",
+                title: "Tangerine (Pulse)",
+                prompt: "Create a high-energy growth marketing agency promo with bold Tangerine gradients and kinetic typography",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-gradient-to-r from-[#ea580c] via-[#f97316] to-[#fbbf24] flex flex-col justify-center p-2 text-left overflow-hidden">
+                    <span className="text-[7px] font-extrabold uppercase text-white leading-tight">
+                      GROWTH MARKETING
+                    </span>
+                    <span className="text-[8px] font-black text-red-950 uppercase mt-0.5">
+                      Move.
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                id: "further_study",
+                title: "Further Study",
+                prompt: "Create a thoughtful minimalist design manifesto video for Further Study with atmospheric color fields and typography",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-gradient-to-br from-[#fed7aa] via-[#f4b5a4] to-[#f97316] flex flex-col justify-center p-2 text-left overflow-hidden">
+                    <span className="text-[7px] font-medium text-slate-800 leading-tight">
+                      EVERYTHING BUILT WANTS TO LAST
+                    </span>
+                  </div>
+                ),
+              },
+            ].map((tmpl) => (
               <div
-                onClick={() => fileInputRef.current?.click()}
-                className="rounded-xl border border-dashed border-white/10 p-6 text-center cursor-pointer hover:border-purple-500/40 hover:bg-white/[0.02] transition"
+                key={tmpl.id}
+                onClick={() => {
+                  setPrompt(tmpl.prompt);
+                  promptInputRef.current?.focus();
+                }}
+                className="group cursor-pointer flex flex-col transition"
               >
-                <Video className="mx-auto h-8 w-8 text-neutral-500 mb-2" />
-                <p className="text-xs text-neutral-300 font-medium">
-                  No assets in this workspace yet.
-                </p>
-                <p className="text-xs text-neutral-400 mt-1">
-                  Click here or tap <strong className="text-purple-300">"Add Multiple Images / Media"</strong> above to select and upload multiple files at once.
-                </p>
+                <div className="relative aspect-[16/10] w-full rounded-xl overflow-hidden mb-1.5 border border-slate-200/90 shadow-2xs group-hover:shadow-md group-hover:scale-[1.03] transition dark:border-white/10">
+                  {tmpl.renderThumbnail()}
+                </div>
+                <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition text-left truncate">
+                  {tmpl.title}
+                </span>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                {visibleAssets.map((asset: any) => {
-                  const selected = selectedAssetIds.includes(asset._id);
-                  const isVideo = asset.type === "video";
-                  const isImage = asset.type === "image";
-                  const previewUrl =
-                    asset.cdnUrl ||
-                    asset.storageUrl ||
-                    (asset.storageKey ? `/storage/${asset.storageKey}` : "");
-
-                  return (
-                    <div
-                      key={asset._id}
-                      onClick={() => toggleAsset(asset._id)}
-                      className={`group flex items-center justify-between rounded-xl border p-2.5 text-left text-xs transition cursor-pointer ${
-                        selected
-                          ? "border-purple-500 bg-purple-500/10 text-white font-medium shadow-sm"
-                          : "border-white/10 bg-neutral-900/80 text-neutral-300 hover:border-white/20 hover:bg-neutral-900"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          onChange={() => {}}
-                          className="rounded border-white/20 bg-neutral-800 text-purple-500 focus:ring-0 shrink-0"
-                        />
-                        {/* Thumbnail Preview for Images */}
-                        {isImage && previewUrl ? (
-                          <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-white/15 bg-neutral-950">
-                            <img
-                              src={previewUrl}
-                              alt={asset.name}
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                        ) : isVideo ? (
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-purple-500/15 border border-purple-500/25 text-purple-400">
-                            <FileVideo className="h-5 w-5" />
-                          </div>
-                        ) : isImage ? (
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-500/15 border border-blue-500/25 text-blue-400">
-                            <FileImage className="h-5 w-5" />
-                          </div>
-                        ) : (
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 border border-amber-500/25 text-amber-400">
-                            <FileAudio className="h-5 w-5" />
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs text-white font-medium" title={asset.name}>
-                            {asset.name}
-                          </p>
-                          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-neutral-400">
-                            <span className="uppercase font-mono text-[9px] px-1 py-0.2 rounded bg-white/5 border border-white/10">
-                              {asset.type}
-                            </span>
-                            {asset.size ? (
-                              <span>
-                                {asset.size < 1024 * 1024
-                                  ? `${(asset.size / 1024).toFixed(0)} KB`
-                                  : `${(asset.size / (1024 * 1024)).toFixed(1)} MB`}
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Delete Action Button */}
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteAsset(e, asset._id, asset.name, asset.storageKey)}
-                        className="ml-2 p-1.5 rounded-lg text-neutral-400 hover:text-rose-400 hover:bg-rose-500/10 transition shrink-0"
-                        title={`Delete ${asset.name}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            ))}
           </div>
 
-          {/* GENERATE SUBMIT ROW */}
-          <div className="flex items-center justify-between border-t border-white/10 pt-4">
-            <div className="text-xs text-neutral-400">
-              {selectedAssetIds.length > 0 ? (
-                <span>
-                  <strong className="text-white">{selectedAssetIds.length}</strong> asset(s) attached to composition
-                </span>
-              ) : (
-                <span>Pure generative synthesis (No media attached)</span>
-              )}
-            </div>
+          {/* View all templates button */}
+          <div className="mt-4 flex justify-center">
+            <Link
+              href="/projects"
+              className="inline-flex items-center rounded-full border border-slate-200 bg-white px-5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800 transition"
+            >
+              View all templates
+            </Link>
+          </div>
+        </div>
 
-            <Button
-              type="submit"
-              size="lg"
-              disabled={isSubmitting || !prompt.trim()}
-              className="gap-2.5 bg-white text-black hover:bg-neutral-200 px-8 py-2.5 font-bold rounded-xl shadow-lg transition"
+        {/* HORIZONTAL DIVIDER */}
+        <div className="my-6 w-full border-t border-slate-200/80 dark:border-neutral-800/80" />
+
+        {/* RECENT WORK SECTION (Matching Image 3) */}
+        <div className="w-full space-y-4 pb-8">
+          {/* Tabs: Recent work | Recent chats */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setRecentTab("work")}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer ${
+                recentTab === "work"
+                  ? "bg-[#e9eefe] text-[#3b52d9] dark:bg-indigo-950/60 dark:text-indigo-300"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              <FolderKanban className="h-4 w-4" />
+              <span>Recent work</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setRecentTab("chats")}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition cursor-pointer ${
+                recentTab === "chats"
+                  ? "bg-[#e9eefe] text-[#3b52d9] dark:bg-indigo-950/60 dark:text-indigo-300"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
             >
               <Sparkles className="h-4 w-4" />
-              {isSubmitting && activeProject?.status !== "completed"
-                ? "Synthesizing Composition..."
-                : "Generate Video"}
-            </Button>
+              <span>Recent chats</span>
+            </button>
           </div>
-        </form>
+
+          {/* Recent Work Cards Grid */}
+          {recentTab === "work" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {recentProjects && recentProjects.length > 0 ? (
+                recentProjects.slice(0, 3).map((p: any) => (
+                  <Link
+                    key={p._id}
+                    href={`/projects?id=${p._id}`}
+                    className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-3 shadow-xs hover:border-slate-300 hover:shadow-md dark:border-neutral-800 dark:bg-[#121620] transition"
+                  >
+                    <div className="relative aspect-[16/10] w-full rounded-xl overflow-hidden bg-slate-950 mb-3 flex items-center justify-center">
+                      {p.videoUrl ? (
+                        <video src={p.videoUrl} className="h-full w-full object-cover" muted />
+                      ) : (
+                        <div className="flex flex-col items-center gap-1.5 text-slate-400">
+                          <Film className="h-6 w-6 text-indigo-400" />
+                          <span className="text-[10px] font-mono">{p.duration || 15}s</span>
+                        </div>
+                      )}
+                      <span className="absolute top-2 right-2 rounded-md bg-black/60 px-2 py-0.5 text-[9px] font-bold text-white uppercase backdrop-blur-xs">
+                        {p.status || "ready"}
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate group-hover:text-indigo-600 transition">
+                        {p.name || p.prompt?.slice(0, 30) || "Video Project"}
+                      </h4>
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                        <span>{new Date(p._creationTime || Date.now()).toLocaleDateString()}</span>
+                        <Globe className="h-3 w-3" />
+                      </div>
+                    </div>
+                  </Link>
+                ))
+              ) : (
+                /* High fidelity fallback cards matching Image 3 */
+                <>
+                  <div className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-3 shadow-xs hover:border-slate-300 hover:shadow-md dark:border-neutral-800 dark:bg-[#121620] transition cursor-pointer">
+                    <div className="relative aspect-[16/10] w-full rounded-xl overflow-hidden bg-[#0c1322] mb-3 flex items-center justify-center p-3">
+                      <div className="relative z-10 text-left w-full">
+                        <span className="text-[9px] text-blue-400 font-semibold uppercase tracking-wider block">Hardware Tech</span>
+                        <span className="text-xs font-bold text-white block mt-0.5">The Power of Tiny Chips: Microprocessors</span>
+                      </div>
+                      <div className="absolute right-2 bottom-2 h-10 w-10 rounded-lg bg-blue-500/20 border border-blue-400/30 flex items-center justify-center">
+                        <Cpu className="h-5 w-5 text-blue-400" />
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                        The Power of Tiny Chips: Microprocessors and...
+                      </h4>
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                        <span>Viewed 1 year ago</span>
+                        <Globe className="h-3 w-3" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-3 shadow-xs hover:border-slate-300 hover:shadow-md dark:border-neutral-800 dark:bg-[#121620] transition cursor-pointer">
+                    <div className="relative aspect-[16/10] w-full rounded-xl overflow-hidden bg-[#faf8f5] mb-3 flex items-center justify-between p-3 border border-slate-100">
+                      <div className="text-left">
+                        <span className="text-xs font-bold text-slate-900 block">Tree Data Structure</span>
+                        <span className="text-[9px] text-teal-700 bg-teal-50 border border-teal-200 rounded px-1.5 py-0.5 inline-block mt-1">Site</span>
+                      </div>
+                      <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                        <Layers className="h-5 w-5 text-emerald-600" />
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                        Tree Data Structure
+                      </h4>
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                        <span className="truncate max-w-[150px]">tree-data-structure-tyhbk...</span>
+                        <span>Viewed 1 year ago</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-3 shadow-xs hover:border-slate-300 hover:shadow-md dark:border-neutral-800 dark:bg-[#121620] transition cursor-pointer">
+                    <div className="relative aspect-[16/10] w-full rounded-xl overflow-hidden bg-white mb-3 flex flex-col justify-center p-3 border border-slate-100">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                        <span>✨</span>
+                        <span>Ollastar Tips & Tricks</span>
+                      </div>
+                      <div className="mt-2 space-y-1 text-[9px] text-slate-500">
+                        <div className="flex items-center gap-1"><span className="h-1 w-1 bg-amber-400 rounded-full" /> <span>Direct Code 40s render</span></div>
+                        <div className="flex items-center gap-1"><span className="h-1 w-1 bg-blue-400 rounded-full" /> <span>Real media integration</span></div>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                        Ollastar Tips & Tricks
+                      </h4>
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                        <span>Viewed 1 year ago</span>
+                        <Globe className="h-3 w-3" />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {recentTab === "chats" && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center dark:border-neutral-800 dark:bg-[#121620]">
+              <p className="text-xs text-slate-500 dark:text-neutral-400">No active chat sessions. Generate a video to begin conversation history.</p>
+            </div>
+          )}
+
+          {/* View all recents button */}
+          <div className="mt-4 flex justify-center">
+            <Link
+              href="/projects"
+              className="inline-flex items-center rounded-full border border-slate-200 bg-white px-5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800 transition"
+            >
+              View all recents
+            </Link>
+          </div>
+        </div>
       </div>
+            
+      {/* FLOATING HELP BUTTON AT BOTTOM RIGHT (Matching Gamma) */}
+      <a
+        href="https://gamma.app"
+        target="_blank"
+        rel="noreferrer"
+        className="fixed bottom-6 right-6 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-md hover:bg-slate-50 hover:text-slate-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-slate-300 transition z-40"
+        title="Help & Questions"
+      >
+        <HelpCircle className="h-5 w-5" />
+      </a>
+
+      {/* Hidden file input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleMediaUpload}
+        className="hidden"
+        multiple
+        accept="image/*,video/*,audio/*"
+      />
     </div>
   );
 }

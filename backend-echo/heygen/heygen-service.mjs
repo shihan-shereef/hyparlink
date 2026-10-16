@@ -71,6 +71,22 @@ export const HEYGEN_AVATARS = [
     pose: "Seated Boardroom",
   },
   {
+    id: "a9cde5fa12fc417d9739643969360ae3",
+    name: "Dr. Maya Harrison",
+    title: "Senior Enterprise IT & Cloud Academy Lead",
+    category: "tech",
+    gender: "female",
+    style: "Studio 8K",
+    image: "/avatars/a9cde5fa12fc417d9739643969360ae3.jpg",
+    localFile: path.join(WORKSPACE_ROOT, "apps/app/public/avatars/a9cde5fa12fc417d9739643969360ae3.jpg"),
+    recommendedVoice: "71fbdde04ea841c59adab70e41caeb97",
+    tags: ["Photorealistic", "HeyGen Avatar", "4K Ultra-HD", "IT Academy Presenter"],
+    description:
+      "Executive IT academy presenter and instructor in deep navy blazer, delivering comprehensive Networkers Home course breakdowns.",
+    aspectRatio: "16:9",
+    pose: "Half-Body Centered",
+  },
+  {
     id: "elena_creative",
     name: "Elena Rostova",
     title: "Creative Director & Brand Strategist",
@@ -89,6 +105,18 @@ export const HEYGEN_AVATARS = [
 ];
 
 export const HEYGEN_VOICES = [
+  {
+    id: "71fbdde04ea841c59adab70e41caeb97",
+    name: "HeyGen Neural Voice (71fbdde04ea8)",
+    gender: "female",
+    language: "English (US)",
+    locale: "en-US",
+    tone: "Expressive, Articulate & Professional",
+    accent: "American",
+    ttsVoice: "Samantha",
+    sampleText:
+      "Welcome to Networkers Home. Explore our premier Cisco, Cybersecurity, Cloud, and AI engineering courses.",
+  },
   {
     id: "en-US-JennyNeural",
     name: "Jenny (US)",
@@ -275,7 +303,7 @@ export class HeyGenService {
     const cleanKey = apiKey.trim();
 
     try {
-      const response = await fetch("https://api.heygen.com/v2/user/remaining_quota", {
+      let response = await fetch("https://api.heygen.com/v2/user/remaining_quota", {
         headers: {
           "X-Api-Key": cleanKey,
           Accept: "application/json",
@@ -291,18 +319,36 @@ export class HeyGenService {
           tier: "HeyGen Cloud Pro",
           message: "HeyGen account successfully connected and authenticated.",
         };
-      } else {
-        // If 401 or 403, key is invalid
-        return {
-          valid: false,
-          mode: "invalid",
-          statusCode: response.status,
-          message:
-            response.status === 401
-              ? "Invalid HeyGen API Key. Please verify your token in HeyGen Settings."
-              : `HeyGen API returned status ${response.status}.`,
-        };
       }
+
+      // If quota endpoint fails (or 404 on some plans), check avatars endpoint as fallback
+      if (response.status !== 401 && response.status !== 403) {
+        const avatarRes = await fetch("https://api.heygen.com/v2/avatars", {
+          headers: {
+            "X-Api-Key": cleanKey,
+            Accept: "application/json",
+          },
+        });
+        if (avatarRes.ok) {
+          return {
+            valid: true,
+            mode: "cloud",
+            quota: 100,
+            tier: "HeyGen Cloud Pro",
+            message: "HeyGen account successfully connected and authenticated.",
+          };
+        }
+      }
+
+      return {
+        valid: false,
+        mode: "invalid",
+        statusCode: response.status,
+        message:
+          response.status === 401 || response.status === 403
+            ? "Invalid HeyGen API Key. Please verify your token in HeyGen Settings (app.heygen.com/settings?nav=API)."
+            : `HeyGen API returned status ${response.status}.`,
+      };
     } catch (err) {
       // Network failure or offline
       return {
@@ -414,8 +460,8 @@ export class HeyGenService {
       throw new Error("HeyGen Cloud API did not return a valid video_id");
     }
 
-    // Poll status for up to 60 seconds
-    const maxPolls = 30;
+    // Poll status for up to 120 seconds (HeyGen cloud render takes 30-90s)
+    const maxPolls = 60;
     for (let i = 0; i < maxPolls; i++) {
       await new Promise((r) => setTimeout(r, 2000));
       const statusRes = await fetch(
@@ -431,11 +477,38 @@ export class HeyGenService {
         const statusData = await statusRes.json();
         const state = statusData?.data?.status;
         if (state === "completed") {
+          const cloudUrl = statusData?.data?.video_url;
+          const outputFilename = `heygen_cloud_${videoId}.mp4`;
+          const outputPath = path.join(STORAGE_DIR, outputFilename);
+
+          // Download cloud video to local storage so HyperFrames compositor and local streaming work flawlessly
+          if (cloudUrl) {
+            try {
+              console.log(`[HeyGenService] Downloading cloud video from ${cloudUrl} to ${outputPath}...`);
+              const videoFetch = await fetch(cloudUrl);
+              if (videoFetch.ok) {
+                const arrayBuf = await videoFetch.arrayBuffer();
+                fs.writeFileSync(outputPath, Buffer.from(arrayBuf));
+                console.log(`[HeyGenService] Cloud video successfully downloaded (${(arrayBuf.byteLength / 1024 / 1024).toFixed(2)} MB)`);
+              }
+            } catch (dlErr) {
+              console.warn("[HeyGenService] Failed to download cloud video locally:", dlErr.message);
+            }
+          }
+
+          const hasLocalFile = fs.existsSync(outputPath);
           return {
             videoId,
-            videoUrl: statusData?.data?.video_url,
-            duration: statusData?.data?.duration || 10,
+            videoUrl: `/storage/heygen/${outputFilename}`,
+            cloudUrl,
+            filename: hasLocalFile ? outputFilename : null,
+            outputPath: hasLocalFile ? outputPath : null,
+            duration: Math.round(Number(statusData?.data?.duration) || 10),
             engine: "heygen_cloud",
+            avatar: { id: avatarId, name: avatarId },
+            voice: { id: voiceId, name: voiceId },
+            script,
+            createdAt: Date.now(),
           };
         } else if (state === "failed") {
           throw new Error(`HeyGen render failed: ${statusData?.data?.error || "Unknown error"}`);
@@ -547,6 +620,7 @@ export class HeyGenService {
       jobId,
       videoUrl: `/storage/heygen/${outputFilename}`,
       filename: outputFilename,
+      outputPath: outputPath,
       duration,
       sizeBytes: stats.size,
       resolution: "1920x1080",

@@ -18,6 +18,8 @@ export interface PlannedScene {
   badge?: string;
   ctaText?: string;
   assetToFeature?: AnalyzedAsset;
+  visualDescription?: string;
+  narration?: string;
   dataVisualization?: {
     type: "bar-chart" | "line-chart" | "metric-counter" | "radar-hud" | "flow-nodes";
     bars?: Array<{ label: string; value: number; formattedValue: string; color: string }>;
@@ -144,25 +146,17 @@ export class ScenePlanner {
       promptLower.includes("abstract motion") ||
       promptLower.includes("white geometric");
 
-    const isBatman =
-      (promptLower.includes("batman") && !promptLower.includes("lantern")) ||
-      (primaryAsset && primaryAsset.name.toLowerCase().includes("batman"));
+    const isFootwearOrApparel =
+      promptLower.includes("shoe") ||
+      promptLower.includes("footwear") ||
+      promptLower.includes("sneaker") ||
+      promptLower.includes("running");
 
-    const isGreenLantern =
-      promptLower.includes("lantern") ||
-      promptLower.includes("guy gardner") ||
-      promptLower.includes("green lantern") ||
-      promptLower.includes("power ring") ||
-      (primaryAsset && primaryAsset.name.toLowerCase().includes("lantern"));
-
-    const isSuperman =
-      promptLower.includes("superman") ||
-      promptLower.includes("clark kent") ||
-      promptLower.includes("clurk kent") ||
-      promptLower.includes("man of steel") ||
-      promptLower.includes("krypton") ||
-      promptLower.includes("daily planet") ||
-      (primaryAsset && (primaryAsset.name.toLowerCase().includes("superman") || primaryAsset.name.toLowerCase().includes("clark")));
+    const isSoftwareProduct =
+      promptLower.includes("software") ||
+      promptLower.includes("saas") ||
+      promptLower.includes("platform") ||
+      promptLower.includes("application");
 
     const isArchitecture =
       brief.category === "architectural-showcase" ||
@@ -185,8 +179,35 @@ export class ScenePlanner {
 
       const sceneId = `scene-${String(i + 1).padStart(2, "0")}`;
 
-      // Bespoke scene planning dispatch
-      if (isTreeGrowth) {
+      // Bespoke scene planning dispatch:
+      // Priority 1: If the LLM created custom tailored scenes in the brief, use them!
+      if (
+        brief.scenes &&
+        Array.isArray(brief.scenes) &&
+        brief.scenes.length > 0
+      ) {
+        const briefScene =
+          brief.scenes[i] || brief.scenes[i % brief.scenes.length];
+        const sceneAsset =
+          analyzedAssets[i] ||
+          analyzedAssets[i % (analyzedAssets.length || 1)] ||
+          primaryAsset;
+        scenes.push(
+          this.buildSceneFromBriefPlan(
+            i,
+            sceneId,
+            start,
+            dur,
+            end,
+            startFrame,
+            endFrame,
+            briefScene,
+            brief,
+            sceneAsset,
+            sceneCount,
+          ),
+        );
+      } else if (isTreeGrowth) {
         scenes.push(
           this.buildTreeGrowthScene(
             i,
@@ -257,47 +278,13 @@ export class ScenePlanner {
             sceneCount,
           ),
         );
-      } else if (isBatman) {
-        scenes.push(
-          this.buildBatmanScene(
-            i,
-            sceneId,
-            start,
-            dur,
-            end,
-            startFrame,
-            endFrame,
-            brief,
-            primaryAsset,
-            sceneCount,
-          ),
-        );
-      } else if (isGreenLantern) {
+      } else if (isFootwearOrApparel || isSoftwareProduct) {
         const sceneAsset =
           analyzedAssets[i] ||
           analyzedAssets[i % (analyzedAssets.length || 1)] ||
           primaryAsset;
         scenes.push(
-          this.buildGreenLanternScene(
-            i,
-            sceneId,
-            start,
-            dur,
-            end,
-            startFrame,
-            endFrame,
-            brief,
-            sceneAsset,
-            sceneCount,
-          ),
-        );
-      } else if (isSuperman) {
-        const sceneAsset =
-          analyzedAssets[i] ||
-          analyzedAssets[i % (analyzedAssets.length || 1)] ||
-          primaryAsset;
-        scenes.push(
-          this.buildSupermanScene(
+          this.buildDynamicShowcaseScene(
             i,
             sceneId,
             start,
@@ -322,32 +309,6 @@ export class ScenePlanner {
             endFrame,
             brief,
             primaryAsset,
-            sceneCount,
-          ),
-        );
-      } else if (
-        brief.scenes &&
-        Array.isArray(brief.scenes) &&
-        brief.scenes.length > 0
-      ) {
-        const briefScene =
-          brief.scenes[i] || brief.scenes[i % brief.scenes.length];
-        const sceneAsset =
-          analyzedAssets[i] ||
-          analyzedAssets[i % (analyzedAssets.length || 1)] ||
-          primaryAsset;
-        scenes.push(
-          this.buildSceneFromBriefPlan(
-            i,
-            sceneId,
-            start,
-            dur,
-            end,
-            startFrame,
-            endFrame,
-            briefScene,
-            brief,
-            sceneAsset,
             sceneCount,
           ),
         );
@@ -381,470 +342,6 @@ export class ScenePlanner {
     };
   }
 
-  private static buildGreenLanternScene(
-    index: number,
-    id: string,
-    start: number,
-    duration: number,
-    end: number,
-    startFrame: number,
-    endFrame: number,
-    brief: CreativeBrief,
-    asset?: AnalyzedAsset,
-    totalScenes: number = 3,
-  ): PlannedScene {
-    if (index === 0) {
-      return {
-        id,
-        index,
-        name: "The Power Ring of Oa",
-        objective: "Cosmic reveal of the Green Lantern Ring pulsating with emerald willpower energy",
-        start,
-        duration,
-        end,
-        startFrame,
-        endFrame,
-        sceneType: "green-lantern-ring",
-        headline: "EMERALD WILLPOWER",
-        highlightedWord: "WILLPOWER",
-        subtitle: "In brightest day, in blackest night... The Power Ring of Oa chooses its champion.",
-        badge: "DC LANTERNS // SECTOR 2814",
-        assetToFeature: asset,
-        visualAtmosphere: {
-          backgroundType: asset ? "image-backdrop" : "cyber-hud",
-          scrimGradient: "linear-gradient(180deg, rgba(2,10,4,0.7) 0%, rgba(2,10,4,0.2) 40%, rgba(2,10,4,0.92) 100%)",
-          ambientGlowColor: "rgba(0, 255, 102, 0.45)",
-        },
-      };
-    }
-
-    if (index === 1) {
-      return {
-        id,
-        index,
-        name: "Guy Gardner: The Rebel Lantern",
-        objective: "Presentation of Guy Gardner with leather jacket emblem and fearless brawler attitude",
-        start,
-        duration,
-        end,
-        startFrame,
-        endFrame,
-        sceneType: "green-lantern-guy-gardner",
-        headline: "GUY GARDNER",
-        highlightedWord: "GUY GARDNER",
-        subtitle: "No fear. Zero filter. Equipped with a signature leather jacket and unstoppable attitude.",
-        badge: "WARRIOR OF SECTOR 2814",
-        assetToFeature: asset,
-        visualAtmosphere: {
-          backgroundType: asset ? "image-backdrop" : "cyber-hud",
-          scrimGradient: "linear-gradient(180deg, rgba(2,10,4,0.7) 0%, rgba(2,10,4,0.2) 40%, rgba(2,10,4,0.92) 100%)",
-          ambientGlowColor: "rgba(173, 255, 47, 0.45)",
-        },
-      };
-    }
-
-    if (index === 2) {
-      return {
-        id,
-        index,
-        name: "Hard-Light Willpower Construct",
-        objective: "Guy Gardner unleashing colossal construct sledgehammer brawler attacks",
-        start,
-        duration,
-        end,
-        startFrame,
-        endFrame,
-        sceneType: "green-lantern-construct",
-        headline: "UNSTOPPABLE WILL",
-        highlightedWord: "UNSTOPPABLE",
-        subtitle: "Raw brawler construct sledgehammers smashing through cosmic threats with boundless grit.",
-        badge: "HARD-LIGHT OVERCHARGE // 100%",
-        assetToFeature: asset,
-        visualAtmosphere: {
-          backgroundType: asset ? "image-backdrop" : "cyber-hud",
-          scrimGradient: "linear-gradient(180deg, rgba(2,10,4,0.7) 0%, rgba(2,10,4,0.2) 40%, rgba(2,10,4,0.92) 100%)",
-          ambientGlowColor: "rgba(0, 255, 102, 0.55)",
-        },
-      };
-    }
-
-    if (index === 3) {
-      return {
-        id,
-        index,
-        name: "The Power Battery of Oa",
-        objective: "Cosmic recharge of the emerald lantern battery",
-        start,
-        duration,
-        end,
-        startFrame,
-        endFrame,
-        sceneType: "green-lantern-battery",
-        headline: "RECHARGE THE CORE",
-        highlightedWord: "RECHARGE",
-        subtitle: "Powered by the central emerald battery of the cosmos. Boundless energy for those who dare.",
-        badge: "CENTRAL ENERGY BATTERY // OA",
-        assetToFeature: asset,
-        visualAtmosphere: {
-          backgroundType: asset ? "image-backdrop" : "cyber-hud",
-          scrimGradient: "linear-gradient(180deg, rgba(2,10,4,0.7) 0%, rgba(2,10,4,0.2) 40%, rgba(2,10,4,0.92) 100%)",
-          ambientGlowColor: "rgba(0, 255, 102, 0.55)",
-        },
-      };
-    }
-
-    // Scene 4+ / Final Climax
-    return {
-      id,
-      index,
-      name: "The Green Lantern Oath Climax",
-      objective: "Climactic Green Lantern oath reveal with DC Studios logo reveal",
-      start,
-      duration,
-      end,
-      startFrame,
-      endFrame,
-      sceneType: "green-lantern-oath",
-      headline: "BEWARE MY POWER",
-      highlightedWord: "POWER",
-      subtitle: "In brightest day, in blackest night... beware my power, Green Lantern's light!",
-      badge: "DC STUDIOS EXCLUSIVE",
-      ctaText: "DC LANTERNS • ONLY IN THE DC UNIVERSE",
-      assetToFeature: asset,
-      visualAtmosphere: {
-        backgroundType: asset ? "image-backdrop" : "cyber-hud",
-        scrimGradient: "linear-gradient(180deg, rgba(2,10,4,0.7) 0%, rgba(2,10,4,0.2) 40%, rgba(2,10,4,0.92) 100%)",
-        ambientGlowColor: "rgba(0, 255, 102, 0.65)",
-      },
-    };
-  }
-
-  private static buildSupermanScene(
-    index: number,
-    id: string,
-    start: number,
-    duration: number,
-    end: number,
-    startFrame: number,
-    endFrame: number,
-    brief: CreativeBrief,
-    asset?: AnalyzedAsset,
-    totalScenes: number = 5,
-  ): PlannedScene {
-    if (index === 0) {
-      return {
-        id,
-        index,
-        name: "The S-Shield of Hope",
-        objective: "Majestic Kryptonian crest bathed in solar rays representing the House of El",
-        start,
-        duration,
-        end,
-        startFrame,
-        endFrame,
-        sceneType: "superman-shield",
-        headline: "HOPE FROM THE STARS",
-        highlightedWord: "HOPE",
-        subtitle: "It is not just a symbol. On my world, it means hope.",
-        badge: "HOUSE OF EL // KRYPTON",
-        assetToFeature: asset,
-        visualAtmosphere: {
-          backgroundType: asset ? "image-backdrop" : "cyber-hud",
-          scrimGradient: "linear-gradient(180deg, rgba(5,11,20,0.75) 0%, rgba(5,11,20,0.2) 40%, rgba(5,11,20,0.92) 100%)",
-          ambientGlowColor: "rgba(229, 37, 33, 0.45)",
-        },
-      };
-    }
-
-    if (index === 1) {
-      return {
-        id,
-        index,
-        name: "Clark Kent: Daily Planet",
-        objective: "Portrait of Clark Kent in the busy Daily Planet newsroom with investigative dossier",
-        start,
-        duration,
-        end,
-        startFrame,
-        endFrame,
-        sceneType: "superman-clark-kent",
-        headline: "CLARK KENT",
-        highlightedWord: "CLARK KENT",
-        subtitle: "Mild-mannered investigative reporter pursuing the truth in the heart of Metropolis.",
-        badge: "DAILY PLANET // PRESS CREDENTIAL",
-        assetToFeature: asset,
-        visualAtmosphere: {
-          backgroundType: asset ? "image-backdrop" : "cyber-hud",
-          scrimGradient: "linear-gradient(180deg, rgba(10,25,49,0.75) 0%, rgba(10,25,49,0.25) 40%, rgba(10,25,49,0.92) 100%)",
-          ambientGlowColor: "rgba(255, 215, 0, 0.45)",
-        },
-      };
-    }
-
-    if (index === 2) {
-      return {
-        id,
-        index,
-        name: "Metropolis Investigative Dossier",
-        objective: "Daily Planet editorial desk and investigative journalism telemetry",
-        start,
-        duration,
-        end,
-        startFrame,
-        endFrame,
-        sceneType: "superman-metropolis",
-        headline: "TRUTH & JUSTICE",
-        highlightedWord: "TRUTH",
-        subtitle: "Standing up for those without a voice, shining a light on the darkest corners.",
-        badge: "METROPOLIS EDITORIAL BUREAU",
-        assetToFeature: asset,
-        visualAtmosphere: {
-          backgroundType: asset ? "image-backdrop" : "cyber-hud",
-          scrimGradient: "linear-gradient(180deg, rgba(5,11,20,0.75) 0%, rgba(5,11,20,0.2) 40%, rgba(5,11,20,0.92) 100%)",
-          ambientGlowColor: "rgba(0, 180, 255, 0.45)",
-        },
-      };
-    }
-
-    if (index === 3) {
-      return {
-        id,
-        index,
-        name: "Solar Energy Core",
-        objective: "Kryptonian solar absorption telemetry under Earth yellow sun",
-        start,
-        duration,
-        end,
-        startFrame,
-        endFrame,
-        sceneType: "superman-solar",
-        headline: "POWER OF THE SUN",
-        highlightedWord: "POWER",
-        subtitle: "Nourished by the yellow sun of Earth. Boundless strength, invulnerability, and flight.",
-        badge: "KRYPTONIAN CELLULAR CORE // 100%",
-        assetToFeature: asset,
-        visualAtmosphere: {
-          backgroundType: asset ? "image-backdrop" : "cyber-hud",
-          scrimGradient: "linear-gradient(180deg, rgba(15,8,4,0.75) 0%, rgba(15,8,4,0.2) 40%, rgba(15,8,4,0.92) 100%)",
-          ambientGlowColor: "rgba(255, 215, 0, 0.55)",
-        },
-      };
-    }
-
-    // Scene 4 / Final Climax
-    return {
-      id,
-      index,
-      name: "The Man of Steel Climax",
-      objective: "Iconic Look Up in the Sky title card with DC Studios reveal",
-      start,
-      duration,
-      end,
-      startFrame,
-      endFrame,
-      sceneType: "superman-climax",
-      headline: "LOOK UP IN THE SKY",
-      highlightedWord: "SUPERMAN",
-      subtitle: "Faster than a speeding bullet. More powerful than a locomotive. It is Superman!",
-      badge: "DC STUDIOS EXCLUSIVE",
-      ctaText: "DC SUPERMAN • IN THEATERS & STREAMING",
-      assetToFeature: asset,
-      visualAtmosphere: {
-        backgroundType: asset ? "image-backdrop" : "cyber-hud",
-        scrimGradient: "linear-gradient(180deg, rgba(5,11,20,0.75) 0%, rgba(5,11,20,0.2) 40%, rgba(5,11,20,0.92) 100%)",
-        ambientGlowColor: "rgba(229, 37, 33, 0.65)",
-      },
-    };
-  }
-
-  private static buildBatmanScene(
-    index: number,
-    id: string,
-    start: number,
-    duration: number,
-    end: number,
-    startFrame: number,
-    endFrame: number,
-    brief: CreativeBrief,
-    asset?: AnalyzedAsset,
-    totalScenes: number = 6,
-  ): PlannedScene {
-    const isFirst = index === 0;
-    const isLast = index === totalScenes - 1;
-
-    if (isFirst) {
-      return {
-        id,
-        index,
-        name: "The Dark Knight Awakens",
-        objective: "Dramatic full-screen hero reveal with Gotham dusk atmosphere",
-        start,
-        duration,
-        end,
-        startFrame,
-        endFrame,
-        sceneType: "cinematic-hero-intro",
-        headline: "JUSTICE IN THE SHADOWS",
-        highlightedWord: "JUSTICE",
-        subtitle: "From Gotham's high rooftops to the darkest streets, the Bat stands watch.",
-        badge: "GOTHAM SURVEILLANCE • LIVE INTEL",
-        assetToFeature: asset,
-        visualAtmosphere: {
-          backgroundType: "image-backdrop",
-          scrimGradient:
-            "linear-gradient(180deg, rgba(8,10,18,0.7) 0%, rgba(8,10,18,0.2) 35%, rgba(8,10,18,0.4) 65%, rgba(8,10,18,0.95) 100%)",
-          ambientGlowColor: "rgba(255, 230, 0, 0.25)",
-        },
-      };
-    }
-
-    if (index === 1) {
-      return {
-        id,
-        index,
-        name: "Batcomputer Radar & Surveillance",
-        objective: "Tactical HUD scanning systems and threat assessment",
-        start,
-        duration,
-        end,
-        startFrame,
-        endFrame,
-        sceneType: "metrics-counter-hud",
-        headline: "GOTHAM THREAT MATRIX",
-        highlightedWord: "THREAT MATRIX",
-        subtitle: "High-frequency radar tracking criminal activity across all five boroughs.",
-        badge: "BATCOMPUTER SYS // V4.9",
-        assetToFeature: asset,
-        dataVisualization: {
-          type: "radar-hud",
-          metrics: [
-            { label: "Crime Drop Rate", value: "-68%", trend: "down" },
-            { label: "Active Patrols", value: "24/7", trend: "up" },
-            { label: "Arkham Secure", value: "99.9%", trend: "up" },
-          ],
-        },
-        visualAtmosphere: {
-          backgroundType: "cyber-hud",
-          ambientGlowColor: "rgba(255, 170, 0, 0.3)",
-        },
-      };
-    }
-
-    if (index === 2) {
-      return {
-        id,
-        index,
-        name: "Crime Analytics & Intelligence",
-        objective: "Animated bar chart displaying rapid crime reduction across Gotham",
-        start,
-        duration,
-        end,
-        startFrame,
-        endFrame,
-        sceneType: "animated-bar-chart",
-        headline: "CRIMINAL INCIDENT REDUCTION",
-        highlightedWord: "REDUCTION",
-        subtitle: "Year-over-year crime incident decline following Batman tactical intervention.",
-        badge: "GCPD STATISTICAL REPORT",
-        dataVisualization: {
-          type: "bar-chart",
-          bars: [
-            { label: "Q1", value: 92, formattedValue: "9,200", color: "#FF3344" },
-            { label: "Q2", value: 64, formattedValue: "6,400", color: "#FFAA00" },
-            { label: "Q3", value: 38, formattedValue: "3,800", color: "#FFE600" },
-            { label: "Q4", value: 14, formattedValue: "1,400", color: "#00F5FF" },
-          ],
-        },
-        visualAtmosphere: {
-          backgroundType: "minimal-dark",
-          ambientGlowColor: "rgba(255, 230, 0, 0.2)",
-        },
-      };
-    }
-
-    if (index === 3) {
-      return {
-        id,
-        index,
-        name: "Tactical Intervention Metrics",
-        objective: "Dynamic numerical counters showing neutralized threats and response time",
-        start,
-        duration,
-        end,
-        startFrame,
-        endFrame,
-        sceneType: "metrics-counter-hud",
-        headline: "TACTICAL PERFORMANCE",
-        highlightedWord: "PERFORMANCE",
-        subtitle: "Sub-second intervention and precision equipment keeping the innocent safe.",
-        badge: "WAYNE ENTERPRISES DEFENSE",
-        dataVisualization: {
-          type: "metric-counter",
-          metrics: [
-            { label: "Incidents Neutralized", value: "8,420+", startValue: 0, targetValue: 8420, suffix: "+" },
-            { label: "Avg Response Speed", value: "2.4 min", startValue: 0, targetValue: 2.4, suffix: " min" },
-            { label: "Downtown Coverage", value: "100%", startValue: 0, targetValue: 100, suffix: "%" },
-          ],
-        },
-        visualAtmosphere: {
-          backgroundType: "mesh-gradient",
-          ambientGlowColor: "rgba(255, 230, 0, 0.25)",
-        },
-      };
-    }
-
-    if (index === 4) {
-      return {
-        id,
-        index,
-        name: "The Symbol of Fear",
-        objective: "High-contrast kinetic typography highlighting the Batman ethos",
-        start,
-        duration,
-        end,
-        startFrame,
-        endFrame,
-        sceneType: "kinetic-typography",
-        headline: "FEAR IS A TOOL. WHEN THAT LIGHT HITS THE SKY, IT’S A WARNING.",
-        highlightedWord: "A WARNING",
-        subtitle: "He is not just a protector. He is the night.",
-        badge: "THE BAT-SIGNAL",
-        assetToFeature: asset,
-        visualAtmosphere: {
-          backgroundType: "image-backdrop",
-          scrimGradient:
-            "linear-gradient(180deg, rgba(5,5,8,0.85) 0%, rgba(5,5,8,0.4) 40%, rgba(5,5,8,0.95) 100%)",
-          ambientGlowColor: "rgba(255, 230, 0, 0.35)",
-        },
-      };
-    }
-
-    // Final Scene
-    return {
-      id,
-      index,
-      name: "The Legend Continues",
-      objective: "Powerful cinematic reveal and final closing call to action",
-      start,
-      duration,
-      end,
-      startFrame,
-      endFrame,
-      sceneType: "cinematic-climax-cta",
-      headline: "BECOME THE NIGHT",
-      highlightedWord: "THE NIGHT",
-      subtitle: "Gotham City will always have a protector. Experience the cinematic legacy.",
-      badge: "DC COMICS • THE DARK KNIGHT",
-      ctaText: "DISCOVER THE LEGEND",
-      assetToFeature: asset,
-      visualAtmosphere: {
-        backgroundType: "image-backdrop",
-        scrimGradient:
-          "linear-gradient(180deg, rgba(5,5,8,0.7) 0%, rgba(5,5,8,0.3) 30%, rgba(5,5,8,0.96) 100%)",
-        ambientGlowColor: "rgba(255, 230, 0, 0.3)",
-      },
-    };
-  }
 
   private static buildArchitectureScene(
     index: number,
