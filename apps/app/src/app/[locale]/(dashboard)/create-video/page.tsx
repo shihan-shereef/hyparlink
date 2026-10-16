@@ -2664,13 +2664,16 @@ window.__timelines["main"] = tl;`);
                       </div>
                     )}
                   </div>
+                </div>
 
+                {/* Center Controls: Mode Switcher (AI Prompt Mode | Direct Code Mode) & Model Selector (∷ Gemini) */}
+                <div className="flex flex-wrap items-center justify-center gap-2 flex-1 mx-auto my-1">
                   {/* Mode Switcher inside prompt bar with smaller icons */}
-                  <div className="flex items-center gap-1 rounded-full border border-slate-200/90 bg-slate-50/90 p-0.5 dark:border-neutral-700 dark:bg-neutral-800/90 shrink-0">
+                  <div className="flex items-center gap-1 rounded-full border border-slate-200/90 bg-slate-50/90 p-0.5 dark:border-neutral-700 dark:bg-neutral-800/90 shrink-0 shadow-2xs">
                     <button
                       type="button"
                       onClick={() => setPipelineMode("ai_prompt")}
-                      className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold bg-white text-indigo-600 shadow-2xs dark:bg-neutral-900 dark:text-indigo-400 transition cursor-pointer"
+                      className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold bg-white text-indigo-600 shadow-xs dark:bg-neutral-900 dark:text-indigo-400 transition cursor-pointer"
                     >
                       <Sparkles className="h-3 w-3 shrink-0" />
                       <span>AI Prompt Mode</span>
@@ -2684,19 +2687,16 @@ window.__timelines["main"] = tl;`);
                       <span>Direct Code Mode</span>
                     </button>
                   </div>
-                </div>
 
-                {/* Right Controls: Model Selector Pill, Mic, and Send Button */}
-                <div className="flex items-center gap-2">
-                  {/* Model Selector Pill (Gamma style) */}
-                  <div className="relative" ref={modelDropdownRef}>
+                  {/* Model Selector Pill (∷ Gemini) centered */}
+                  <div className="relative shrink-0" ref={modelDropdownRef}>
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         setShowModelDropdown(!showModelDropdown);
                       }}
-                      className="flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-300 transition cursor-pointer"
+                      className="flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-slate-50/80 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-300 transition cursor-pointer shadow-2xs"
                     >
                       <span className="text-[10px] text-slate-400">∷</span>
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -2709,7 +2709,7 @@ window.__timelines["main"] = tl;`);
                     {showModelDropdown && (
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute bottom-10 right-0 z-50 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl dark:border-neutral-800 dark:bg-[#121622] animate-in fade-in zoom-in-95 duration-100"
+                        className="absolute bottom-10 left-1/2 -translate-x-1/2 z-50 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl dark:border-neutral-800 dark:bg-[#121622] animate-in fade-in zoom-in-95 duration-100"
                       >
                         <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-neutral-800">
                           <span className="text-xs font-bold text-slate-900 dark:text-white">AI Engine</span>
@@ -2738,6 +2738,10 @@ window.__timelines["main"] = tl;`);
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Right Controls: Mic and Send Button */}
+                <div className="flex items-center gap-2 shrink-0">
 
                   {/* Mic Icon */}
                   <button
