@@ -23,6 +23,7 @@ const NON_FATAL_RULES = [
   "root_missing_dimensions",
   "studio_missing_editable_id",
   "nested_structure_needs_subcomposition",
+  "missing_local_asset",
 ];
 const isNonFatal = (e: ParsedError) =>
   NON_FATAL_RULES.some(

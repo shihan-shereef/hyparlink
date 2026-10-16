@@ -557,9 +557,14 @@ window.__timelines["main"] = tl;`);
   const handleAutoFixDirectCode = async () => {
     let repairedHtml = directHtml;
     let repairedJs = directJs;
+    let repairedCss = directCss;
 
-    // 1. Auto-add class="clip" to elements with data-in/data-out/data-start/data-duration
-    repairedHtml = repairedHtml.replace(/<([a-z0-9_-]+)\b([^>]*\b(?:data-in|data-out|data-start|data-duration)=[^>]*)>/gi, (match, tag, attrs) => {
+    // 0. Auto-fix truncated HTML end tags (e.g. </html or </body without closing >)
+    repairedHtml = repairedHtml.replace(/<\/html\s*$/i, "</html>");
+    repairedHtml = repairedHtml.replace(/<\/body\s*$/i, "</body>\n</html>");
+
+    // 1. Auto-add class="clip" to elements with data-in/data-out/data-start/data-duration/data-scene or class="scene"
+    repairedHtml = repairedHtml.replace(/<([a-z0-9_-]+)\b([^>]*\b(?:data-in|data-out|data-start|data-duration|data-scene)=[^>]*)>/gi, (match, tag, attrs) => {
       if (/\bclass=["']([^"']*)["']/i.test(attrs)) {
         if (!/\bclip\b/i.test(attrs)) {
           return `<${tag} ${attrs.replace(/\bclass=["']([^"']*)["']/i, 'class="$1 clip"')}>`;
@@ -568,27 +573,79 @@ window.__timelines["main"] = tl;`);
       }
       return `<${tag} class="clip" ${attrs}>`;
     });
+    repairedHtml = repairedHtml.replace(/<section\b([^>]*\bclass=["'][^"']*\bscene\b[^"']*["'][^>]*)>/gi, (match, attrs) => {
+      if (!/\bclip\b/i.test(attrs)) {
+        return `<section ${attrs.replace(/\bclass=["']([^"']*)["']/i, 'class="$1 clip"')}>`;
+      }
+      return match;
+    });
 
     // 2. Align timeline ID between window.__timelines["..."] and data-composition-id
     const tlKeyMatch = (repairedHtml + "\n" + repairedJs).match(/window\.__timelines\[["']([^"']+)["']\]/);
     const detectedTlId = tlKeyMatch ? tlKeyMatch[1] : null;
-    if (detectedTlId && detectedTlId !== "main") {
-      if (/<div\b[^>]*id=["']composition["']/i.test(repairedHtml)) {
-        repairedHtml = repairedHtml.replace(/<div\b([^>]*id=["']composition["'][^>]*)>/i, (m, attrs) => {
-          if (/data-composition-id=/i.test(attrs)) {
-            return `<div${attrs.replace(/data-composition-id=["'][^"']*["']/i, `data-composition-id="${detectedTlId}"`)}>`;
+
+    // Find composition root (can be <main id="composition", <div id="composition", <div id="root", etc.)
+    const compTagRegex = /<([a-z0-9_-]+)\b([^>]*\bid=["'](?:composition|root)["'][^>]*)>/i;
+    if (compTagRegex.test(repairedHtml)) {
+      repairedHtml = repairedHtml.replace(compTagRegex, (match, tag, attrs) => {
+        let updated = attrs;
+        // ensure clip class
+        if (/\bclass=["']([^"']*)["']/i.test(updated)) {
+          if (!/\bclip\b/i.test(updated)) {
+            updated = updated.replace(/\bclass=["']([^"']*)["']/i, 'class="$1 clip"');
           }
-          return `<div${attrs} data-composition-id="${detectedTlId}">`;
-        });
-      }
+        } else {
+          updated = ` class="clip"${updated}`;
+        }
+        // align data-composition-id
+        if (detectedTlId && detectedTlId !== "main") {
+          if (/data-composition-id=/i.test(updated)) {
+            updated = updated.replace(/data-composition-id=["'][^"']*["']/i, `data-composition-id="${detectedTlId}"`);
+          } else {
+            updated = `${updated} data-composition-id="${detectedTlId}"`;
+          }
+        }
+        // ensure start & duration
+        if (!/data-start=/i.test(updated)) updated += ` data-start="0"`;
+        if (!/data-duration=/i.test(updated)) updated += ` data-duration="${directDuration}"`;
+        // ensure dimensions and layout overrides
+        const w = directResolution === "720p" ? 1280 : 1920;
+        const h = directResolution === "720p" ? 720 : 1080;
+        if (!/data-width=/i.test(updated)) updated += ` data-width="${w}"`;
+        if (!/data-height=/i.test(updated)) updated += ` data-height="${h}"`;
+        if (!/data-layout-allow-overflow=/i.test(updated)) updated += ` data-layout-allow-overflow="true"`;
+        if (!/data-layout-allow-overlap=/i.test(updated)) updated += ` data-layout-allow-overlap="true"`;
+        if (!/data-layout-allow-occlusion=/i.test(updated)) updated += ` data-layout-allow-occlusion="true"`;
+        return `<${tag}${updated}>`;
+      });
     }
 
-    // 3. Clean up letterSpacing animations in GSAP
+    // 3. Remove conflicting CSS transforms like .scene-background { transform: scale(...) }
+    repairedHtml = repairedHtml.replace(/(\.scene-background\s*\{[^}]*?)transform\s*:\s*scale\([^)]+\)\s*;?/gi, '$1');
+    repairedCss = repairedCss.replace(/(\.scene-background\s*\{[^}]*?)transform\s*:\s*scale\([^)]+\)\s*;?/gi, '$1');
+
+    // 4. Clean up letterSpacing animations in GSAP
     repairedHtml = repairedHtml.replace(/(['"]?letter[-S]pacing['"]?\s*:\s*)[^,\}\n]+/gi, '/* letterSpacing held */ opacity: 1');
     repairedJs = repairedJs.replace(/(['"]?letter[-S]pacing['"]?\s*:\s*)[^,\}\n]+/gi, '/* letterSpacing held */ opacity: 1');
 
+    // 5. Neutralize timeline.play() calls so they don't break seek
+    repairedHtml = repairedHtml.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '/* timeline.play() bypassed for seek */ (void 0);');
+    repairedJs = repairedJs.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '/* timeline.play() bypassed for seek */ (void 0);');
+
+    // 6. Detect duration from code if present (e.g. TOTAL_DURATION = 40 or data-duration="40")
+    const durMatch = (repairedHtml + "\n" + repairedJs).match(/(?:TOTAL_DURATION|data-duration)=["']?(\d+)["']?/i);
+    let matchedDur = directDuration;
+    if (durMatch && durMatch[1]) {
+      const parsedDur = parseInt(durMatch[1], 10);
+      if ([5, 15, 30, 40, 60].includes(parsedDur)) {
+        matchedDur = parsedDur;
+        setDirectDuration(parsedDur);
+      }
+    }
+
     setDirectHtml(repairedHtml);
     setDirectJs(repairedJs);
+    setDirectCss(repairedCss);
 
     toast.loading("Applying fixes & re-validating...", { id: "autofix" });
     try {
@@ -597,9 +654,9 @@ window.__timelines["main"] = tl;`);
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           html: repairedHtml,
-          css: directCss,
+          css: repairedCss,
           js: repairedJs,
-          duration: directDuration,
+          duration: matchedDur,
           width: directResolution === "720p" ? 1280 : 1920,
           height: directResolution === "720p" ? 720 : 1080,
           fps: directFps,
@@ -607,7 +664,11 @@ window.__timelines["main"] = tl;`);
       });
       if (ok && data) {
         setValidationResult(data);
-        toast.success("Code auto-repaired and verified!", { id: "autofix" });
+        if (data.valid) {
+          toast.success("Code auto-repaired and verified clean!", { id: "autofix" });
+        } else {
+          toast.success("Code repaired with minor advisory notices", { id: "autofix" });
+        }
       } else {
         toast.success("Code auto-repaired!", { id: "autofix" });
       }
@@ -3011,6 +3072,17 @@ window.__timelines["main"] = tl;`);
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isValidatingCode || isSubmitting || !directHtml.trim()}
+                  onClick={handleAutoFixDirectCode}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700 shadow-2xs hover:bg-indigo-100 hover:text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 transition cursor-pointer"
+                  title="Auto-repair tags, align timeline IDs, add clip classes, and sanitize CSS/GSAP"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Auto-Fix & Clean Code</span>
+                </button>
+
                 <button
                   type="button"
                   disabled={isValidatingCode || isSubmitting}

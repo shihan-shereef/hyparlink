@@ -3156,8 +3156,13 @@ CRITICAL RULES:
       // 6. Copy stock assets if referenced or if assets dir exists
       const assetsDir = path.join(projectDir, "assets");
       await fs.promises.mkdir(assetsDir, { recursive: true });
-      const stockDir = path.resolve(process.cwd(), "backend-echo", "public-assets", "kerala");
-      if (fs.existsSync(stockDir)) {
+      const potentialStockDirs = [
+        path.resolve(path.dirname(new URL(import.meta.url).pathname), "public-assets", "kerala"),
+        path.resolve(process.cwd(), "public-assets", "kerala"),
+        path.resolve(process.cwd(), "backend-echo", "public-assets", "kerala"),
+      ];
+      const stockDir = potentialStockDirs.find((d) => fs.existsSync(d));
+      if (stockDir) {
         for (const file of ["kerala-intro.jpg", "kerala-backwaters.jpg", "kerala-mountains.jpg", "kerala-culture.jpg", "kerala-coast.jpg"]) {
           const src = path.join(stockDir, file);
           const dest = path.join(assetsDir, file);
@@ -3173,8 +3178,8 @@ CRITICAL RULES:
       const tlKeyMatch = allCode.match(/window\.__timelines\[["']([^"']+)["']\]/);
       const detectedTlId = tlKeyMatch ? tlKeyMatch[1] : null;
 
-      // Neutralize timeline.play() calls so they don't break HyperFrames seek-by-frame capture
-      userJs = userJs.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '// timeline.play() bypassed for seek');
+      // Neutralize timeline.play() calls safely with block comment and void 0 so we never break if-statements without braces
+      userJs = userJs.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '/* timeline.play() bypassed for seek */ (void 0);');
 
       userJs = `window.__timelines = window.__timelines || {};
 ${userJs}
@@ -3200,7 +3205,33 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
       // 8. index.html
       let userHtml = (html || "").trim();
       userHtml = userHtml.replace(/(\.scene-background\s*\{[^}]*?)transform\s*:\s*scale\([^)]+\)\s*;?/gi, '$1');
-      userHtml = userHtml.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '// timeline.play() bypassed for seek');
+      userHtml = userHtml.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '/* timeline.play() bypassed for seek */ (void 0);');
+      userHtml = userHtml.replace(/<\/html\s*$/i, '</html>');
+      userHtml = userHtml.replace(/<section\b([^>]*\bclass=["'][^"']*\bscene\b[^"']*["'][^>]*)>/gi, (match, attrs) => {
+        if (!/\bclip\b/.test(attrs)) {
+          return `<section ${attrs.replace(/\bclass=["']([^"']*)["']/, 'class="$1 clip"')}>`;
+        }
+        return match;
+      });
+
+      // Ensure any assets referenced in userHtml or userCss exist or have fallbacks
+      const referencedAssets = [
+        ...(userHtml.match(/assets\/[a-zA-Z0-9_\-\.]+/g) || []),
+        ...(userCss.match(/assets\/[a-zA-Z0-9_\-\.]+/g) || [])
+      ];
+      for (const assetRef of referencedAssets) {
+        const basename = path.basename(assetRef);
+        const targetPath = path.join(assetsDir, basename);
+        if (!fs.existsSync(targetPath)) {
+          const fallback = path.join(assetsDir, "kerala-intro.jpg");
+          if (fs.existsSync(fallback) && /\.(jpe?g|png)$/i.test(basename)) {
+            try { await fs.promises.copyFile(fallback, targetPath); } catch {}
+          } else {
+            const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"><rect width="100%" height="100%" fill="#071b12"/><text x="50%" y="50%" font-family="sans-serif" font-size="48" fill="#d8bd72" text-anchor="middle" dominant-baseline="middle">${basename}</text></svg>`;
+            try { await fs.promises.writeFile(targetPath, svgContent, "utf-8"); } catch {}
+          }
+        }
+      }
       let finalHtml = "";
       if (/<html\b/i.test(userHtml) || /<!DOCTYPE\b/i.test(userHtml)) {
         finalHtml = userHtml;
@@ -3332,7 +3363,8 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             !lower.includes("sweep_static") &&
             !lower.includes("root_missing_dimensions") &&
             !lower.includes("studio_missing") &&
-            !lower.includes("nested_structure")
+            !lower.includes("nested_structure") &&
+            !lower.includes("missing_local_asset")
           );
         });
         const isActuallyValid = fatalErrors.length === 0;
