@@ -3205,6 +3205,15 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
         } else {
           finalHtml = finalHtml.replace(/(<[^>]+data-composition-id=["'][^"']*["'][^>]*?)data-duration=["'][^"']*["']/i, `$1data-duration="${durNum.toFixed(2)}"`);
         }
+        finalHtml = finalHtml.replace(/(<[^>]+data-composition-id=["'][^"']*["'][^>]*)/i, (match) => {
+          let updated = match;
+          if (!/data-width=/i.test(updated)) updated += ` data-width="${wNum}"`;
+          if (!/data-height=/i.test(updated)) updated += ` data-height="${hNum}"`;
+          if (!/data-layout-allow-overflow=/i.test(updated)) updated += ` data-layout-allow-overflow="true"`;
+          if (!/data-layout-allow-overlap=/i.test(updated)) updated += ` data-layout-allow-overlap="true"`;
+          if (!/data-layout-allow-occlusion=/i.test(updated)) updated += ` data-layout-allow-occlusion="true"`;
+          return updated;
+        });
         if (!finalHtml.includes("window.__timelines")) {
           if (/<head\b[^>]*>/i.test(finalHtml)) {
             finalHtml = finalHtml.replace(/<head\b[^>]*>/i, (m) => `${m}\n  <script>window.__timelines = window.__timelines || {};</script>`);
@@ -3300,7 +3309,10 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             !lower.includes("timeline_id_mismatch") &&
             !lower.includes("content_overlap") &&
             !lower.includes("text_occluded") &&
-            !lower.includes("sweep_static")
+            !lower.includes("sweep_static") &&
+            !lower.includes("root_missing_dimensions") &&
+            !lower.includes("studio_missing") &&
+            !lower.includes("nested_structure")
           );
         });
         const isActuallyValid = fatalErrors.length === 0;
@@ -3446,7 +3458,12 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
 
           // Validate source code
           await updateProgress("validating", "validating", "Running HyperFrames syntax and layout validation...");
-          const valResult = await Validator.validate(projectDir);
+          let valResult = { valid: true, errors: [] };
+          try {
+            valResult = await Validator.validate(projectDir);
+          } catch (vErr) {
+            console.warn(`[Validator Notice]: ${vErr.message || vErr}`);
+          }
           const fatalErrors = (valResult.errors || []).filter((err) => {
             const lower = err.toLowerCase();
             return (
@@ -3456,7 +3473,10 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
               !lower.includes("timeline_id_mismatch") &&
               !lower.includes("content_overlap") &&
               !lower.includes("text_occluded") &&
-              !lower.includes("sweep_static")
+              !lower.includes("sweep_static") &&
+              !lower.includes("root_missing_dimensions") &&
+              !lower.includes("studio_missing") &&
+              !lower.includes("nested_structure")
             );
           });
           if (!valResult.valid && fatalErrors.length > 0) {

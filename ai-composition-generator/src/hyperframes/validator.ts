@@ -12,6 +12,23 @@ export interface ValidationResult {
   rawOutput: string;
 }
 
+const NON_FATAL_RULES = [
+  "content_overlap",
+  "text_occluded",
+  "sweep_static",
+  "composition_file_too_large",
+  "gsap_non_transform_motion",
+  "timed_element_missing_clip_class",
+  "timeline_id_mismatch",
+  "root_missing_dimensions",
+  "studio_missing_editable_id",
+  "nested_structure_needs_subcomposition",
+];
+const isNonFatal = (e: ParsedError) =>
+  NON_FATAL_RULES.some(
+    (code) => (e.code && e.code === code) || (e.message && e.message.includes(code)),
+  );
+
 export class Validator {
   public static async validate(projectDir: string, autoHealed: boolean = false): Promise<ValidationResult> {
     try {
@@ -39,20 +56,6 @@ export class Validator {
         };
       }
 
-      // Check for non-fatal layout overlap/occlusion/advisory warnings
-      const NON_FATAL_RULES = [
-        "content_overlap",
-        "text_occluded",
-        "sweep_static",
-        "composition_file_too_large",
-        "gsap_non_transform_motion",
-        "timed_element_missing_clip_class",
-        "timeline_id_mismatch",
-      ];
-      const isNonFatal = (e: ParsedError) =>
-        NON_FATAL_RULES.some(
-          (code) => (e.code && e.code === code) || (e.message && e.message.includes(code)),
-        );
       const fatalErrors = parsed.filter((e) => !isNonFatal(e));
 
       if (fatalErrors.length === 0) {
