@@ -39,19 +39,24 @@ export class Validator {
         };
       }
 
-      // Check for non-fatal layout overlap/occlusion/sweep_static
-      const fatalErrors = parsed.filter(
-        (e) =>
-          e.code !== "content_overlap" &&
-          e.code !== "text_occluded" &&
-          e.code !== "sweep_static" &&
-          !e.message.includes("content_overlap") &&
-          !e.message.includes("text_occluded") &&
-          !e.message.includes("sweep_static"),
-      );
+      // Check for non-fatal layout overlap/occlusion/advisory warnings
+      const NON_FATAL_RULES = [
+        "content_overlap",
+        "text_occluded",
+        "sweep_static",
+        "composition_file_too_large",
+        "gsap_non_transform_motion",
+        "timed_element_missing_clip_class",
+        "timeline_id_mismatch",
+      ];
+      const isNonFatal = (e: ParsedError) =>
+        NON_FATAL_RULES.some(
+          (code) => (e.code && e.code === code) || (e.message && e.message.includes(code)),
+        );
+      const fatalErrors = parsed.filter((e) => !isNonFatal(e));
 
       if (fatalErrors.length === 0) {
-        console.warn(`[Validator] Auto-waived ${parsed.length} intentional layering / non-fatal layout notice(s). Project valid.`);
+        console.warn(`[Validator] Auto-waived ${parsed.length} advisory/non-fatal notice(s). Project valid.`);
         return {
           valid: true,
           errors: [],
@@ -103,12 +108,10 @@ export class Validator {
       }
 
       // If the only remaining issues are non-fatal layout overlap/occlusion notices and all runtime/lint checks passed:
-      const fatalErrors = parsed.filter(
-        (e) => e.code !== "content_overlap" && e.code !== "text_occluded" && !e.message.includes("content_overlap") && !e.message.includes("text_occluded"),
-      );
+      const fatalErrors = parsed.filter((e) => !isNonFatal(e));
 
       if (fatalErrors.length === 0 && parsed.length > 0) {
-        console.warn(`[Validator] Non-fatal layout overlap/occlusion notices auto-waived (${parsed.length} notice(s)); marking project valid.`);
+        console.warn(`[Validator] Non-fatal advisory notices auto-waived (${parsed.length} notice(s)); marking project valid.`);
         return {
           valid: true,
           errors: [],

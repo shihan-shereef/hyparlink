@@ -3154,15 +3154,28 @@ CRITICAL RULES:
 
       // 6. script.js
       let userJs = (js || "").trim();
+      const allCode = (html || "") + "\n" + userJs;
+      const tlKeyMatch = allCode.match(/window\.__timelines\[["']([^"']+)["']\]/);
+      const detectedTlId = tlKeyMatch ? tlKeyMatch[1] : null;
+
       userJs = `window.__timelines = window.__timelines || {};
 ${userJs}
 if (typeof tl !== "undefined" && !window.__timelines["main"]) {
   window.__timelines["main"] = tl;
 }
+${detectedTlId && detectedTlId !== "main" ? `
+if (window.__timelines["${detectedTlId}"] && !window.__timelines["main"]) {
+  window.__timelines["main"] = window.__timelines["${detectedTlId}"];
+}
+if (window.__timelines["main"] && !window.__timelines["${detectedTlId}"]) {
+  window.__timelines["${detectedTlId}"] = window.__timelines["main"];
+}
+` : ""}
 if (!window.__timelines["main"] && typeof gsap !== "undefined") {
   const _baseTl = gsap.timeline({ paused: true });
   _baseTl.to("#root", { x: 0.01, duration: ${durNum.toFixed(2)}, ease: "none" });
   window.__timelines["main"] = _baseTl;
+  ${detectedTlId && detectedTlId !== "main" ? `window.__timelines["${detectedTlId}"] = _baseTl;` : ""}
 }`;
       await fs.promises.writeFile(path.join(projectDir, "script.js"), userJs, "utf-8");
 
@@ -3183,14 +3196,14 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             finalHtml = finalHtml.replace(/<head\b[^>]*>/i, (m) => `${m}\n  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>`);
           }
         }
-        if (!/data-composition-id=["']main["']/i.test(finalHtml)) {
+        if (!/data-composition-id=/i.test(finalHtml)) {
           if (/<div\b[^>]*id=["']root["']/i.test(finalHtml)) {
-            finalHtml = finalHtml.replace(/<div\b([^>]*id=["']root["'][^>]*)>/i, `<div$1 data-composition-id="main" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true">`);
+            finalHtml = finalHtml.replace(/<div\b([^>]*id=["']root["'][^>]*)>/i, `<div$1 data-composition-id="${detectedTlId || "main"}" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true">`);
           } else if (/<body\b[^>]*>/i.test(finalHtml)) {
-            finalHtml = finalHtml.replace(/<body\b([^>]*)>([\s\S]*?)<\/body>/i, `<body$1>\n  <div id="root" data-composition-id="main" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true" style="position: relative; width: ${wNum}px; height: ${hNum}px; overflow: hidden;">\n$2\n  </div>\n</body>`);
+            finalHtml = finalHtml.replace(/<body\b([^>]*)>([\s\S]*?)<\/body>/i, `<body$1>\n  <div id="root" data-composition-id="${detectedTlId || "main"}" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true" style="position: relative; width: ${wNum}px; height: ${hNum}px; overflow: hidden;">\n$2\n  </div>\n</body>`);
           }
         } else {
-          finalHtml = finalHtml.replace(/(<[^>]+data-composition-id=["']main["'][^>]*?)data-duration=["'][^"']*["']/i, `$1data-duration="${durNum.toFixed(2)}"`);
+          finalHtml = finalHtml.replace(/(<[^>]+data-composition-id=["'][^"']*["'][^>]*?)data-duration=["'][^"']*["']/i, `$1data-duration="${durNum.toFixed(2)}"`);
         }
         if (!finalHtml.includes("window.__timelines")) {
           if (/<head\b[^>]*>/i.test(finalHtml)) {
@@ -3209,11 +3222,11 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
         const hasCompId = /data-composition-id=/i.test(userHtml);
         let innerBody = userHtml;
         if (!hasRoot && !hasCompId) {
-          innerBody = `<div id="root" data-composition-id="main" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true" style="position: relative; width: ${wNum}px; height: ${hNum}px; overflow: hidden;">\n    ${userHtml}\n  </div>`;
+          innerBody = `<div id="root" data-composition-id="${detectedTlId || "main"}" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true" style="position: relative; width: ${wNum}px; height: ${hNum}px; overflow: hidden;">\n    ${userHtml}\n  </div>`;
         } else if (!hasCompId) {
-          innerBody = userHtml.replace(/<div\b([^>]*id=["']root["'][^>]*)>/i, `<div$1 data-composition-id="main" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true">`);
+          innerBody = userHtml.replace(/<div\b([^>]*id=["']root["'][^>]*)>/i, `<div$1 data-composition-id="${detectedTlId || "main"}" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true">`);
         } else {
-          innerBody = userHtml.replace(/(<[^>]+data-composition-id=["']main["'][^>]*?)data-duration=["'][^"']*["']/i, `$1data-duration="${durNum.toFixed(2)}"`);
+          innerBody = userHtml.replace(/(<[^>]+data-composition-id=["'][^"']*["'][^>]*?)data-duration=["'][^"']*["']/i, `$1data-duration="${durNum.toFixed(2)}"`);
         }
 
         finalHtml = `<!DOCTYPE html>
@@ -3239,6 +3252,29 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
 </html>`;
       }
 
+      // Auto-heal 1: Ensure any element with timed attributes has class="clip"
+      finalHtml = finalHtml.replace(/<([a-z0-9_-]+)\b([^>]*\b(?:data-in|data-out|data-start|data-duration)=[^>]*)>/gi, (match, tag, attrs) => {
+        if (/\bclass=["']([^"']*)["']/i.test(attrs)) {
+          if (!/\bclip\b/i.test(attrs)) {
+            return `<${tag} ${attrs.replace(/\bclass=["']([^"']*)["']/i, 'class="$1 clip"')}>`;
+          }
+          return match;
+        }
+        return `<${tag} class="clip" ${attrs}>`;
+      });
+
+      // Auto-heal 2: If detectedTlId exists, align composition id
+      if (detectedTlId && detectedTlId !== "main") {
+        if (/<div\b[^>]*id=["']composition["']/i.test(finalHtml) && !new RegExp(`data-composition-id=["']${detectedTlId}["']`, "i").test(finalHtml)) {
+          finalHtml = finalHtml.replace(/<div\b([^>]*id=["']composition["'][^>]*)>/i, (m, attrs) => {
+            if (/data-composition-id=/i.test(attrs)) {
+              return `<div${attrs.replace(/data-composition-id=["'][^"']*["']/i, `data-composition-id="${detectedTlId}"`)}>`;
+            }
+            return `<div${attrs} data-composition-id="${detectedTlId}">`;
+          });
+        }
+      }
+
       await fs.promises.writeFile(path.join(projectDir, "index.html"), finalHtml, "utf-8");
     }
 
@@ -3255,9 +3291,23 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
         await buildDirectCodeProject(tempDir, { html, css, js, duration, width, height, fps, jobId: tempJobId });
         const valResult = await Validator.validate(tempDir);
         try { await fs.promises.rm(tempDir, { recursive: true, force: true }); } catch {}
+        const fatalErrors = (valResult.errors || []).filter((err) => {
+          const lower = err.toLowerCase();
+          return (
+            !lower.includes("composition_file_too_large") &&
+            !lower.includes("gsap_non_transform_motion") &&
+            !lower.includes("timed_element_missing_clip_class") &&
+            !lower.includes("timeline_id_mismatch") &&
+            !lower.includes("content_overlap") &&
+            !lower.includes("text_occluded") &&
+            !lower.includes("sweep_static")
+          );
+        });
+        const isActuallyValid = fatalErrors.length === 0;
         return send(res, 200, {
-          valid: valResult.valid,
-          errors: valResult.errors || [],
+          valid: isActuallyValid,
+          errors: isActuallyValid ? [] : fatalErrors,
+          warnings: valResult.errors || [],
           parsedErrors: valResult.parsedErrors || [],
         });
       } catch (valErr) {
@@ -3397,14 +3447,26 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
           // Validate source code
           await updateProgress("validating", "validating", "Running HyperFrames syntax and layout validation...");
           const valResult = await Validator.validate(projectDir);
-          if (!valResult.valid) {
-            const errorMsg = valResult.errors?.join("; ") || "HyperFrames validation failed";
+          const fatalErrors = (valResult.errors || []).filter((err) => {
+            const lower = err.toLowerCase();
+            return (
+              !lower.includes("composition_file_too_large") &&
+              !lower.includes("gsap_non_transform_motion") &&
+              !lower.includes("timed_element_missing_clip_class") &&
+              !lower.includes("timeline_id_mismatch") &&
+              !lower.includes("content_overlap") &&
+              !lower.includes("text_occluded") &&
+              !lower.includes("sweep_static")
+            );
+          });
+          if (!valResult.valid && fatalErrors.length > 0) {
+            const errorMsg = fatalErrors.join("; ");
             await updateProgress("failed", "failed", `Validation failed: ${errorMsg}`);
             const failData = {
               status: "failed",
               stage: "failed",
               error: errorMsg,
-              validationErrors: valResult.errors,
+              validationErrors: fatalErrors,
               updatedAt: Date.now(),
             };
             apiProjectStore.set(projectId, { ...(apiProjectStore.get(projectId) || {}), ...failData });

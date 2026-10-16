@@ -554,6 +554,68 @@ window.__timelines["main"] = tl;`);
     }
   };
 
+  const handleAutoFixDirectCode = async () => {
+    let repairedHtml = directHtml;
+    let repairedJs = directJs;
+
+    // 1. Auto-add class="clip" to elements with data-in/data-out/data-start/data-duration
+    repairedHtml = repairedHtml.replace(/<([a-z0-9_-]+)\b([^>]*\b(?:data-in|data-out|data-start|data-duration)=[^>]*)>/gi, (match, tag, attrs) => {
+      if (/\bclass=["']([^"']*)["']/i.test(attrs)) {
+        if (!/\bclip\b/i.test(attrs)) {
+          return `<${tag} ${attrs.replace(/\bclass=["']([^"']*)["']/i, 'class="$1 clip"')}>`;
+        }
+        return match;
+      }
+      return `<${tag} class="clip" ${attrs}>`;
+    });
+
+    // 2. Align timeline ID between window.__timelines["..."] and data-composition-id
+    const tlKeyMatch = (repairedHtml + "\n" + repairedJs).match(/window\.__timelines\[["']([^"']+)["']\]/);
+    const detectedTlId = tlKeyMatch ? tlKeyMatch[1] : null;
+    if (detectedTlId && detectedTlId !== "main") {
+      if (/<div\b[^>]*id=["']composition["']/i.test(repairedHtml)) {
+        repairedHtml = repairedHtml.replace(/<div\b([^>]*id=["']composition["'][^>]*)>/i, (m, attrs) => {
+          if (/data-composition-id=/i.test(attrs)) {
+            return `<div${attrs.replace(/data-composition-id=["'][^"']*["']/i, `data-composition-id="${detectedTlId}"`)}>`;
+          }
+          return `<div${attrs} data-composition-id="${detectedTlId}">`;
+        });
+      }
+    }
+
+    // 3. Clean up letterSpacing animations in GSAP
+    repairedHtml = repairedHtml.replace(/(['"]?letter[-S]pacing['"]?\s*:\s*)[^,\}\n]+/gi, '/* letterSpacing held */ opacity: 1');
+    repairedJs = repairedJs.replace(/(['"]?letter[-S]pacing['"]?\s*:\s*)[^,\}\n]+/gi, '/* letterSpacing held */ opacity: 1');
+
+    setDirectHtml(repairedHtml);
+    setDirectJs(repairedJs);
+
+    toast.loading("Applying fixes & re-validating...", { id: "autofix" });
+    try {
+      const { ok, data } = await safeJsonFetch("/api/direct-code/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          html: repairedHtml,
+          css: directCss,
+          js: repairedJs,
+          duration: directDuration,
+          width: directResolution === "720p" ? 1280 : 1920,
+          height: directResolution === "720p" ? 720 : 1080,
+          fps: directFps,
+        }),
+      });
+      if (ok && data) {
+        setValidationResult(data);
+        toast.success("Code auto-repaired and verified!", { id: "autofix" });
+      } else {
+        toast.success("Code auto-repaired!", { id: "autofix" });
+      }
+    } catch {
+      toast.success("Code auto-repaired!", { id: "autofix" });
+    }
+  };
+
   const handleRenderDirectCode = async (overrideHtml?: string | React.SyntheticEvent) => {
     const htmlToRender = (typeof overrideHtml === "string" ? overrideHtml : directHtml).trim();
     if (!htmlToRender) {
@@ -2877,18 +2939,29 @@ window.__timelines["main"] = tl;`);
 
             {/* Validation Feedback */}
             {validationResult && (
-              <div className={`rounded-xl p-3 text-xs ${
+              <div className={`rounded-xl p-3.5 text-xs ${
                 validationResult.valid
                   ? "border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
                   : "border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
               }`}>
-                <div className="flex items-center gap-2 font-bold">
-                  {validationResult.valid ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-amber-600" />}
-                  <span>{validationResult.valid ? "Source code is valid and ready to render." : "Validation warnings:"}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 font-bold">
+                    {validationResult.valid ? <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /> : <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />}
+                    <span>{validationResult.valid ? "Source code is valid and ready to render." : "Validation warnings:"}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAutoFixDirectCode}
+                    className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1 text-[11px] font-bold text-white shadow-xs hover:bg-indigo-700 transition cursor-pointer shrink-0"
+                    title="Automatically add class='clip', align timeline IDs, and fix CSS/GSAP issues"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    <span>Auto-Fix & Clean Code</span>
+                  </button>
                 </div>
-                {validationResult.errors && validationResult.errors.length > 0 && (
-                  <ul className="mt-1.5 list-inside list-disc space-y-0.5 text-[11px] opacity-90">
-                    {validationResult.errors.map((err: string, i: number) => (
+                {((validationResult.errors && validationResult.errors.length > 0) || ((validationResult as any).warnings && (validationResult as any).warnings.length > 0)) && (
+                  <ul className="mt-2 list-inside list-disc space-y-1 text-[11px] opacity-90 border-t border-amber-200/60 dark:border-amber-800/60 pt-2">
+                    {(validationResult.errors?.length ? validationResult.errors : (validationResult as any).warnings || []).map((err: string, i: number) => (
                       <li key={i}>{err}</li>
                     ))}
                   </ul>
