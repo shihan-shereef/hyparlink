@@ -566,29 +566,48 @@ window.__timelines["main"] = tl;`);
       const width = directResolution === "720p" ? 1280 : 1920;
       const height = directResolution === "720p" ? 720 : 1080;
 
+      // Extract title from HTML if not explicitly provided
+      const titleMatch =
+        htmlToRender.match(/<title>([^<]+)<\/title>/i) ||
+        htmlToRender.match(/<h[12][^>]*>([^<]+)<\/h[12]>/i);
+      const extractedTitle = titleMatch && titleMatch[1] ? titleMatch[1].trim() : "";
+      const effectiveTitle = (directTitle || extractedTitle || "Direct Code Video").trim();
+
+      // Extract duration from data-duration attribute if present
+      let effectiveDuration = directDuration || 30;
+      const durMatch = htmlToRender.match(/data-duration=["']?(\d+)["']?/i);
+      if (durMatch && durMatch[1] && (!directDuration || directDuration === 15 || directDuration === 30)) {
+        const parsedDur = Number(durMatch[1]);
+        if (!isNaN(parsedDur) && parsedDur > 0) {
+          effectiveDuration = parsedDur;
+        }
+      }
+
       let projId = `proj_code_${Date.now()}`;
       try {
         const res: any = await createProject({
           workspaceId: targetWs,
-          name: directTitle || "Direct Code Video",
+          name: effectiveTitle,
           prompt: "DIRECT_CODE_RENDER",
-          duration: directDuration,
+          duration: effectiveDuration,
           width,
           height,
           fps: directFps,
           mode: "direct_code",
         });
         if (res?.projectId) projId = res.projectId;
-      } catch (e) {}
+      } catch (e: any) {
+        console.error("Direct code createProject notice:", e);
+      }
 
       setActiveProjectId(projId as any);
       setPolledProject({
         _id: projId,
-        name: directTitle || "Direct Code Video",
+        name: effectiveTitle,
         prompt: "DIRECT_CODE_RENDER",
         status: "validating",
         stage: "validating",
-        duration: directDuration,
+        duration: effectiveDuration,
       });
 
       const { ok, data, error } = await safeJsonFetch("/api/direct-code", {
@@ -599,11 +618,11 @@ window.__timelines["main"] = tl;`);
           html: htmlToRender,
           css: directCss,
           js: directJs,
-          duration: directDuration,
+          duration: effectiveDuration,
           width,
           height,
           fps: directFps,
-          title: directTitle || "Direct Code Video",
+          title: effectiveTitle,
           workspaceId: targetWs,
         }),
       });
@@ -611,7 +630,7 @@ window.__timelines["main"] = tl;`);
       if (!ok || !data?.ok) {
         throw new Error(error || data?.error || "Failed to trigger direct code render");
       }
-      toast.success("Direct code render initiated! Tracking progress...");
+      toast.success("Direct code render initiated! Saving to your video projects...");
     } catch (err: any) {
       toast.error(err.message || "Failed to start direct code render");
       setIsSubmitting(false);

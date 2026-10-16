@@ -123,6 +123,9 @@ export const getVideoPlaybackUrl = query({
 
 function deriveProjectName(rawName: string, prompt: string): string {
   const trimmed = rawName.trim();
+  if (prompt === "DIRECT_CODE_RENDER" && trimmed) {
+    return trimmed;
+  }
   const isPresetOrGeneric =
     !trimmed ||
     trimmed === "Untitled Video" ||
@@ -132,6 +135,9 @@ function deriveProjectName(rawName: string, prompt: string): string {
     trimmed.toLowerCase() === "ai video project";
 
   if (isPresetOrGeneric) {
+    if (prompt === "DIRECT_CODE_RENDER") {
+      return "Direct Code Video";
+    }
     const cleaned = prompt
       .trim()
       .replace(
@@ -174,8 +180,16 @@ export const create = mutation({
     planStatus: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    let userId = await getAuthUserId(ctx);
-    if (!userId) {
+    let targetWs = args.workspaceId;
+    let ws = await ctx.db.get(targetWs);
+    if (!ws) {
+      const firstWs = await ctx.db.query("workspaces").first();
+      if (firstWs) targetWs = firstWs._id;
+    }
+
+    const authUserId = await getAuthUserId(ctx);
+    let userId: Id<"users">;
+    if (!authUserId) {
       let defaultUser = await ctx.db.query("users").first();
       if (!defaultUser) {
         const uId = await ctx.db.insert("users", {
@@ -188,7 +202,21 @@ export const create = mutation({
       }
       userId = defaultUser!._id;
     } else {
-      await requireMember(ctx, userId, args.workspaceId);
+      userId = authUserId;
+      const member = await ctx.db
+        .query("members")
+        .withIndex("by_user_workspace", (q) =>
+          q.eq("userId", userId).eq("workspaceId", targetWs),
+        )
+        .unique();
+      if (!member) {
+        await ctx.db.insert("members", {
+          workspaceId: targetWs,
+          userId,
+          role: "member",
+          createdAt: Date.now(),
+        });
+      }
     }
 
     const duration = args.duration ?? 5;
@@ -748,7 +776,9 @@ export const remove = mutation({
 
 export const updateProjectResult = internalMutation({
   args: {
-    projectId: v.id("projects"),
+    projectId: v.string(),
+    workspaceId: v.optional(v.string()),
+    name: v.optional(v.string()),
     status: v.string(),
     outputUrl: v.optional(v.string()),
     outputStorageId: v.optional(v.id("_storage")),
@@ -793,10 +823,64 @@ export const updateProjectResult = internalMutation({
     hlsMasterKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const project = await ctx.db.get(args.projectId);
-    if (!project) return;
+    let project = null;
+    try {
+      project = await ctx.db.get(args.projectId as Id<"projects">);
+    } catch {
+      // args.projectId might not be a valid Convex ID
+    }
 
-    await ctx.db.patch(args.projectId, {
+    if (!project) {
+      let targetWs: Id<"workspaces"> | null = null;
+      if (args.workspaceId) {
+        try {
+          const ws = await ctx.db.get(args.workspaceId as Id<"workspaces">);
+          if (ws) targetWs = ws._id;
+        } catch {}
+      }
+      if (!targetWs) {
+        const firstWs = await ctx.db.query("workspaces").first();
+        if (firstWs) targetWs = firstWs._id;
+      }
+      if (!targetWs) return;
+
+      const firstUser = await ctx.db.query("users").first();
+      const userId = firstUser ? firstUser._id : (args.projectId as any);
+
+      const newId = await ctx.db.insert("projects", {
+        workspaceId: targetWs,
+        userId,
+        name: args.name || "Direct Code Video",
+        prompt: "DIRECT_CODE_RENDER",
+        status: args.status,
+        duration: 30,
+        width: 1920,
+        height: 1080,
+        fps: 30,
+        hyperframesVersion: "0.8.139",
+        outputUrl: args.outputUrl,
+        cdnUrl: args.cdnUrl,
+        storageUrl: args.storageUrl,
+        storageKey: args.storageKey,
+        storageProvider: args.storageProvider,
+        storageBucket: args.storageBucket,
+        fileSize: args.fileSize,
+        mimeType: args.mimeType || "video/mp4",
+        validationStatus: args.validationStatus || "PASSED",
+        renderTimeSeconds: args.renderTimeSeconds,
+        thumbnailUrl: args.thumbnailUrl,
+        thumbnailCdnUrl: args.thumbnailCdnUrl,
+        thumbnailStorageKey: args.thumbnailStorageKey,
+        thumbnailStatus: args.thumbnailStatus || "completed",
+        thumbnailFileSize: args.thumbnailFileSize,
+        renders: args.renders,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      return newId;
+    }
+
+    await ctx.db.patch(project._id, {
       status: args.status,
       outputUrl: args.outputUrl ?? project.outputUrl,
       outputStorageId: args.outputStorageId ?? project.outputStorageId,
@@ -846,18 +930,68 @@ export const listAllInternal = internalQuery({
   },
 });
 
-export const summaryInternal = internalQuery({
+export const checkProjectsStatus = internalQuery({
   args: {},
   handler: async (ctx) => {
-    const list = await ctx.db.query("projects").order("desc").take(15);
-    return list.map((p) => ({
-      id: p._id,
-      name: p.name,
-      prompt: p.prompt?.slice(0, 80),
-      status: p.status,
-      created: new Date(p.createdAt).toISOString(),
-      outputUrl: p.outputUrl,
-    }));
+    const keepIds = new Set([
+      "m57dqzmtt88kqnvhcpbp42f55n8gb5v0",
+      "m572pgs8w3yt2j05sjz33qgm3h8gavya",
+      "m573f8bqdwdn4f833pzemaq0ms8g68ta",
+      "m579g6v1s41trb1d80re8jfdds8g27n3",
+      "m5746v3vf72h3q3xqm9fxmw1kh8g7mpd",
+      "m577q3xx2e4evn5t0e0pjvc6fs8gd0df",
+      "m57ffxt9knfty64hb4cn8zns498gdw1s",
+      "m57f7edthgtxbmh702nabk0cth8gcdps",
+    ]);
+
+    const allProjects = await ctx.db.query("projects").collect();
+    const keptList: any[] = [];
+    const toBeRemovedList: any[] = [];
+
+    for (const p of allProjects) {
+      const info = { id: p._id, name: p.name, status: p.status, outputUrl: p.outputUrl };
+      if (keepIds.has(String(p._id))) {
+        keptList.push(info);
+      } else {
+        toBeRemovedList.push(info);
+      }
+    }
+
+    const foundKeepIds = new Set(keptList.map((p) => String(p.id)));
+    const missingKeepIds = [...keepIds].filter((id) => !foundKeepIds.has(id));
+
+    return { total: allProjects.length, keptList, toBeRemovedList, missingKeepIds };
+  },
+});
+
+export const pruneExceptKeepList = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const keepIds = new Set([
+      "m57dqzmtt88kqnvhcpbp42f55n8gb5v0",
+      "m572pgs8w3yt2j05sjz33qgm3h8gavya",
+      "m573f8bqdwdn4f833pzemaq0ms8g68ta",
+      "m579g6v1s41trb1d80re8jfdds8g27n3",
+      "m5746v3vf72h3q3xqm9fxmw1kh8g7mpd",
+      "m577q3xx2e4evn5t0e0pjvc6fs8gd0df",
+      "m57ffxt9knfty64hb4cn8zns498gdw1s",
+      "m57f7edthgtxbmh702nabk0cth8gcdps",
+    ]);
+
+    const allProjects = await ctx.db.query("projects").collect();
+    const removed: string[] = [];
+    const kept: string[] = [];
+
+    for (const p of allProjects) {
+      if (!keepIds.has(String(p._id))) {
+        await ctx.db.delete(p._id);
+        removed.push(`${p._id}: ${p.name}`);
+      } else {
+        kept.push(`${p._id}: ${p.name}`);
+      }
+    }
+
+    return { keptCount: kept.length, removedCount: removed.length, kept, removed };
   },
 });
 

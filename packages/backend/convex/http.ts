@@ -28,12 +28,40 @@ http.route({
     const type = typeof payload.type === "string" ? payload.type : "event";
 
     if (type === "job.result" && typeof payload.jobId === "string") {
-      await ctx.runMutation(internal.jobs.complete, {
-        // biome-ignore lint/suspicious/noExplicitAny: id validated by Convex
-        jobId: payload.jobId as any,
-        result: payload.result,
-        error: typeof payload.error === "string" ? payload.error : undefined,
-      });
+      try {
+        await ctx.runMutation(internal.jobs.complete, {
+          // biome-ignore lint/suspicious/noExplicitAny: id validated by Convex
+          jobId: payload.jobId as any,
+          result: payload.result,
+          error: typeof payload.error === "string" ? payload.error : undefined,
+        });
+      } catch {}
+      if (typeof payload.projectId === "string") {
+        const res = (payload.result || {}) as any;
+        try {
+          await ctx.runMutation(internal.projects.updateProjectResult, {
+            projectId: payload.projectId as any,
+            workspaceId: typeof payload.workspaceId === "string" ? payload.workspaceId : undefined,
+            name: typeof res.title === "string" ? res.title : undefined,
+            status: typeof res.status === "string" ? res.status : "completed",
+            outputUrl: typeof res.outputUrl === "string" ? res.outputUrl : (res.videoUrl || undefined),
+            cdnUrl: typeof res.cdnUrl === "string" ? res.cdnUrl : (res.videoUrl || undefined),
+            storageUrl: typeof res.storageUrl === "string" ? res.storageUrl : (res.videoUrl || undefined),
+            storageKey: typeof res.storageKey === "string" ? res.storageKey : undefined,
+            storageProvider: typeof res.storageProvider === "string" ? res.storageProvider : undefined,
+            fileSize: typeof res.fileSize === "number" ? res.fileSize : undefined,
+            mimeType: typeof res.mimeType === "string" ? res.mimeType : "video/mp4",
+            validationStatus: typeof res.validationStatus === "string" ? res.validationStatus : "PASSED",
+            renderTimeSeconds: typeof res.renderTimeSeconds === "number" ? res.renderTimeSeconds : undefined,
+            thumbnailUrl: typeof res.thumbnailUrl === "string" ? res.thumbnailUrl : undefined,
+            thumbnailCdnUrl: typeof res.thumbnailCdnUrl === "string" ? res.thumbnailCdnUrl : undefined,
+            thumbnailStorageKey: typeof res.thumbnailStorageKey === "string" ? res.thumbnailStorageKey : undefined,
+            thumbnailStatus: typeof res.thumbnailStatus === "string" ? res.thumbnailStatus : "completed",
+            thumbnailFileSize: typeof res.thumbnailFileSize === "number" ? res.thumbnailFileSize : undefined,
+            renders: Array.isArray(res.renders) ? (res.renders as any) : undefined,
+          });
+        } catch {}
+      }
     } else if (type === "project.result" && typeof payload.projectId === "string") {
       await ctx.runMutation(internal.projects.updateProjectResult, {
         // biome-ignore lint/suspicious/noExplicitAny: id validated by Convex

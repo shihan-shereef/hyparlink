@@ -3468,6 +3468,44 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
 
           recordProjectMapping(projectId, projectDir, workspaceId);
 
+          let thumbnailStorageKey = null;
+          let thumbnailUrl = null;
+          let thumbnailCdnUrl = null;
+          let thumbnailFileSize = null;
+
+          try {
+            const tempThumbPath = path.join("/tmp", `thumb-${jobId}.webp`);
+            const thumbResult = await MediaProcessor.generateThumbnail(
+              outputMp4Path,
+              tempThumbPath,
+              { width: 1280, height: 720 },
+            );
+            if (thumbResult && thumbResult.success && fs.existsSync(tempThumbPath)) {
+              const thumbKey = `workspaces/${workspaceId || "default"}/projects/${projectId}/renders/${jobId}/thumbnail.webp`;
+              const thumbUpload = await storage.upload(
+                tempThumbPath,
+                thumbKey,
+                {
+                  contentType: "image/webp",
+                  metadata: {
+                    projectId: String(projectId),
+                    jobId: String(jobId),
+                    type: "thumbnail",
+                  },
+                },
+              );
+              thumbnailStorageKey = thumbUpload.storageKey;
+              thumbnailUrl = thumbUpload.storageUrl || thumbUpload.cdnUrl;
+              thumbnailCdnUrl = thumbUpload.cdnUrl || thumbUpload.storageUrl;
+              thumbnailFileSize = thumbUpload.fileSize;
+              try {
+                fs.unlinkSync(tempThumbPath);
+              } catch {}
+            }
+          } catch (tErr) {
+            console.warn(`[Direct Code] Thumbnail generation notice: ${tErr.message}`);
+          }
+
           const completionData = {
             status: "completed",
             stage: "completed",
@@ -3476,6 +3514,8 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             outputPath: outputMp4Path,
             videoUrl: finalVideoUrl,
             outputUrl: finalVideoUrl,
+            cdnUrl: finalVideoUrl,
+            storageUrl: finalVideoUrl,
             storageKey: uploadResult.storageKey,
             storageProvider: storage.constructor.name === "CloudflareR2Provider" ? "r2" : "local",
             duration: probeData?.duration || duration,
@@ -3484,11 +3524,52 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             fps: probeData?.fps || fps,
             fileSize: stat.size,
             probeData,
+            thumbnailStorageKey,
+            thumbnailUrl,
+            thumbnailCdnUrl,
+            thumbnailFileSize,
+            thumbnailStatus: thumbnailUrl ? "completed" : undefined,
+            renders: [
+              {
+                status: "completed",
+                resolution,
+                width,
+                height,
+                fileSize: stat.size,
+                storageKey: uploadResult.storageKey,
+                storageUrl: finalVideoUrl,
+                cdnUrl: finalVideoUrl,
+              },
+            ],
             updatedAt: Date.now(),
           };
 
           apiProjectStore.set(projectId, { ...(apiProjectStore.get(projectId) || {}), ...completionData });
           apiJobStore.set(jobId, { ...(apiJobStore.get(jobId) || {}), ...completionData });
+
+          // Send project.result webhook to ensure Convex projects table updates immediately
+          await postWebhook({
+            type: "project.result",
+            projectId,
+            workspaceId,
+            name: title || "Direct Code Video",
+            status: "completed",
+            outputUrl: finalVideoUrl,
+            cdnUrl: finalVideoUrl,
+            storageUrl: finalVideoUrl,
+            storageKey: uploadResult.storageKey,
+            storageProvider: storage.constructor.name === "CloudflareR2Provider" ? "r2" : "local",
+            fileSize: stat.size,
+            mimeType: "video/mp4",
+            validationStatus: "PASSED",
+            renderTimeSeconds: Math.round((Date.now() - initialRecord.createdAt) / 1000),
+            thumbnailUrl,
+            thumbnailCdnUrl,
+            thumbnailStorageKey,
+            thumbnailStatus: thumbnailUrl ? "completed" : undefined,
+            thumbnailFileSize,
+            renders: completionData.renders,
+          }).catch((err) => console.error("[Direct Code Webhook Error]:", err));
 
           await postWebhook({
             type: "job.result",
