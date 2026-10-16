@@ -3149,14 +3149,32 @@ CRITICAL RULES:
       await fs.promises.writeFile(path.join(projectDir, "project.json"), JSON.stringify(projectConfig, null, 2), "utf-8");
 
       // 5. styles.css
-      const userCss = css || "";
+      let userCss = css || "";
+      userCss = userCss.replace(/(\.scene-background\s*\{[^}]*?)transform\s*:\s*scale\([^)]+\)\s*;?/gi, '$1');
       await fs.promises.writeFile(path.join(projectDir, "styles.css"), userCss, "utf-8");
 
-      // 6. script.js
+      // 6. Copy stock assets if referenced or if assets dir exists
+      const assetsDir = path.join(projectDir, "assets");
+      await fs.promises.mkdir(assetsDir, { recursive: true });
+      const stockDir = path.resolve(process.cwd(), "backend-echo", "public-assets", "kerala");
+      if (fs.existsSync(stockDir)) {
+        for (const file of ["kerala-intro.jpg", "kerala-backwaters.jpg", "kerala-mountains.jpg", "kerala-culture.jpg", "kerala-coast.jpg"]) {
+          const src = path.join(stockDir, file);
+          const dest = path.join(assetsDir, file);
+          if (fs.existsSync(src) && !fs.existsSync(dest)) {
+            try { await fs.promises.copyFile(src, dest); } catch {}
+          }
+        }
+      }
+
+      // 7. script.js
       let userJs = (js || "").trim();
       const allCode = (html || "") + "\n" + userJs;
       const tlKeyMatch = allCode.match(/window\.__timelines\[["']([^"']+)["']\]/);
       const detectedTlId = tlKeyMatch ? tlKeyMatch[1] : null;
+
+      // Neutralize timeline.play() calls so they don't break HyperFrames seek-by-frame capture
+      userJs = userJs.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '// timeline.play() bypassed for seek');
 
       userJs = `window.__timelines = window.__timelines || {};
 ${userJs}
@@ -3179,8 +3197,10 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
 }`;
       await fs.promises.writeFile(path.join(projectDir, "script.js"), userJs, "utf-8");
 
-      // 7. index.html
+      // 8. index.html
       let userHtml = (html || "").trim();
+      userHtml = userHtml.replace(/(\.scene-background\s*\{[^}]*?)transform\s*:\s*scale\([^)]+\)\s*;?/gi, '$1');
+      userHtml = userHtml.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '// timeline.play() bypassed for seek');
       let finalHtml = "";
       if (/<html\b/i.test(userHtml) || /<!DOCTYPE\b/i.test(userHtml)) {
         finalHtml = userHtml;
