@@ -2324,11 +2324,11 @@ window.__timelines["main"] = tl;`);
 
         {/* BRAND LOGO & MOTTO (Ollastar with Coconut Tree Logo) */}
         <div className="flex flex-col items-center justify-center space-y-4 pt-2">
-          <div className="relative flex h-24 w-24 sm:h-28 sm:w-28 items-center justify-center rounded-3xl bg-white p-3 shadow-lg border border-slate-200/90 dark:border-neutral-800 dark:bg-[#121620] hover:scale-105 transition-transform duration-200">
+          <div className="relative flex h-24 w-24 sm:h-28 sm:w-28 items-center justify-center hover:scale-105 transition-transform duration-200">
             <img
               src="/ollastar-logo.png"
               alt="Ollastar"
-              className="h-full w-full object-contain drop-shadow-sm"
+              className="h-full w-full object-contain dark:invert"
             />
           </div>
           <div className="text-center space-y-1">
@@ -2905,32 +2905,6 @@ window.__timelines["main"] = tl;`);
                   </button>
                 </div>
               </div>
-            </div>
-
-            {/* Quick Format Pills (Matching Gamma Presentation, Document, Carousel, Image, Beautify, Import) */}
-            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-              {[
-                { label: "Commercial", icon: "🎬", promptText: "Create a 30s premium television commercial with cinematic visuals, smooth camera glides, and modern kinetic typography." },
-                { label: "Social Reel", icon: "📱", promptText: "Create a 15s 9:16 vertical TikTok/Instagram reel with fast cuts, bold hook text, and trending upbeat pacing." },
-                { label: "SaaS Promo", icon: "🏢", promptText: "Create a 30s software product showcase video highlighting key features, UI mockups, and sleek glassmorphism." },
-                { label: "Travel Story", icon: "🌴", promptText: "Create a breathtaking travel video featuring coastal scenery, vibrant nature drone shots, and inspiring typography." },
-                { label: "Explainer", icon: "💡", promptText: "Create a clear, engaging 45s explainer video with animated diagrams, numbered points, and clean motion graphics." },
-                { label: "Product Launch", icon: "⚡", promptText: "Create a high-energy product launch video with dramatic lighting, device reveals, and bold call-to-actions." },
-              ].map((format) => (
-                <button
-                  key={format.label}
-                  type="button"
-                  onClick={() => {
-                    setPrompt(format.promptText);
-                    setName(`${format.label} Video`);
-                    promptInputRef.current?.focus();
-                  }}
-                  className="flex items-center gap-2 rounded-full border border-slate-200/90 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 dark:border-neutral-800 dark:bg-[#121622] dark:text-slate-300 dark:hover:bg-neutral-800 transition cursor-pointer"
-                >
-                  <span className="text-sm">{format.icon}</span>
-                  <span>{format.label}</span>
-                </button>
-              ))}
             </div>
           </form>
         ) : (
