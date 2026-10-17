@@ -2323,12 +2323,12 @@ window.__timelines["main"] = tl;`);
       <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center my-auto space-y-6">
 
         {/* BRAND LOGO & MOTTO (Ollastar with Coconut Tree Logo) */}
-        <div className="flex flex-col items-center justify-center space-y-3 pt-2">
-          <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-white p-2 shadow-md border border-slate-200/90 dark:border-neutral-800 dark:bg-[#121620]">
+        <div className="flex flex-col items-center justify-center space-y-4 pt-2">
+          <div className="relative flex h-24 w-24 sm:h-28 sm:w-28 items-center justify-center rounded-3xl bg-white p-3 shadow-lg border border-slate-200/90 dark:border-neutral-800 dark:bg-[#121620] hover:scale-105 transition-transform duration-200">
             <img
               src="/ollastar-logo.png"
               alt="Ollastar"
-              className="h-full w-full object-contain"
+              className="h-full w-full object-contain drop-shadow-sm"
             />
           </div>
           <div className="text-center space-y-1">
@@ -2337,14 +2337,13 @@ window.__timelines["main"] = tl;`);
             </h1>
           </div>
 
-          {/* Centered Controls: AI Prompt Mode | Direct Code Mode & ∷ Gemini */}
-          <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
-            {/* Mode Switcher Pill */}
+          {/* Centered Mode Switcher Pill */}
+          <div className="flex items-center justify-center pt-1">
             <div className="flex items-center gap-1 rounded-full border border-slate-200/90 bg-white p-1 dark:border-neutral-700 dark:bg-neutral-800/90 shadow-2xs">
               <button
                 type="button"
                 onClick={() => setPipelineMode("ai_prompt")}
-                className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer ${
                   pipelineMode === "ai_prompt"
                     ? "bg-slate-900 text-white shadow-xs dark:bg-white dark:text-slate-900"
                     : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
@@ -2356,7 +2355,7 @@ window.__timelines["main"] = tl;`);
               <button
                 type="button"
                 onClick={() => setPipelineMode("direct_code")}
-                className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer ${
                   pipelineMode === "direct_code"
                     ? "bg-slate-900 text-white shadow-xs dark:bg-white dark:text-slate-900"
                     : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
@@ -2365,57 +2364,6 @@ window.__timelines["main"] = tl;`);
                 <Code2 className="h-3.5 w-3.5 shrink-0" />
                 <span>Direct Code Mode</span>
               </button>
-            </div>
-
-            {/* Model Selector Pill (∷ Gemini) */}
-            <div className="relative shrink-0" ref={modelDropdownRef}>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowModelDropdown(!showModelDropdown);
-                }}
-                className="flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-slate-200 transition cursor-pointer shadow-2xs"
-              >
-                <span className="text-[11px] text-slate-400">∷</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {selectedModel.includes("gemini") ? "Gemini" : selectedModel.includes("deepseek") ? "DeepSeek" : "Lite"}
-                </span>
-                <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-              </button>
-
-              {/* Model dropdown popover */}
-              {showModelDropdown && (
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl dark:border-neutral-800 dark:bg-[#121622] animate-in fade-in zoom-in-95 duration-100"
-                >
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-neutral-800">
-                    <span className="text-xs font-bold text-slate-900 dark:text-white">AI Engine</span>
-                    <span className="text-[10px] text-slate-400 font-mono">({models.length} models)</span>
-                  </div>
-                  <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
-                    {models.slice(0, 10).map((m) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedModel(m.id);
-                          setShowModelDropdown(false);
-                        }}
-                        className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs text-left transition cursor-pointer ${
-                          selectedModel === m.id
-                            ? "bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
-                            : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-neutral-800"
-                        }`}
-                      >
-                        <span className="truncate">{m.name || m.id}</span>
-                        {selectedModel === m.id && <Check className="h-3.5 w-3.5 text-indigo-600" />}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -2752,13 +2700,13 @@ window.__timelines["main"] = tl;`);
                     handleSubmit(e);
                   }
                 }}
-                placeholder="This document was written for engineers. Rewrite it as a document for customers: plain language, no jargon, and a short FAQ at the end."
+                placeholder="Describe what you want to create, or paste a script..."
                 className="w-full resize-none bg-transparent text-sm sm:text-base leading-relaxed text-slate-900 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500"
               />
 
               {/* Bottom Toolbar inside the box (Matching Gamma) */}
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-neutral-800/80">
-                {/* Left Controls: + (Attach), Sliders (Settings), and Mode Toggle */}
+                {/* Left Controls: + (Attach), Sliders (Settings) */}
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
@@ -2871,10 +2819,62 @@ window.__timelines["main"] = tl;`);
                   </div>
                 </div>
 
-                {/* Left Controls: + (Attach) and Sliders (Settings) */}
-
-                {/* Right Controls: Mic and Send Button */}
+                {/* Right Controls: Model Pill (Matching Gamma Lite v), Mic and Send Button */}
                 <div className="flex items-center gap-2 shrink-0">
+                  {/* Model Selector Pill (Matching Gamma Lite dropdown) */}
+                  <div className="relative shrink-0" ref={modelDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowModelDropdown(!showModelDropdown);
+                      }}
+                      className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50/80 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-neutral-700 dark:bg-neutral-800/80 dark:text-slate-200 transition cursor-pointer"
+                      title="Select AI Model"
+                    >
+                      <Sparkles className="h-3 w-3 text-indigo-500" />
+                      <span>{selectedModel === "gemini-3-flash" ? "Lite" : selectedModel}</span>
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    </button>
+
+                    {showModelDropdown && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute bottom-9 right-0 z-50 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-neutral-800 dark:bg-[#121622] animate-in fade-in zoom-in-95 duration-100"
+                      >
+                        <div className="px-2 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                          Generation Model
+                        </div>
+                        <div className="space-y-1">
+                          {[
+                            { id: "gemini-3-flash", label: "Lite (Fast)", desc: "Gemini Flash 2.5/3" },
+                            { id: "gemini-2.5-pro", label: "Pro (High Quality)", desc: "Gemini Pro Reasoning" },
+                            { id: "ollama-local", label: "Ollama (Local)", desc: "Local LLM via port 11434" },
+                          ].map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedModel(m.id);
+                                setShowModelDropdown(false);
+                              }}
+                              className={`w-full rounded-xl p-2 text-left text-xs transition cursor-pointer ${
+                                selectedModel === m.id
+                                  ? "bg-indigo-50 text-indigo-700 font-bold dark:bg-indigo-950/60 dark:text-indigo-300"
+                                  : "text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-neutral-800"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>{m.label}</span>
+                                {selectedModel === m.id && <Check className="h-3.5 w-3.5 text-indigo-600" />}
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-normal">{m.desc}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Mic Icon */}
                   <button
@@ -2905,6 +2905,32 @@ window.__timelines["main"] = tl;`);
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* Quick Format Pills (Matching Gamma Presentation, Document, Carousel, Image, Beautify, Import) */}
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              {[
+                { label: "Commercial", icon: "🎬", promptText: "Create a 30s premium television commercial with cinematic visuals, smooth camera glides, and modern kinetic typography." },
+                { label: "Social Reel", icon: "📱", promptText: "Create a 15s 9:16 vertical TikTok/Instagram reel with fast cuts, bold hook text, and trending upbeat pacing." },
+                { label: "SaaS Promo", icon: "🏢", promptText: "Create a 30s software product showcase video highlighting key features, UI mockups, and sleek glassmorphism." },
+                { label: "Travel Story", icon: "🌴", promptText: "Create a breathtaking travel video featuring coastal scenery, vibrant nature drone shots, and inspiring typography." },
+                { label: "Explainer", icon: "💡", promptText: "Create a clear, engaging 45s explainer video with animated diagrams, numbered points, and clean motion graphics." },
+                { label: "Product Launch", icon: "⚡", promptText: "Create a high-energy product launch video with dramatic lighting, device reveals, and bold call-to-actions." },
+              ].map((format) => (
+                <button
+                  key={format.label}
+                  type="button"
+                  onClick={() => {
+                    setPrompt(format.promptText);
+                    setName(`${format.label} Video`);
+                    promptInputRef.current?.focus();
+                  }}
+                  className="flex items-center gap-2 rounded-full border border-slate-200/90 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 dark:border-neutral-800 dark:bg-[#121622] dark:text-slate-300 dark:hover:bg-neutral-800 transition cursor-pointer"
+                >
+                  <span className="text-sm">{format.icon}</span>
+                  <span>{format.label}</span>
+                </button>
+              ))}
             </div>
           </form>
         ) : (
