@@ -981,102 +981,10 @@ export class StoryboardPlanner {
       topic.toLowerCase().includes("batman") ||
       analysis.topic.toLowerCase().includes("batman");
 
-    let purpose = `Chapter ${sceneIndex}`;
-    let mainHeading = `${topic} Overview`;
-    let supportingText =
-      "Exploring core capabilities and intelligent performance.";
-    let metricData: StoryboardScene["metricData"] = undefined;
-    let diagramSpec: StoryboardScene["diagramSpec"] = undefined;
-    let comparisonData: StoryboardScene["comparisonData"] = undefined;
-    let imageSpec: StoryboardScene["imageSpec"] = undefined;
-
     // Tailored Badge
     const isOllama =
       topic.toLowerCase().includes("ollima") ||
       analysis.topic.toLowerCase().includes("ollima");
-
-    let badgeText = "FEATURED PRESENTATION";
-    let comicSpec: StoryboardScene["comicSpec"] = undefined;
-
-    if (layout === "comic-ad-hook") {
-      badgeText = "DC COMICS • ALL IN LAUNCH SPECIAL";
-      purpose = "Teaser Hook & Cinematic Comic Title";
-      mainHeading = "ABSOLUTE BATMAN";
-      supportingText = "WITHOUT MONEY. WITHOUT AN EMPIRE. WITHOUT MERCY.";
-      comicSpec = {
-        banner: "DC COMICS • ALL IN INITIATIVE",
-        tagline: "WITHOUT MONEY. WITHOUT AN EMPIRE. WITHOUT MERCY.",
-        subTagline: "The Dark Knight is reborn from Gotham's raw concrete.",
-      };
-    } else if (layout === "comic-dossier") {
-      badgeText = "CASE FILE // DOSSIER: BRUCE WAYNE";
-      purpose = "Character Dossier & Origin Breakdown";
-      mainHeading = "WHO IS THE ABSOLUTE BATMAN?";
-      supportingText = "Stripped of infinite wealth. Molded by high-risk civil engineering. An unstoppable force of nature.";
-      comicSpec = {
-        dossierPanels: [
-          {
-            title: "CIVIL ENGINEER",
-            category: "MUNICIPAL ARCHITECTURE",
-            description: "Constructed Gotham's bridges, subways, and tunnels. Knows every structural stress point and concrete flaw in the city.",
-            tag: "ORIGIN",
-            stat: "BLUE-COLLAR",
-          },
-          {
-            title: "6'6\" // 250 LBS TANK",
-            category: "PHYSICAL JUGGERNAUT",
-            description: "A terrifying wall of muscle and bone. Built to fight in the trenches and overpower entire armed crime syndicates alone.",
-            tag: "PHYSIQUE",
-            stat: "DOMINANT",
-          },
-          {
-            title: "$0 TRUST FUND",
-            category: "CRIME ALLEY SURVIVOR",
-            description: "No Wayne Manor. No butler. No billionaire safety net. Fueled purely by blue-collar sweat, heavy iron, and survival grit.",
-            tag: "LEGACY",
-            stat: "100% GRIT",
-          },
-        ],
-      };
-    } else if (layout === "comic-arsenal") {
-      badgeText = "TACTICAL HARDWARE & WEAPONRY";
-      purpose = "Weapons Breakdown & Action Showcase";
-      mainHeading = "ENGINEERED FOR TOTAL WAR";
-      supportingText = "Heavy municipal construction equipment weaponized into lethal urban combat hardware.";
-      comicSpec = {
-        weapons: [
-          {
-            name: "DETACHABLE BATTLEAXE",
-            type: "SIGNATURE WEAPON",
-            description: "The broad chest Bat-emblem unlatches into a massive two-handed war axe designed to cleave reinforced steel and concrete.",
-            badge: "MELEE",
-          },
-          {
-            name: "HOOK-WEIGHTED CAPE",
-            type: "CONCRETE ANCHOR",
-            description: "Pre-stressed steel grappling hooks sewn into heavy cape edges that slice through armor and rip down masonry.",
-            badge: "TACTICAL",
-          },
-          {
-            name: "INDUSTRIAL EXOSUIT",
-            type: "BALLISTIC RIG",
-            description: "High-tensile municipal construction armor and concrete-shattering reinforced steel boots engineered for brutal ground combat.",
-            badge: "ARMOR",
-          },
-        ],
-      };
-    } else if (layout === "comic-trailer-cta") {
-      badgeText = "THE NEW DC LEGEND BEGINS";
-      purpose = "Official Comic Ad Climax & Release CTA";
-      mainHeading = "I AM THE CONCRETE. I AM THE BAT.";
-      supportingText = "The corrupt elite built Gotham to bleed its citizens dry. Absolute Batman rises from the pavement to break their empire.";
-      comicSpec = {
-        issueTitle: "ABSOLUTE BATMAN #1",
-        creators: "WRITTEN BY SCOTT SNYDER • ART BY NICK DRAGOTTA • COLORS BY FRANK MARTIN",
-        publisher: "DC COMICS • THE ABSOLUTE UNIVERSE",
-        ctaAction: "AVAILABLE NOW AT YOUR LOCAL COMIC SHOP",
-        subCta: "READ DIGITALLY ON DC UNIVERSE INFINITE",
-      };
     const domain = analysis.domain || this.detectDomain(topic, analysis.rawPrompt || "");
 
     let purpose = `Chapter ${sceneIndex}`;
