@@ -52,8 +52,8 @@ export default function LiveEditorProjectsPage() {
               </h1>
             </div>
             <p className="mt-1 text-sm text-primary/60">
-              Inspect, modify, and re-render your HyperFrames compositions with
-              frame-accurate GSAP timelines.
+              Inspect, modify, and re-render your studio compositions with
+              frame-accurate timelines.
             </p>
           </div>
 
@@ -170,7 +170,7 @@ export default function LiveEditorProjectsPage() {
                     <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
                       <div className="flex items-center gap-1 text-[11px] text-primary/50">
                         <Layers className="h-3 w-3" />
-                        <span>HyperFrames 0.8.139</span>
+                        <span>Studio Engine</span>
                       </div>
 
                       <div className="flex items-center gap-1.5">

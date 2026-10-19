@@ -219,13 +219,13 @@ export default function ProjectLiveEditorPage() {
           `Connected to active Studio instance on port ${data.port}`,
         );
       } else {
-        toast.success(`HyperFrames Studio launched on port ${data.port}`);
+        toast.success(`Studio launched on port ${data.port}`);
       }
     } catch (err: any) {
       console.error("[StudioSession] Init error:", err);
       setSessionStatus("error");
       setSessionError(
-        err.message || "Failed to initialize HyperFrames Studio service",
+        err.message || "Failed to initialize Studio service",
       );
       toast.error(`Studio startup error: ${err.message}`);
     }
@@ -424,14 +424,14 @@ export default function ProjectLiveEditorPage() {
       );
       const data = await res.json();
       if (data.success) {
-        toast.success("Opened project in HyperFrames macOS App");
+        toast.success("Opened project in macOS App");
       } else {
         toast.error(
-          data.error || "Failed to open in HyperFrames desktop application",
+          data.error || "Failed to open in desktop application",
         );
       }
     } catch (err: any) {
-      toast.error("Could not communicate with HyperFrames desktop application");
+      toast.error("Could not communicate with desktop application");
     }
   };
 
@@ -444,7 +444,7 @@ export default function ProjectLiveEditorPage() {
   };
 
   const projectTitle =
-    properties.title || convexProject?.name || "HyperFrames Composition";
+    properties.title || convexProject?.name || "Video Composition";
   const previewSrc = `${backendUrl}/editor/project/${projectId}/raw/index.html?t=${previewKey}`;
 
   return (
@@ -529,7 +529,7 @@ export default function ProjectLiveEditorPage() {
               target="_blank"
               rel="noopener noreferrer"
               className="hidden lg:flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 transition"
-              title="Open HyperFrames Studio in an independent browser tab"
+              title="Open Studio in an independent browser tab"
             >
               <ExternalLink className="h-3 w-3" />
               <span>Open Tab</span>
@@ -576,7 +576,7 @@ export default function ProjectLiveEditorPage() {
             title={
               isFullscreen
                 ? "Exit Full Screen (Esc)"
-                : "Make HyperFrames Full Screen"
+                : "Make Studio Full Screen"
             }
           >
             {isFullscreen ? (
@@ -600,7 +600,7 @@ export default function ProjectLiveEditorPage() {
             onClick={handleSyncAndRender}
             disabled={rendering}
             className="h-8 gap-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
-            title="Validate changes, render updated MP4 with HyperFrames, and update Convex"
+            title="Validate changes, render updated MP4, and update Convex"
           >
             {rendering ? (
               <RotateCw className="h-3.5 w-3.5 animate-spin" />
@@ -618,7 +618,7 @@ export default function ProjectLiveEditorPage() {
             size="sm"
             onClick={handleOpenDesktop}
             className="h-8 gap-1 text-xs hidden sm:flex"
-            title="Open in HyperFrames macOS desktop application"
+            title="Open in macOS desktop application"
           >
             <Monitor className="h-3.5 w-3.5 text-blue-400" />
             App
@@ -663,7 +663,7 @@ export default function ProjectLiveEditorPage() {
                 title={
                   isFullscreen
                     ? "Exit Full Screen (Esc)"
-                    : "Tap to make HyperFrames Full Screen"
+                    : "Tap to make Studio Full Screen"
                 }
               >
                 {isFullscreen ? (
@@ -691,15 +691,15 @@ export default function ProjectLiveEditorPage() {
                   </span>
                 </div>
                 <h3 className="text-base font-semibold text-primary">
-                  Initializing Official HyperFrames Studio
+                  Initializing Official Studio
                 </h3>
                 <p className="mt-1.5 max-w-md text-xs text-primary/60">
-                  Starting the background HyperFrames Studio server on an
+                  Starting the background Studio server on an
                   isolated local port and mounting the composition workspace...
                 </p>
                 <div className="mt-5 flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-primary/50 font-mono">
                   <RotateCw className="h-3.5 w-3.5 animate-spin text-purple-400" />
-                  <span>hyperframes preview --port=3055..3075</span>
+                  <span>studio preview --port=3055..3075</span>
                 </div>
               </div>
             )}
@@ -711,7 +711,7 @@ export default function ProjectLiveEditorPage() {
                   <AlertCircle className="h-7 w-7" />
                 </div>
                 <h3 className="text-base font-semibold text-primary">
-                  HyperFrames Studio Server Unavailable
+                  Studio Server Unavailable
                 </h3>
                 <p className="mt-1.5 max-w-lg text-xs text-destructive/80 font-mono bg-destructive/5 border border-destructive/10 rounded-lg p-3">
                   {sessionError ||
@@ -744,13 +744,13 @@ export default function ProjectLiveEditorPage() {
               </div>
             )}
 
-            {/* Embedded Official HyperFrames Studio iframe */}
+            {/* Embedded Official Studio iframe */}
             {session && session.studioUrl && (
               <div className="relative w-full h-full flex flex-col">
                 <div className="flex h-7 shrink-0 items-center justify-between border-b border-border/60 bg-card/70 px-3 text-[11px] text-primary/70">
                   <div className="flex items-center gap-2">
                     <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
-                    <span className="font-medium text-primary">Official HyperFrames Studio Canvas</span>
+                    <span className="font-medium text-primary">Official Studio Canvas</span>
                     <span className="text-primary/50 font-mono">
                       ({session.studioUrl.includes("trycloudflare") ? "Secure Tunnel" : `:${session.port}`})
                     </span>
@@ -777,7 +777,7 @@ export default function ProjectLiveEditorPage() {
                 </div>
                 <iframe
                   src={session.studioUrl}
-                  title={`HyperFrames Studio - ${projectTitle}`}
+                  title={`Studio - ${projectTitle}`}
                   className="flex-1 w-full border-0 bg-neutral-950"
                   allow="clipboard-read; clipboard-write; fullscreen"
                   allowFullScreen
@@ -860,7 +860,7 @@ export default function ProjectLiveEditorPage() {
                 <div className="flex justify-between">
                   <span>Engine:</span>
                   <span className="font-mono text-primary/70">
-                    HyperFrames 0.8.139
+                    Studio Engine v1.0
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -892,7 +892,7 @@ export default function ProjectLiveEditorPage() {
                     title={
                       isFullscreen
                         ? "Exit Full Screen"
-                        : "Make HyperFrames Full Screen"
+                        : "Make Studio Full Screen"
                     }
                   >
                     {isFullscreen ? (
@@ -942,7 +942,7 @@ export default function ProjectLiveEditorPage() {
                   <iframe
                     key={previewKey}
                     src={previewSrc}
-                    title="HyperFrames Live Composition Preview"
+                    title="Live Composition Preview"
                     sandbox="allow-scripts allow-same-origin"
                     className="w-full h-full border-0"
                   />
@@ -1228,7 +1228,7 @@ export default function ProjectLiveEditorPage() {
                   </h4>
                   <p className="text-xs mt-1 text-primary/50 max-w-sm">
                     Click &quot;Sync &amp; Re-Render&quot; above to render the
-                    current HyperFrames composition into high-definition MP4.
+                    current composition into high-definition MP4.
                   </p>
                   <Button
                     onClick={handleSyncAndRender}

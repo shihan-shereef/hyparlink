@@ -674,7 +674,73 @@ async function handleAvatarVideoGeneration({
   };
 }
 
+function stripStudioBranding() {
+  try {
+    const studioDirs = [
+      "/Users/apple/.npm/_npx/a3880731cfac0fa0/node_modules/hyperframes/dist/studio",
+      path.join(process.cwd(), "ai-composition-generator/node_modules/hyperframes/dist/studio"),
+      "/Users/apple/.npm/_npx/110f701c48e68d66/node_modules/hyperframes/dist/studio"
+    ];
+    const cssRule = "\n/* Hide HyperFrames and HeyGen branding */\n[aria-label=\"Hyperframes\"], [aria-label=\"Hyperframes\"] + span, .hf-framey-trigger, [data-testid=\"header-open-in-desktop\"] { display: none !important; }\n";
+
+    for (const dir of studioDirs) {
+      if (!fs.existsSync(dir)) continue;
+
+      const htmlPath = path.join(dir, "index.html");
+      if (fs.existsSync(htmlPath)) {
+        let html = fs.readFileSync(htmlPath, "utf8");
+        let modifiedHtml = false;
+        if (html.includes("<title>HyperFrames Studio</title>")) {
+          html = html.replace("<title>HyperFrames Studio</title>", "<title>Studio</title>");
+          modifiedHtml = true;
+        }
+        if (!html.includes("hide-hf-brand")) {
+          html = html.replace("</head>", `<style id="hide-hf-brand">${cssRule}</style></head>`);
+          modifiedHtml = true;
+        }
+        if (modifiedHtml) fs.writeFileSync(htmlPath, html, "utf8");
+      }
+
+      const assetsDir = path.join(dir, "assets");
+      if (fs.existsSync(assetsDir)) {
+        const files = fs.readdirSync(assetsDir);
+        for (const f of files) {
+          if (f.endsWith(".css")) {
+            const p = path.join(assetsDir, f);
+            let content = fs.readFileSync(p, "utf8");
+            if (!content.includes("display: none !important")) {
+              content += cssRule;
+              fs.writeFileSync(p, content, "utf8");
+            }
+          } else if (f.startsWith("index-") && f.endsWith(".js") && f.length > 15) {
+            const p = path.join(assetsDir, f);
+            let content = fs.readFileSync(p, "utf8");
+            let modifiedJs = false;
+            const headerPattern = /children:\[y\.jsx\([a-zA-Z0-9_$]+,\{\}\),y\.jsx\("span",\{className:"text-text-5 select-none","aria-hidden":"true",children:"\|"\}\),/g;
+            if (headerPattern.test(content)) {
+              content = content.replace(headerPattern, "children:[");
+              modifiedJs = true;
+            }
+            if (content.includes("function UVt(){const t=Math.round(93.21518987341773);return y.jsxs(\"svg\"")) {
+              content = content.replace("function UVt(){const t=Math.round(93.21518987341773);return y.jsxs(\"svg\"", "function UVt(){return null;const t=Math.round(93.21518987341773);return y.jsxs(\"svg\"");
+              modifiedJs = true;
+            }
+            if (content.includes("function WVt(){const{showToast:e}=xc()")) {
+              content = content.replace("function WVt(){const{showToast:e}=xc()", "function WVt(){return null;const{showToast:e}=xc()");
+              modifiedJs = true;
+            }
+            if (modifiedJs) fs.writeFileSync(p, content, "utf8");
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // Non-blocking
+  }
+}
+
 async function startStudioServerSession(projectDir) {
+  stripStudioBranding();
   const projectBasename = path.basename(projectDir);
   const tunnelStudioUrl = getStudioTunnelUrl(projectBasename);
 
