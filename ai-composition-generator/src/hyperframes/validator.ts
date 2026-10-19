@@ -24,6 +24,7 @@ const NON_FATAL_RULES = [
   "studio_missing_editable_id",
   "nested_structure_needs_subcomposition",
   "missing_local_asset",
+  "root_composition_missing_html_wrapper",
 ];
 const isNonFatal = (e: ParsedError) =>
   NON_FATAL_RULES.some(
@@ -98,14 +99,23 @@ export class Validator {
         };
       }
 
-      // Check if auto-heal can resolve content_overlap or text_occluded
-      const hasLayoutOverlapOrOcclusion = parsed.some(
-        (e) => e.code === "content_overlap" || e.code === "text_occluded" || e.message.includes("content_overlap") || e.message.includes("text_occluded"),
+      // Check if auto-heal can resolve content_overlap, text_occluded, or missing html wrapper
+      const hasRepairableIssue = parsed.some(
+        (e) =>
+          e.code === "content_overlap" ||
+          e.code === "text_occluded" ||
+          e.code === "root_composition_missing_html_wrapper" ||
+          e.code === "gsap_non_transform_motion" ||
+          e.message.includes("content_overlap") ||
+          e.message.includes("text_occluded") ||
+          e.message.includes("root_composition_missing_html_wrapper") ||
+          e.message.includes("fragment") ||
+          e.message.includes("letterSpacing"),
       );
 
-      if (!autoHealed && hasLayoutOverlapOrOcclusion) {
+      if (!autoHealed && hasRepairableIssue) {
         try {
-          console.log("[Validator] Auto-repairing project layout annotations for content_overlap / text_occluded...");
+          console.log("[Validator] Auto-repairing project layout & document annotations...");
           await DesignValidator.inspectAndRepair(projectDir);
           return await Validator.validate(projectDir, true);
         } catch {}

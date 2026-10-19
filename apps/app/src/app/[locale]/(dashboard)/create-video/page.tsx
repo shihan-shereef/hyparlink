@@ -559,7 +559,13 @@ window.__timelines["main"] = tl;`);
     let repairedJs = directJs;
     let repairedCss = directCss;
 
-    // 0. Auto-fix truncated HTML end tags (e.g. </html or </body without closing >)
+    // 0. Auto-strip leading comments before <!DOCTYPE html> and ensure valid HTML wrapper
+    repairedHtml = repairedHtml.replace(/^(\s*<!--[\s\S]*?-->\s*)+/i, "");
+    if (!/<!doctype\s+html/i.test(repairedHtml)) {
+      if (/<html\b/i.test(repairedHtml)) {
+        repairedHtml = `<!DOCTYPE html>\n${repairedHtml}`;
+      }
+    }
     repairedHtml = repairedHtml.replace(/<\/html\s*$/i, "</html>");
     repairedHtml = repairedHtml.replace(/<\/body\s*$/i, "</body>\n</html>");
 
@@ -2593,6 +2599,17 @@ window.__timelines["main"] = tl;`);
                     size="sm"
                     className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium"
                     onClick={async () => {
+                      if (pipelineMode === "direct_code") {
+                        toast.loading("Auto-repairing code syntax and re-rendering...", { id: "repair" });
+                        try {
+                          await handleAutoFixDirectCode();
+                          await handleRenderDirectCode();
+                          return;
+                        } catch (err: any) {
+                          toast.error(err.message || "Failed to auto-repair direct code", { id: "repair" });
+                          return;
+                        }
+                      }
                       if (activeProjectId) {
                         try {
                           toast.loading("Auto-repairing layout and re-rendering...", { id: "repair" });
@@ -2610,6 +2627,7 @@ window.__timelines["main"] = tl;`);
                               videoUrl: json.videoUrl,
                               outputUrl: json.videoUrl,
                             }));
+                            setIsSubmitting(false);
                             return;
                           }
                           if (error) {

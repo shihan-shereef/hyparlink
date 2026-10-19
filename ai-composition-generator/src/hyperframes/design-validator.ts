@@ -45,6 +45,52 @@ export class DesignValidator {
 
     let indexHtml = await fs.readFile(indexPath, "utf-8");
 
+    // 1b. Fix bare comments or fragments before <!DOCTYPE html>
+    if (/^\s*<!--[\s\S]*?-->/i.test(indexHtml)) {
+      indexHtml = indexHtml.replace(/^(\s*<!--[\s\S]*?-->\s*)+/i, "");
+      repairedCount++;
+      issues.push({
+        type: "repaired",
+        code: "LEADING_COMMENTS_STRIPPED",
+        file: "index.html",
+        message: "Removed leading HTML comments before <!DOCTYPE html> to prevent fragment parsing errors.",
+      });
+    }
+
+    // Ensure proper <!DOCTYPE html> wrapper exists
+    if (!/<!doctype\s+html/i.test(indexHtml)) {
+      indexHtml = `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <title>Composition</title>\n  <link rel="stylesheet" href="styles.css">\n</head>\n<body>\n${indexHtml}\n</body>\n</html>`;
+      repairedCount++;
+    }
+
+    // Sanitize any GSAP letterSpacing animations that trigger integer snapping errors
+    if (/letterSpacing/i.test(indexHtml)) {
+      indexHtml = indexHtml.replace(/(['"]?letter[-S]pacing['"]?\s*:\s*)[^,\}\n]+/gi, "/* letterSpacing held */ opacity: 1");
+      repairedCount++;
+    }
+
+    // Deduplicate inline timeline declarations vs external script.js to avoid "Identifier 'tl' has already been declared"
+    const scriptJsPath = path.join(projectDir, "script.js");
+    try {
+      const scriptJsExists = await fs.stat(scriptJsPath).then(() => true).catch(() => false);
+      if (scriptJsExists) {
+        let scriptJsContent = await fs.readFile(scriptJsPath, "utf-8");
+        let scriptModified = false;
+        if (/const\s+tl\s*=/i.test(indexHtml) && /const\s+tl\s*=/i.test(scriptJsContent)) {
+          scriptJsContent = scriptJsContent.replace(/const\s+tl\s*=/g, "var tl = window._tl ||");
+          scriptModified = true;
+        }
+        if (/letterSpacing/i.test(scriptJsContent)) {
+          scriptJsContent = scriptJsContent.replace(/(['"]?letter[-S]pacing['"]?\s*:\s*)[^,\}\n]+/gi, "/* letterSpacing held */ opacity: 1");
+          scriptModified = true;
+        }
+        if (scriptModified) {
+          await fs.writeFile(scriptJsPath, scriptJsContent, "utf-8");
+          repairedCount++;
+        }
+      }
+    } catch {}
+
     // 2. Extract master duration & dimensions from index.html
     const masterMatch = indexHtml.match(
       /<[^>]+data-composition-id=["']main["'][^>]*data-duration=["']([\d.]+)["'][^>]*>/i,
