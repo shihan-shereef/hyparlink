@@ -173,32 +173,27 @@ const CATEGORIES = [
 const PIPELINE_STAGES = [
   {
     id: "prompt_analysis",
-    label: "Analysing prompt & scene planning",
-    desc: "Understanding video intent, scriptwriting & storyboard planning with Ollima LLM",
-  },
-  {
-    id: "heygen_avatar",
-    label: "HeyGen avatar & voice generation",
-    desc: "Synthesizing HeyGen avatar performance with synchronised speech audio",
+    label: "Analyzing prompt & scene planning",
+    desc: "Understanding video intent, scriptwriting & storyboard planning with AI",
   },
   {
     id: "asset_preparation",
     label: "Preparing assets & timeline synchronization",
-    desc: "Aligning presenter footage, licensed visuals & frame-accurate audio bed",
+    desc: "Curating media assets, licensed visuals & frame-accurate audio bed",
   },
   {
     id: "building_composition",
-    label: "HyperFrames composition assembly",
-    desc: "Authoring HTML/CSS layouts, GSAP cinematic animations & typography",
+    label: "Dynamic visual composition assembly",
+    desc: "Authoring responsive layouts, cinematic motion graphics & typography",
   },
   {
     id: "rendering_video",
-    label: "HyperFrames rendering & FFmpeg mixing",
-    desc: "Headless 1080p composition rendering & speech-ducked audio multiplexing",
+    label: "High-definition rendering & audio mixing",
+    desc: "Headless 1080p composition rendering & balanced soundtrack multiplexing",
   },
   {
     id: "validating_output",
-    label: "Output validation with FFprobe",
+    label: "Output validation & quality check",
     desc: "Validating streams, codecs, duration and audiovisual synchronization",
   },
 ];
@@ -212,37 +207,32 @@ const getStageIndex = (statusStr: string): number => {
     case "understanding_prompt":
     case "preparing_brief":
       return 0;
-    case "heygen_avatar":
-    case "heygen_submission":
-    case "heygen_processing":
-    case "generating_avatar":
-      return 1;
     case "timing_clips":
     case "asset_preparation":
     case "avatar_asset_retrieval":
     case "planning_scenes":
     case "analyzing_assets":
-      return 2;
+      return 1;
     case "building_composition":
     case "animating_elements":
     case "generating":
     case "generating_composition":
     case "hyperframes_composition":
-      return 3;
+      return 2;
     case "rendering":
     case "rendering_video":
     case "audio_processing":
     case "audio_mixing":
-      return 4;
+      return 3;
     case "checking_composition":
     case "checking_own_work":
     case "validating":
     case "validating_project":
     case "verifying_output":
     case "output_validation":
-      return 5;
+      return 4;
     case "completed":
-      return 6;
+      return 5;
     default:
       return 0;
   }
@@ -1928,19 +1918,14 @@ window.__timelines["main"] = tl;`);
       const promptDur = extractDuration(promptValue);
       const effectiveDuration = promptDur || duration;
 
-      // HeyGen Avatar + HyperFrames Composition Integration
-      const hasAvatarIntent =
-        compositionMode === "mode_a" ||
-        compositionMode === "mode_b" ||
-        compositionMode === "mode_c" ||
-        (compositionMode === "auto" && (Boolean(avatarId && avatarId !== "none") || /\b(talking\s+avath?ar|talking\s+head|spokesperson|heygen\s+avath?ar|presenter\s+video|with\s+avath?ar|with\s+presenter)\b/i.test(promptValue)));
-      const isAvatarRequested = compositionMode !== "hyperframes_only" && Boolean(hasAvatarIntent);
-      const effectiveAvatarId: string | undefined = isAvatarRequested ? (avatarId || "sarah_studio") : undefined;
-      const effectiveAvatarName: string | undefined = isAvatarRequested ? (avatarName || "Sarah Jenkins") : undefined;
-      const effectiveVoiceId: string | undefined = isAvatarRequested ? (voiceId || "en-US-JennyNeural") : undefined;
-      const effectiveVoiceName: string | undefined = isAvatarRequested ? (voiceName || "Jenny (US)") : undefined;
-      const isAvatarVideo = isAvatarRequested;
-      const effectiveGenerationMode = isAvatarRequested ? "avatar_mixed" : "hyperframes_only";
+      // Avatar and voice generation disabled
+      const isAvatarRequested = false;
+      const effectiveAvatarId: string | undefined = undefined;
+      const effectiveAvatarName: string | undefined = undefined;
+      const effectiveVoiceId: string | undefined = undefined;
+      const effectiveVoiceName: string | undefined = undefined;
+      const isAvatarVideo = false;
+      const effectiveGenerationMode = "hyperframes_only";
 
       // Auto-resolve workspace assets if none explicitly checked but prompt references them
       let effectiveSelectedAssetIds = [...selectedAssetIds];
@@ -2108,14 +2093,14 @@ window.__timelines["main"] = tl;`);
             model: selectedModel,
             compositionMode,
             visualStyle,
-            avatarLanguage: avatarLanguage !== "all" ? avatarLanguage : undefined,
-            avatarId: effectiveAvatarId,
-            avatarName: effectiveAvatarName,
-            voiceId: effectiveVoiceId,
-            voiceName: effectiveVoiceName,
-            apiKey: heygenApiKey || undefined,
-            generationMode: effectiveGenerationMode,
-            isAvatarVideo,
+            avatarLanguage: undefined,
+            avatarId: undefined,
+            avatarName: undefined,
+            voiceId: undefined,
+            voiceName: undefined,
+            apiKey: undefined,
+            generationMode: "hyperframes_only",
+            isAvatarVideo: false,
             bgmTrack: autoMusicEnabled ? selectedBgmTrack : "none",
             bgmVolume,
             enableDucking: musicDuckingEnabled,
@@ -2198,14 +2183,8 @@ window.__timelines["main"] = tl;`);
           productionPlan: videoPlan,
           compositionMode,
           visualStyle,
-          avatarLanguage: avatarLanguage !== "all" ? avatarLanguage : undefined,
-          avatarId: compositionMode !== "hyperframes_only" ? (avatarId || "sarah_studio") : undefined,
-          avatarName: compositionMode !== "hyperframes_only" ? (avatarName || "Sarah Jenkins") : undefined,
-          voiceId: compositionMode !== "hyperframes_only" ? (voiceId || "en-US-JennyNeural") : undefined,
-          voiceName: compositionMode !== "hyperframes_only" ? (voiceName || "Jenny (US)") : undefined,
-          apiKey: heygenApiKey || undefined,
-          generationMode: compositionMode !== "hyperframes_only" ? "avatar_mixed" : "hyperframes_only",
-          isAvatarVideo: compositionMode !== "hyperframes_only",
+          generationMode: "hyperframes_only",
+          isAvatarVideo: false,
             bgmTrack: autoMusicEnabled ? selectedBgmTrack : "none",
             bgmVolume,
             enableDucking: musicDuckingEnabled,
@@ -2337,8 +2316,8 @@ window.__timelines["main"] = tl;`);
     if (status === "failed") return 100;
 
     const idx = getStageIndex(status);
-    const progressMap = [15, 32, 50, 70, 85, 95, 100];
-    return progressMap[idx] || 15;
+    const progressMap = [20, 40, 60, 80, 95, 100];
+    return progressMap[idx] || 20;
   };
 
   const filteredInspirations =

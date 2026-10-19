@@ -428,73 +428,8 @@ function getStudioTunnelUrl(projectBasename = "") {
 }
 
 function extractAvatarParams(prompt = "", input = {}) {
-  const p = prompt || "";
-  const stopWords = new Set(["about", "with", "for", "from", "that", "this", "and", "the", "video", "presenter", "talking", "using", "like", "of"]);
-
-  // Explicit compositionMode or generationMode check
-  const compMode = (input.compositionMode || "").toLowerCase().trim();
-  const requestedMode = input.generationMode; // legacy: "hyperframes_only" | "avatar_mixed" | "avatar_presenter"
-
-  if (compMode === "hyperframes_only" || requestedMode === "hyperframes_only" || input.isAvatarVideo === false) {
-    return { avatarId: null, voiceId: null, isAvatar: false, mode: "hyperframes_only", compositionMode: "hyperframes_only" };
-  }
-
-  // Match avatar ID (supporting both avatar and avathar)
-  let avatarId = input.avatarId || null;
-  let voiceId = input.voiceId || null;
-
-  const avMatch = p.match(/(?:(?:heygen\s+)?avath?ar(?:_id|\s+id)?|avath?ar)(?:[:=]|\s+(?:id|is|named)?[:=\s]?)\s*["']?([a-zA-Z0-9_\-]+)["']?/i);
-  if (avMatch && !stopWords.has(avMatch[1].toLowerCase())) {
-    avatarId = avMatch[1];
-  }
-
-  const vcMatch = p.match(/(?:(?:heygen\s+)?voice(?:_id|\s+id)?|voice)(?:[:=]|\s+(?:id|is|named)?[:=\s]?)\s*["']?([a-zA-Z0-9_\-]+)["']?/i);
-  if (vcMatch && !stopWords.has(vcMatch[1].toLowerCase())) {
-    voiceId = vcMatch[1];
-  }
-
-  // Explicit negative cues that specifically forbid avatars or request presentation/PPT
-  const isExplicitNoAvatar = /\b(do\s*not\s*create\s*(?:a\s*)?(?:potcast|podcast|avath?ar|voice)|don'?t\s*create\s*(?:a\s*)?(?:potcast|podcast|avath?ar|voice)|no\s*(?:potcast|podcast|avath?ar|presenter|voice)|without\s*(?:avath?ar|voice)|remove\s*(?:the\s*)?avath?ar|not\s*(?:a\s*)?(?:potcast|podcast))\b/i.test(p);
-  const isPptOrPresentationDemand = /\b(ppt|presentation|pitch\s*deck|slideshow|slides|deck|no\s*avatar|don'?t\s*need\s*(?:a\s*)?(?:avatar|voice)|without\s*(?:avatar|voice))\b/i.test(p);
-  
-  if (isExplicitNoAvatar || (isPptOrPresentationDemand && !compMode && !input.avatarId)) {
-    return { avatarId: null, voiceId: null, isAvatar: false, mode: "hyperframes_only", compositionMode: "hyperframes_only" };
-  }
-
-  // Check if avatar mode was requested via compositionMode (mode_a, mode_b, mode_c) or explicit avatar mode setting or prompt cue
-  const isExplicitAvatarCompMode = compMode === "mode_a" || compMode === "mode_b" || compMode === "mode_c";
-  const hasAvatarKeywords = /\b(talking\s+avath?ar|talking\s+head|spokesperson|heygen\s+avath?ar|presenter\s+video|with\s+avath?ar|with\s+presenter)\b/i.test(p);
-  const isExplicitAvatarMode = requestedMode === "avatar_presenter" || requestedMode === "avatar_mixed" || isExplicitAvatarCompMode || Boolean(input.avatarId && input.avatarId !== "none");
-  const hasExplicitAvatarDemand = isExplicitAvatarMode || hasAvatarKeywords;
-
-  // If there's no explicit avatar demand in prompt and no explicit avatar mode chosen, default to clean presentation/HyperFrames mode
-  if (!hasExplicitAvatarDemand && !isExplicitAvatarMode) {
-    return { avatarId: null, voiceId: null, isAvatar: false, mode: "hyperframes_only", compositionMode: "hyperframes_only" };
-  }
-
-  if (!avatarId) {
-    return { avatarId: null, voiceId: null, isAvatar: false, mode: "hyperframes_only", compositionMode: "hyperframes_only" };
-  }
-  if (!voiceId && avatarId) {
-    const avatarVoiceMap = {
-      sarah_studio: "en-US-JennyNeural",
-      tyler_tech: "en-US-GuyNeural",
-      marcus_exec: "en-GB-BrianNeural",
-      elena_creative: "en-GB-SoniaNeural",
-      "a9cde5fa12fc417d9739643969360ae3": "71fbdde04ea841c59adab70e41caeb97",
-    };
-    voiceId = avatarVoiceMap[avatarId] || "en-US-JennyNeural";
-  }
-
-  let effectiveCompMode = compMode || "auto";
-  let effectiveMode = requestedMode || "avatar_mixed";
-  if (compMode === "mode_c" && !requestedMode) {
-    effectiveMode = "avatar_mixed";
-  } else if (/\b(standalone|avatar\s+only|presenter\s+only)\b/i.test(p)) {
-    effectiveMode = "avatar_presenter";
-  }
-
-  return { avatarId, voiceId, isAvatar: Boolean(avatarId), mode: effectiveMode, compositionMode: effectiveCompMode };
+  // HeyGen avatar & voice generation has been removed
+  return { avatarId: null, voiceId: null, isAvatar: false, mode: "hyperframes_only", compositionMode: "hyperframes_only" };
 }
 
 function extractPresenterScript(prompt = "", avatarId = "", voiceId = "", targetDuration = 15) {
