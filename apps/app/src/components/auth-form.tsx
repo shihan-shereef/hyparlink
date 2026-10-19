@@ -6,10 +6,8 @@ import { useState } from "react";
 
 type Mode = "signIn" | "signUp" | "verify" | "forgot" | "reset";
 const input =
-  "w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring";
+  "w-full rounded-xl border border-slate-200 bg-white dark:bg-[#121620] dark:border-neutral-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition shadow-2xs";
 
-// Module-level (stable identity) — defining this inside AuthForm remounts inputs every
-// keystroke, which steals focus after one character.
 function Shell({
   onSubmit,
   cta,
@@ -26,13 +24,25 @@ function Shell({
   children: React.ReactNode;
 }) {
   return (
-    <form className="flex w-72 flex-col gap-3" onSubmit={onSubmit}>
+    <form className="flex w-full flex-col gap-3" onSubmit={onSubmit}>
       {children}
-      <Button type="submit" disabled={pending} className="font-mono">
-        {pending ? "…" : cta}
+      <Button
+        type="submit"
+        disabled={pending}
+        className="w-full h-10 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm transition"
+      >
+        {pending ? "Connecting..." : cta}
       </Button>
-      {error && <p className="text-xs text-red-500">{error}</p>}
-      {info && <p className="text-xs text-muted-foreground">{info}</p>}
+      {error && (
+        <p className="text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-xl p-3 font-medium">
+          {error}
+        </p>
+      )}
+      {info && (
+        <p className="text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-xl p-3 font-medium">
+          {info}
+        </p>
+      )}
     </form>
   );
 }
@@ -40,7 +50,7 @@ function Shell({
 const Switch = ({ label, onClick }: { label: string; onClick: () => void }) => (
   <button
     type="button"
-    className="text-xs text-muted-foreground underline"
+    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium cursor-pointer"
     onClick={onClick}
   >
     {label}
@@ -78,20 +88,22 @@ export function AuthForm() {
 
   const submitSignIn = go(async () => {
     await signIn("password", { email, password, flow: "signIn" });
+    window.location.href = "/";
   });
   const submitSignUp = go(async () => {
     await signIn("password", { email, password, flow: "signUp" });
     setInfo(
-      "Enter the verification code (check server logs while email is in dev mode).",
+      "Verification code sent to your email via Ollastack. Please enter the 8-digit code below.",
     );
     setMode("verify");
   });
   const submitVerify = go(async () => {
     await signIn("password", { email, code, flow: "email-verification" });
+    window.location.href = "/";
   });
   const submitForgot = go(async () => {
     await signIn("password", { email, flow: "reset" });
-    setInfo("Enter the reset code (check server logs) and a new password.");
+    setInfo("Password reset code sent to your email via Ollastack.");
     setMode("reset");
   });
   const submitReset = go(async () => {
@@ -101,6 +113,7 @@ export function AuthForm() {
       newPassword,
       flow: "reset-verification",
     });
+    window.location.href = "/";
   });
   const switchTo = (m: Mode) => {
     setError(null);
@@ -111,7 +124,7 @@ export function AuthForm() {
   const shellProps = { pending, error, info };
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center gap-3 w-full">
       {mode === "signIn" && (
         <>
           <Shell onSubmit={submitSignIn} cta="Sign in" {...shellProps}>
@@ -132,7 +145,7 @@ export function AuthForm() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </Shell>
-          <div className="flex w-72 justify-between">
+          <div className="flex w-full justify-between px-1">
             <Switch label="Create account" onClick={() => switchTo("signUp")} />
             <Switch
               label="Forgot password?"
@@ -219,7 +232,7 @@ export function AuthForm() {
         </Shell>
       )}
 
-      <div className="flex w-72 items-center gap-3 text-xs text-muted-foreground">
+      <div className="flex w-full items-center gap-3 text-xs text-muted-foreground my-1">
         <span className="h-px flex-1 bg-border" />
         or
         <span className="h-px flex-1 bg-border" />
@@ -227,7 +240,7 @@ export function AuthForm() {
       <Button
         type="button"
         variant="outline"
-        className="w-72 font-mono flex items-center justify-center gap-2"
+        className="w-full h-10 rounded-xl font-medium flex items-center justify-center gap-2 border-slate-200 dark:border-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-800 transition"
         disabled={pending}
         onClick={async () => {
           setError(null);

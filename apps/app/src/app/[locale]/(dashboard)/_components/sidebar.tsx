@@ -9,6 +9,7 @@ import {
   ChevronDown,
   FolderKanban,
   Image as ImageIcon,
+  LogIn,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -275,6 +276,12 @@ export function Sidebar() {
                   className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-neutral-800 transition"
                 >
                   <Settings className="h-3.5 w-3.5" /> Workspace Settings
+                </Link>
+                <Link
+                  href="/login"
+                  className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition font-medium"
+                >
+                  <LogIn className="h-3.5 w-3.5" /> Sign In / Switch Account
                 </Link>
                 <button
                   type="button"
