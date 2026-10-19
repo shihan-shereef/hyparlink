@@ -3159,20 +3159,7 @@ window.__timelines["main"] = tl;`);
 
 
         {/* READY-MADE DESIGN TEMPLATES GALLERY */}
-        <div className="w-full pt-4 pb-2">
-          <div className="text-center max-w-xl mx-auto mb-4">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-700 dark:bg-indigo-950/60 dark:border-indigo-800 dark:text-indigo-300 text-[11px] font-semibold mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
-              <span>Ready-Made Design Templates</span>
-            </div>
-            <h3 className="text-base font-bold text-slate-800 dark:text-white tracking-tight">
-              Select a Design Template to Auto-Configure Your Video
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-neutral-400 mt-1">
-              Click any style below to automatically pre-fill optimized prompts, duration, aspect ratio, and typography parameters.
-            </p>
-          </div>
-
+        <div className="w-full pt-2 pb-2">
           {/* Category Filter Pills */}
           <div className="flex flex-wrap items-center justify-center gap-1.5 mb-5">
             {TEMPLATE_CATEGORIES.map((cat) => (
