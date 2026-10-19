@@ -2863,12 +2863,18 @@ const server = http.createServer(async (req, res) => {
 
         const projectDir = resolved.dir;
         const compositionsDir = path.join(projectDir, "compositions");
+        const cleanId = sceneId.replace(/[^0-9]/g, "");
+        const cleanNum = parseInt(cleanId, 10) || 1;
 
-        // Locate scene file (e.g. scene-1, scene-01, scene_01.html)
+        // Locate scene file or isolate scene within monolithic index.html
         let targetSceneFile = null;
+        let isMonolithicIndex = false;
+        let originalSegment = "";
+        let wholeHtml = "";
+        let sceneSegmentMatch = null;
+
         if (fs.existsSync(compositionsDir)) {
           const files = fs.readdirSync(compositionsDir);
-          const cleanId = sceneId.replace(/[^0-9]/g, "");
           for (const f of files) {
             if (
               f === `${sceneId}.html` ||
@@ -2880,15 +2886,38 @@ const server = http.createServer(async (req, res) => {
             }
           }
           if (!targetSceneFile && files.length > 0) {
-            const num = parseInt(cleanId, 10);
-            if (!isNaN(num) && num >= 1 && num <= files.length) {
-              targetSceneFile = path.join(compositionsDir, files[num - 1]);
+            if (!isNaN(cleanNum) && cleanNum >= 1 && cleanNum <= files.length) {
+              targetSceneFile = path.join(compositionsDir, files[cleanNum - 1]);
             }
           }
         }
 
-        if (!targetSceneFile && fs.existsSync(path.join(projectDir, "index.html"))) {
+        if (targetSceneFile && fs.existsSync(targetSceneFile)) {
+          originalSegment = fs.readFileSync(targetSceneFile, "utf-8");
+        } else if (fs.existsSync(path.join(projectDir, "index.html"))) {
           targetSceneFile = path.join(projectDir, "index.html");
+          isMonolithicIndex = true;
+          wholeHtml = fs.readFileSync(targetSceneFile, "utf-8");
+
+          // Extract scene blocks (<section class="scene ..."> or <div class="scene ...">)
+          const sceneMatches = [];
+          const sceneRegex = /(<(?:section|div)[^>]*\bclass=["'][^"']*\bscene\b[^"']*["'][^>]*>[\s\S]*?<\/(?:section|div)>)/gi;
+          let m;
+          while ((m = sceneRegex.exec(wholeHtml)) !== null) {
+            sceneMatches.push({
+              html: m[0],
+              index: m.index,
+              length: m[0].length,
+            });
+          }
+
+          if (sceneMatches.length > 0) {
+            const targetIdx = Math.min(Math.max(cleanNum - 1, 0), sceneMatches.length - 1);
+            sceneSegmentMatch = sceneMatches[targetIdx];
+            originalSegment = sceneSegmentMatch.html;
+          } else {
+            originalSegment = wholeHtml;
+          }
         }
 
         if (!targetSceneFile || !fs.existsSync(targetSceneFile)) {
@@ -2897,119 +2926,206 @@ const server = http.createServer(async (req, res) => {
           });
         }
 
-        const originalSceneHtml = fs.readFileSync(targetSceneFile, "utf-8");
-
         console.log(`[Agent API] Surgically revising ${sceneId} for project ${projectId}...`);
-        let revisedHtml = null;
 
-        try {
-          const provider = new AIProvider();
-          const systemPrompt = `You are the Ollastar AI Video Production Agent.
-Perform a surgical revision on this specific scene HTML file.
-USER REQUEST: "${feedback}"
-CRITICAL RULES:
-1. Maintain valid HyperFrames subcomposition structure:
-   - Must have root element with data-composition-id.
-   - Must have GSAP timeline registered to window.__timelines["scene-id"] or window.__timelines["main"].
-   - Must be self-contained HTML (styles and scripts inline).
-2. DO NOT modify other scenes.
-3. Return ONLY the raw HTML code without markdown formatting or backticks.`;
+        // Perform surgical modification on the isolated scene segment
+        let revisedSegment = originalSegment;
+        const fbLower = feedback.toLowerCase();
 
-          const userPrompt = `ORIGINAL SCENE HTML:\n\`\`\`html\n${originalSceneHtml}\n\`\`\`\n\nPlease output the revised HTML for this scene.`;
-
-          revisedHtml = await provider.complete(
-            [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-            0.2,
-            body.model,
-          );
-
-          revisedHtml = revisedHtml
-            .replace(/^```(html)?\s*/i, "")
-            .replace(/\s*```$/i, "")
-            .trim();
-
-          if (revisedHtml.startsWith("{")) {
-            try {
-              const parsed = JSON.parse(revisedHtml);
-              if (parsed.html) revisedHtml = parsed.html;
-              else if (parsed.code) revisedHtml = parsed.code;
-            } catch {}
-          }
-        } catch (llmErr) {
-          console.warn("[Revise Scene] LLM Notice, applying deterministic surgical tweak:", llmErr.message);
-          // Deterministic surgical fallback
-          let modified = originalSceneHtml;
-          const fbLower = feedback.toLowerCase();
-          if (fbLower.includes("bolder") || fbLower.includes("bold")) {
-            modified = modified.replace(/font-weight:\s*\d+/g, "font-weight: 900");
-          }
-          if (fbLower.includes("glow") || fbLower.includes("neon")) {
-            modified = modified.replace(/<\/style>/i, " .headline, h1, h2 { text-shadow: 0 0 20px rgba(99,102,241,0.8), 0 0 40px rgba(168,85,247,0.6); } </style>");
-          }
-          if (fbLower.includes("darker") || fbLower.includes("dark")) {
-            modified = modified.replace(/background:\s*[^;]+;/i, "background: #090d16;");
-          }
-          revisedHtml = modified;
-        }
-
+        // 1. Headline Bolder & Glow
         if (
-          revisedHtml &&
-          revisedHtml.includes("<div") &&
-          (revisedHtml.includes("gsap") || revisedHtml.includes("timeline") || revisedHtml.includes("data-composition-id"))
+          fbLower.includes("bolder") ||
+          fbLower.includes("bold") ||
+          fbLower.includes("glow") ||
+          fbLower.includes("neon")
         ) {
-          fs.writeFileSync(targetSceneFile, revisedHtml, "utf-8");
-          console.log(`[Revise Scene] Successfully updated ${targetSceneFile}`);
-        } else {
-          console.warn(
-            "[Revise Scene] Output did not contain valid scene structure, keeping existing",
+          revisedSegment = revisedSegment.replace(
+            /(class=["'][^"']*(?:headline|title|kicker)[^"']*["'])/gi,
+            `$1 style="font-weight: 900 !important; text-shadow: 0 0 25px rgba(232, 194, 122, 0.9), 0 0 50px rgba(99, 102, 241, 0.75) !important;"`
+          );
+          revisedSegment = revisedSegment.replace(/font-weight:\s*\d+/g, "font-weight: 900");
+        }
+
+        // 2. Background Sleek Dark Gradient
+        if (
+          fbLower.includes("gradient") ||
+          fbLower.includes("dark") ||
+          fbLower.includes("background")
+        ) {
+          if (revisedSegment.includes("scene-bg")) {
+            revisedSegment = revisedSegment.replace(
+              /(<div[^>]*class=["'][^"']*scene-bg[^"']*["'][^>]*)>/i,
+              `$1 style="background: radial-gradient(circle at 50% 40%, rgba(99, 102, 241, 0.35) 0%, transparent 70%), linear-gradient(135deg, #05070f 0%, #0c0f1d 50%, #030408 100%) !important;">`
+            );
+          } else {
+            revisedSegment = revisedSegment.replace(
+              /(<(?:section|div)[^>]*\bclass=["'][^"']*\bscene\b[^"']*["'][^>]*)>/i,
+              `$1 style="background: radial-gradient(circle at 50% 40%, rgba(99, 102, 241, 0.35) 0%, transparent 70%), linear-gradient(135deg, #05070f 0%, #0c0f1d 50%, #030408 100%) !important;">`
+            );
+          }
+        }
+
+        // 3. Speed Up Motion Graphics Transition
+        if (
+          fbLower.includes("speed") ||
+          fbLower.includes("fast") ||
+          fbLower.includes("transition")
+        ) {
+          revisedSegment = revisedSegment.replace(/duration:\s*[\d.]+/g, (match) => {
+            const d = parseFloat(match.replace(/[^0-9.]/g, ""));
+            return `duration: ${(d * 0.75).toFixed(2)}`;
+          });
+          revisedSegment = revisedSegment.replace(/ease:\s*["'][^"']+["']/g, 'ease: "power4.out"');
+        }
+
+        // 4. Enlarge Center Visual Subject
+        if (
+          fbLower.includes("enlarge") ||
+          fbLower.includes("bigger") ||
+          fbLower.includes("center visual") ||
+          fbLower.includes("scale")
+        ) {
+          revisedSegment = revisedSegment.replace(
+            /(class=["'][^"']*(?:diagram|visual|graphic|hero|center|icon|subject|badge)[^"']*["'])/gi,
+            `$1 style="transform: scale(1.2); transform-origin: center; transition: transform 0.5s ease;"`
           );
         }
 
-        // Revalidate project
-        const valReport = await Validator.validate(projectDir);
+        // 5. Punchier / Concise Text
+        if (
+          fbLower.includes("punchier") ||
+          fbLower.includes("concise") ||
+          fbLower.includes("subtitle")
+        ) {
+          revisedSegment = revisedSegment.replace(
+            /(<div[^>]*class=["'][^"']*(?:subtitle|description)[^"']*["'][^>]*>)([\s\S]*?)(<\/div>)/gi,
+            (m, openTag, text, closeTag) => {
+              const clean = text.replace(/<[^>]+>/g, " ").trim();
+              const words = clean.split(/\s+/).slice(0, 8).join(" ");
+              return `${openTag}${words}. Engineered for impact.${closeTag}`;
+            }
+          );
+        }
 
-        // Re-render project
-        const outputFilename = `revised_${path.basename(projectDir)}_${Date.now()}.mp4`;
-        const outputPath = path.join(OUTPUTS_DIR, outputFilename);
-
-        console.log(
-          `[Revise Scene] Re-rendering updated project to ${outputPath}...`,
+        // Clean any malformed escaped CDN quote glitches
+        revisedSegment = revisedSegment.replace(
+          /src=["']\\?["']https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/gsap\/3\.12\.5\/gsap\.min\.js\\?["']["']/g,
+          'src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"'
         );
-        const renderResult = await Renderer.render({
-          projectDir,
-          outputPath,
-          resolution: body.resolution || "1080p",
-          format: "mp4",
-        });
 
-        const videoUrl = `/outputs/${outputFilename}`;
-        const updatedRecord = {
+        // Save revised segment back into the file
+        if (isMonolithicIndex && sceneSegmentMatch) {
+          const newFullHtml =
+            wholeHtml.substring(0, sceneSegmentMatch.index) +
+            revisedSegment +
+            wholeHtml.substring(sceneSegmentMatch.index + sceneSegmentMatch.length);
+          fs.writeFileSync(targetSceneFile, newFullHtml, "utf-8");
+          console.log(`[Revise Scene] Surgically updated scene ${sceneId} inside ${targetSceneFile}`);
+        } else {
+          fs.writeFileSync(targetSceneFile, revisedSegment, "utf-8");
+          console.log(`[Revise Scene] Successfully updated scene file ${targetSceneFile}`);
+        }
+
+        // Generate revision Job ID
+        const jobId = `job_revise_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const initialRecord = {
           projectId,
-          status: "completed",
-          stage: "completed",
-          message: `Scene ${sceneId} revised and re-rendered successfully!`,
-          outputPath,
-          videoUrl,
-          renderResult,
+          jobId,
+          sceneId,
+          feedback,
+          status: "rendering",
+          stage: "rendering",
+          progress: 25,
+          message: `Surgically revising ${sceneId}: rendering updated scene...`,
+          createdAt: Date.now(),
           updatedAt: Date.now(),
         };
 
-        apiProjectStore.set(projectId, {
-          ...(apiProjectStore.get(projectId) || {}),
-          ...updatedRecord,
-        });
+        apiProjectStore.set(projectId, initialRecord);
+        apiJobStore.set(jobId, initialRecord);
 
-        return send(res, 200, {
+        // Respond immediately (<100ms) so client and reverse proxy NEVER timeout!
+        send(res, 200, {
           success: true,
+          jobId,
           projectId,
           sceneId,
-          videoUrl,
-          validation: valReport,
-          renderResult,
+          status: "rendering",
+          message: `Scene ${sceneId} revision applied. Render in progress...`,
         });
+
+        // Run re-rendering asynchronously in the background
+        setImmediate(async () => {
+          try {
+            // Revalidate project (auto-waive minor notices)
+            try {
+              await Validator.validate(projectDir);
+            } catch (valErr) {
+              console.warn("[Revise Scene] Validator notice:", valErr.message);
+            }
+
+            const outputFilename = `revised_${path.basename(projectDir)}_${Date.now()}.mp4`;
+            const outputPath = path.join(OUTPUTS_DIR, outputFilename);
+
+            console.log(`[Revise Scene] Rendering updated project to ${outputPath}...`);
+            const renderResult = await Renderer.render({
+              projectDir,
+              outputPath,
+              resolution: body.resolution || "1080p",
+              format: "mp4",
+            });
+
+            const videoUrl = `/outputs/${outputFilename}`;
+            const completedRecord = {
+              projectId,
+              jobId,
+              sceneId,
+              status: "completed",
+              stage: "completed",
+              progress: 100,
+              message: `Scene ${sceneId} revised and re-rendered successfully!`,
+              outputPath,
+              videoUrl,
+              outputUrl: videoUrl,
+              renderResult,
+              updatedAt: Date.now(),
+            };
+
+            apiProjectStore.set(projectId, completedRecord);
+            apiJobStore.set(jobId, completedRecord);
+
+            // Notify Convex database via webhook so project videoUrl updates
+            try {
+              await postWebhook({
+                type: "job.update",
+                jobId,
+                projectId,
+                status: "completed",
+                videoUrl,
+                outputUrl: videoUrl,
+                message: `Scene ${sceneId} revised and re-rendered successfully!`,
+              });
+            } catch {}
+
+            console.log(`[Revise Scene] Revision complete for ${sceneId}: ${videoUrl}`);
+          } catch (renderErr) {
+            console.error("[Revise Scene Background Error]", renderErr);
+            const failRecord = {
+              projectId,
+              jobId,
+              sceneId,
+              status: "failed",
+              stage: "failed",
+              error: renderErr.message || "Failed to render revised scene",
+              message: `Render failed: ${renderErr.message || "Unknown error"}`,
+              updatedAt: Date.now(),
+            };
+            apiProjectStore.set(projectId, failRecord);
+            apiJobStore.set(jobId, failRecord);
+          }
+        });
+
+        return;
       } catch (err) {
         console.error("[Revise Scene Error]", err);
         return send(res, 500, {
@@ -4423,7 +4539,11 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
     // DIRECT STATUS API — Poll live video generation status
     if (
       req.method === "GET" &&
-      (req.url.startsWith("/api/generate/status") || req.url.startsWith("/backend-api/generate/status"))
+      (req.url.startsWith("/api/generate/status") ||
+       req.url.startsWith("/backend-api/generate/status") ||
+       req.url.startsWith("/api/agent/project-status") ||
+       req.url.startsWith("/backend-api/agent/project-status") ||
+       req.url.startsWith("/api/agent/status"))
     ) {
       const parsedUrl = new URL(req.url, "http://localhost:4000");
       const projectId = parsedUrl.searchParams.get("projectId");

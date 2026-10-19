@@ -27,6 +27,7 @@ interface SurgicalSceneRevisionProps {
     headline?: string;
     onScreenText?: { headline?: string };
   }>;
+  hidePlayer?: boolean;
   onRevisionSuccess?: (newVideoUrl: string) => void;
 }
 
@@ -34,6 +35,7 @@ export function SurgicalSceneRevision({
   projectId,
   videoUrl,
   scenes = [],
+  hidePlayer = false,
   onRevisionSuccess,
 }: SurgicalSceneRevisionProps) {
   const [selectedSceneId, setSelectedSceneId] = useState<string>(
@@ -41,6 +43,7 @@ export function SurgicalSceneRevision({
   );
   const [revisionFeedback, setRevisionFeedback] = useState("");
   const [isRevising, setIsRevising] = useState(false);
+  const [revisionStage, setRevisionStage] = useState<string>("");
   const [activeVideoUrl, setActiveVideoUrl] = useState(videoUrl);
 
   useEffect(() => {
@@ -62,10 +65,13 @@ export function SurgicalSceneRevision({
     const feedback = (customPrompt || revisionFeedback).trim();
     if (!feedback || isRevising) return;
     setIsRevising(true);
+    setRevisionStage("Initiating revision...");
+
+    const toastId = "revise-toast";
 
     try {
       toast.loading(`Surgically revising ${selectedSceneId}... (zero re-render of other scenes)`, {
-        id: "revise-toast",
+        id: toastId,
       });
 
       const res = await fetch("/api/agent/revise-scene", {
@@ -91,24 +97,87 @@ export function SurgicalSceneRevision({
         throw new Error(data.error || `Failed to revise scene (HTTP ${res.status})`);
       }
 
-      if (data.videoUrl) {
-        // Append cache buster to force immediate video element refresh
+      // If server returned videoUrl synchronously
+      if (data.videoUrl && data.status === "completed") {
         const newUrl = data.videoUrl.includes("?")
           ? `${data.videoUrl}&t=${Date.now()}`
           : `${data.videoUrl}?t=${Date.now()}`;
         setActiveVideoUrl(newUrl);
         if (onRevisionSuccess) onRevisionSuccess(newUrl);
+        setRevisionFeedback("");
+        toast.success(
+          `Scene ${selectedSceneId} surgically revised! Unaffected scenes preserved with 0 re-render.`,
+          { id: toastId },
+        );
+        setIsRevising(false);
+        setRevisionStage("");
+        return;
       }
 
-      setRevisionFeedback("");
-      toast.success(
-        `Scene ${selectedSceneId} surgically revised! Unaffected scenes preserved with 0 re-render.`,
-        { id: "revise-toast" },
-      );
+      // Asynchronous background job polling
+      const jobId = data.jobId;
+      setRevisionStage("Rendering updated scene...");
+      toast.loading(`Revising ${selectedSceneId}: rendering scene in background...`, {
+        id: toastId,
+      });
+
+      let attempts = 0;
+      const maxAttempts = 150; // up to ~4 minutes polling with 1.6s interval
+      let isDone = false;
+
+      while (attempts < maxAttempts && !isDone) {
+        attempts++;
+        await new Promise((r) => setTimeout(r, 1600));
+
+        try {
+          const pollUrl = `/api/agent/project-status?projectId=${encodeURIComponent(projectId)}&jobId=${encodeURIComponent(jobId || "")}`;
+          const pollRes = await fetch(pollUrl);
+          if (!pollRes.ok) continue;
+
+          const pollData = await pollRes.json();
+
+          if (pollData.stage || pollData.message) {
+            setRevisionStage(pollData.message || `Rendering (${pollData.progress || 50}%)...`);
+            toast.loading(pollData.message || `Surgically revising ${selectedSceneId}...`, {
+              id: toastId,
+            });
+          }
+
+          if (pollData.status === "completed" && (pollData.videoUrl || pollData.outputUrl)) {
+            const finalUrl = pollData.videoUrl || pollData.outputUrl;
+            const newUrl = finalUrl.includes("?")
+              ? `${finalUrl}&t=${Date.now()}`
+              : `${finalUrl}?t=${Date.now()}`;
+            setActiveVideoUrl(newUrl);
+            if (onRevisionSuccess) onRevisionSuccess(newUrl);
+            setRevisionFeedback("");
+            toast.success(
+              `Scene ${selectedSceneId} surgically revised! Unaffected scenes preserved with 0 re-render.`,
+              { id: toastId },
+            );
+            isDone = true;
+            break;
+          }
+
+          if (pollData.status === "failed") {
+            throw new Error(pollData.error || pollData.message || "Revision render failed");
+          }
+        } catch (pollErr: any) {
+          if (pollErr.message && (pollErr.message.includes("failed") || pollErr.message.includes("Error"))) {
+            throw pollErr;
+          }
+        }
+      }
+
+      if (!isDone) {
+        throw new Error("Revision timed out. Please check the Studio editor or try again.");
+      }
     } catch (err: any) {
-      toast.error(err.message || "Failed to revise scene", { id: "revise-toast" });
+      console.error("[Surgical Scene Revision Error]", err);
+      toast.error(err.message || "Failed to revise scene", { id: toastId });
     } finally {
       setIsRevising(false);
+      setRevisionStage("");
     }
   };
 
@@ -123,46 +192,48 @@ export function SurgicalSceneRevision({
   return (
     <div className="space-y-6">
       {/* 1080P MASTER VIDEO PLAYER PREVIEW - Clean White Card */}
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50">
-        <div className="relative aspect-video w-full bg-slate-950 flex items-center justify-center">
-          <video
-            key={activeVideoUrl}
-            src={activeVideoUrl}
-            controls
-            autoPlay
-            loop
-            playsInline
-            className="h-full w-full object-contain"
-          />
-        </div>
-
-        {/* Video metadata and action bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-3.5 text-xs text-slate-800">
-          <div className="flex items-center gap-2 text-emerald-600 font-semibold">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            <span>1080p Master Render Complete &bull; Verified with FFprobe</span>
+      {!hidePlayer && (
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50">
+          <div className="relative aspect-video w-full bg-slate-950 flex items-center justify-center">
+            <video
+              key={activeVideoUrl}
+              src={activeVideoUrl}
+              controls
+              autoPlay
+              loop
+              playsInline
+              className="h-full w-full object-contain"
+            />
           </div>
 
-          <div className="flex items-center gap-2">
-            <a
-              href={activeVideoUrl}
-              download={`ollastar_${projectId}.mp4`}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs cursor-pointer"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>Download MP4</span>
-            </a>
+          {/* Video metadata and action bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-3.5 text-xs text-slate-800">
+            <div className="flex items-center gap-2 text-emerald-600 font-semibold">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span>1080p Master Render Complete &bull; Verified with FFprobe</span>
+            </div>
 
-            <Link
-              href={`/editor/${projectId}`}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition shadow-2xs"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              <span>Open in Studio</span>
-            </Link>
+            <div className="flex items-center gap-2">
+              <a
+                href={activeVideoUrl}
+                download={`ollastar_${projectId}.mp4`}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs cursor-pointer"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>Download MP4</span>
+              </a>
+
+              <Link
+                href={`/editor/${projectId}`}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition shadow-2xs"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                <span>Open in Studio</span>
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* SURGICAL SCENE REVISION PANEL - Pure White Card */}
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50 space-y-5 text-slate-900">
@@ -261,7 +332,7 @@ export function SurgicalSceneRevision({
             {isRevising ? (
               <>
                 <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                <span>Revising...</span>
+                <span className="max-w-[130px] truncate">{revisionStage || "Revising..."}</span>
               </>
             ) : (
               <>

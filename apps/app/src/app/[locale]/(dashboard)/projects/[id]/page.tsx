@@ -24,6 +24,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { SurgicalSceneRevision } from "@/components/surgical-scene-revision";
 
 function computeDownloadFilename(project: any, selectedResolution: string): string {
   const pLower = (project?.prompt || "").toLowerCase();
@@ -371,6 +372,19 @@ export default function ProjectDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Surgical Scene Revision Panel */}
+        {isCompleted && (
+          <SurgicalSceneRevision
+            projectId={String(projectId)}
+            videoUrl={activeVideoUrl || ""}
+            scenes={project.productionPlan?.scenes || []}
+            hidePlayer={true}
+            onRevisionSuccess={() => {
+              router.refresh();
+            }}
+          />
+        )}
 
         {/* METADATA & SPECS GRID */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
