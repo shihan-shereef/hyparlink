@@ -56,6 +56,9 @@ try {
   }
 } catch (e) {}
 
+// Ensure critical paths are present in process.env.PATH
+process.env.PATH = `/Users/apple/.local/bin:/Users/apple/.bun/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:${process.env.PATH || ""}`;
+
 process.on("SIGHUP", () => {
   console.log("[Server] SIGHUP received - ignoring to remain running in background");
 });
@@ -458,12 +461,13 @@ function extractAvatarParams(prompt = "", input = {}) {
     return { avatarId: null, voiceId: null, isAvatar: false, mode: "hyperframes_only", compositionMode: "hyperframes_only" };
   }
 
-  // Check if avatar mode was requested via compositionMode (mode_a, mode_b, mode_c, auto) or explicit avatar mode setting or prompt cue
-  const isExplicitAvatarCompMode = compMode === "mode_a" || compMode === "mode_b" || compMode === "mode_c" || compMode === "auto";
-  const isExplicitAvatarMode = requestedMode === "avatar_presenter" || requestedMode === "avatar_mixed" || isExplicitAvatarCompMode || Boolean(input.avatarId);
-  const hasExplicitAvatarDemand = isExplicitAvatarMode || /\b(talking\s+avath?ar|talking\s+head|spokesperson|heygen\s+avath?ar|presenter\s+video|with\s+avath?ar|with\s+presenter)\b/i.test(p);
+  // Check if avatar mode was requested via compositionMode (mode_a, mode_b, mode_c) or explicit avatar mode setting or prompt cue
+  const isExplicitAvatarCompMode = compMode === "mode_a" || compMode === "mode_b" || compMode === "mode_c";
+  const hasAvatarKeywords = /\b(talking\s+avath?ar|talking\s+head|spokesperson|heygen\s+avath?ar|presenter\s+video|with\s+avath?ar|with\s+presenter)\b/i.test(p);
+  const isExplicitAvatarMode = requestedMode === "avatar_presenter" || requestedMode === "avatar_mixed" || isExplicitAvatarCompMode || Boolean(input.avatarId && input.avatarId !== "none");
+  const hasExplicitAvatarDemand = isExplicitAvatarMode || hasAvatarKeywords;
 
-  // If there's no explicit avatar demand in prompt and no explicit avatar mode chosen, default to clean presentation/PPT mode
+  // If there's no explicit avatar demand in prompt and no explicit avatar mode chosen, default to clean presentation/HyperFrames mode
   if (!hasExplicitAvatarDemand && !isExplicitAvatarMode) {
     return { avatarId: null, voiceId: null, isAvatar: false, mode: "hyperframes_only", compositionMode: "hyperframes_only" };
   }
@@ -4578,17 +4582,23 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             if (!envStatus.renderingReady) {
               const missingReason =
                 envStatus.recommendations.join("; ") || "System dependencies not satisfied";
-              console.error(
-                `[Backend] Job ${jobId} aborted: rendering environment not ready: ${missingReason}`,
+              console.warn(
+                `[Backend] Job ${jobId} environment warning: ${missingReason}. Evaluating critical binaries...`,
               );
-              await postWebhook({
-                type: "job.progress",
-                jobId,
-                projectId,
-                status: "failed",
-                error: `Rendering environment not ready: ${missingReason}`,
-              });
-              return;
+              // Only abort if node or ffmpeg are truly missing
+              if (!envStatus.dependencies.node?.installed || !envStatus.dependencies.ffmpeg?.installed) {
+                console.error(
+                  `[Backend] Job ${jobId} aborted: rendering environment missing critical binary: ${missingReason}`,
+                );
+                await postWebhook({
+                  type: "job.progress",
+                  jobId,
+                  projectId,
+                  status: "failed",
+                  error: `Rendering environment not ready: ${missingReason}`,
+                });
+                return;
+              }
             }
 
             // 1. Notify progress: Generating

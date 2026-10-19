@@ -1929,7 +1929,12 @@ window.__timelines["main"] = tl;`);
       const effectiveDuration = promptDur || duration;
 
       // HeyGen Avatar + HyperFrames Composition Integration
-      const isAvatarRequested = compositionMode !== "hyperframes_only";
+      const hasAvatarIntent =
+        compositionMode === "mode_a" ||
+        compositionMode === "mode_b" ||
+        compositionMode === "mode_c" ||
+        (compositionMode === "auto" && (Boolean(avatarId && avatarId !== "none") || /\b(talking\s+avath?ar|talking\s+head|spokesperson|heygen\s+avath?ar|presenter\s+video|with\s+avath?ar|with\s+presenter)\b/i.test(promptValue)));
+      const isAvatarRequested = compositionMode !== "hyperframes_only" && Boolean(hasAvatarIntent);
       const effectiveAvatarId: string | undefined = isAvatarRequested ? (avatarId || "sarah_studio") : undefined;
       const effectiveAvatarName: string | undefined = isAvatarRequested ? (avatarName || "Sarah Jenkins") : undefined;
       const effectiveVoiceId: string | undefined = isAvatarRequested ? (voiceId || "en-US-JennyNeural") : undefined;
