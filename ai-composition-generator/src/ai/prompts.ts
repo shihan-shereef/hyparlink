@@ -204,6 +204,8 @@ export interface PromptAnalysis {
     display: string;
     body: string;
   };
+  domain?: string;
+  rawPrompt?: string;
   closingCta?: string;
 }
 

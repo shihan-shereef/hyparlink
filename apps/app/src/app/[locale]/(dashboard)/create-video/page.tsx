@@ -1330,6 +1330,9 @@ window.__timelines["main"] = tl;`);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const promptInputRef = useRef<HTMLTextAreaElement>(null);
+  const promptContainerRef = useRef<HTMLFormElement>(null);
+  const [selectedTemplateCategory, setSelectedTemplateCategory] = useState<string>("All");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
   const [aiStatus, setAiStatus] = useState<{
     provider: string;
@@ -2663,7 +2666,7 @@ window.__timelines["main"] = tl;`);
         {/* CREATION MODE CONTENT: AI PROMPT MODE OR DIRECT CODE MODE */}
         {pipelineMode === "ai_prompt" ? (
           /* MAIN PROMPT CARD (Matching Gamma Center Prompt Box) */
-          <form onSubmit={handleSubmit} className="w-full max-w-3xl space-y-4">
+          <form ref={promptContainerRef} onSubmit={handleSubmit} className="w-full max-w-3xl space-y-4">
             <div
               onClick={() => promptInputRef.current?.focus()}
               className="group relative rounded-3xl border border-slate-200/90 bg-white p-5 shadow-xl shadow-slate-200/40 dark:border-neutral-800 dark:bg-[#111520] dark:shadow-none transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-100 dark:focus-within:ring-indigo-950/50 cursor-text"
@@ -3130,18 +3133,209 @@ window.__timelines["main"] = tl;`);
         )}
 
 
-        {/* SUGGESTED TEMPLATES SECTION (Matching 6 clean cards in Image 3) */}
-        <div className="w-full pt-2">
-          <h3 className="text-center text-xs font-semibold text-slate-500 dark:text-neutral-400 mb-3">
-            Suggested templates
-          </h3>
+        {/* READY-MADE DESIGN TEMPLATES GALLERY */}
+        <div className="w-full pt-4 pb-2">
+          <div className="text-center max-w-xl mx-auto mb-4">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-700 dark:bg-indigo-950/60 dark:border-indigo-800 dark:text-indigo-300 text-[11px] font-semibold mb-2">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+              <span>Ready-Made Design Templates</span>
+            </div>
+            <h3 className="text-base font-bold text-slate-800 dark:text-white tracking-tight">
+              Select a Design Template to Auto-Configure Your Video
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-neutral-400 mt-1">
+              Click any style below to automatically pre-fill optimized prompts, duration, aspect ratio, and typography parameters.
+            </p>
+          </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+          {/* Category Filter Pills */}
+          <div className="flex flex-wrap items-center justify-center gap-1.5 mb-5">
+            {[
+              "All",
+              "SaaS & Tech",
+              "Commercial & Brand",
+              "Social Reels (9:16)",
+              "Editorial & News",
+              "Luxury & Cinematic",
+              "Minimalist & Design",
+            ].map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedTemplateCategory(cat)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
+                  selectedTemplateCategory === cat
+                    ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900 font-semibold"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Template Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5">
             {[
               {
+                id: "quantum_ai",
+                title: "Quantum AI Platform",
+                category: "SaaS & Tech",
+                aspectRatio: "16:9",
+                duration: 15,
+                prompt: "Create a 15-second high-impact SaaS launch video for Quantum AI with electric cyan glow, glassmorphic metric cards, neural network diagram, and a bold 'Deploy in Seconds' call-to-action.",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-[#030712] flex flex-col justify-between p-2.5 overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[7px] font-bold tracking-wider text-cyan-400 uppercase bg-cyan-950/70 border border-cyan-800/60 px-1.5 py-0.5 rounded">
+                        AI ENGINE
+                      </span>
+                      <div className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />
+                    </div>
+                    <div className="flex flex-col text-left my-auto">
+                      <span className="text-[11px] font-extrabold text-white leading-tight font-sans tracking-tight">
+                        QUANTUM
+                      </span>
+                      <span className="text-[8px] font-medium text-cyan-300/80 leading-tight">
+                        Neural Core 2.0
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1 border-t border-cyan-950/80 text-[7px] text-slate-400">
+                      <span>10M+ Tokens/s</span>
+                      <span className="text-cyan-400 font-mono">0.02ms</span>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: "aethelgard",
+                title: "Aethelgard Chronograph",
+                category: "Luxury & Cinematic",
+                aspectRatio: "16:9",
+                duration: 15,
+                prompt: "Create a 15-second cinematic luxury commercial for Aethelgard Chronograph with deep obsidian black background, shimmering champagne gold typography, high-precision watch dial details, and refined Swiss craftsmanship aesthetics.",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-[#08080a] flex flex-col items-center justify-between p-2.5 overflow-hidden border border-[#d4af37]/30">
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-[6px] tracking-widest text-[#d4af37] uppercase font-serif">
+                        GENÈVE
+                      </span>
+                      <span className="text-[6px] text-slate-400 font-serif">N° 042</span>
+                    </div>
+                    <div className="flex flex-col items-center text-center my-auto">
+                      <div className="w-5 h-5 rounded-full border border-[#d4af37]/50 flex items-center justify-center mb-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#d4af37]" />
+                      </div>
+                      <span className="text-[10px] font-bold text-stone-100 font-serif italic tracking-wide">
+                        Aethelgard
+                      </span>
+                      <span className="text-[6px] tracking-wider text-[#d4af37]/90 uppercase font-sans mt-0.5">
+                        Chronograph
+                      </span>
+                    </div>
+                    <span className="text-[6px] text-stone-400 tracking-wider">SWISS CALIBRE</span>
+                  </div>
+                ),
+              },
+              {
+                id: "peak_focus",
+                title: "3 Secrets to Peak Focus",
+                category: "Social Reels (9:16)",
+                aspectRatio: "9:16",
+                duration: 10,
+                prompt: "Create a 10-second high-energy vertical 9:16 social reel on '3 Secrets to 10x Your Deep Work Focus' featuring bold kinetic typography, punchy bullet points, and dynamic progress bar.",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-gradient-to-b from-[#080c16] via-[#0f172a] to-[#1e1b4b] flex flex-col justify-between p-2.5 overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[7px] font-bold bg-blue-600 text-white px-1.5 py-0.5 rounded-full">
+                        REEL 9:16
+                      </span>
+                      <span className="text-[7px] font-bold text-amber-400">🔥 10X</span>
+                    </div>
+                    <div className="flex flex-col text-left my-auto">
+                      <span className="text-[7px] font-bold text-slate-400 uppercase tracking-wider">
+                        SECRET 01
+                      </span>
+                      <span className="text-[11px] font-black text-white leading-tight uppercase font-sans tracking-tight">
+                        UNBROKEN
+                      </span>
+                      <span className="text-[11px] font-black text-emerald-400 leading-tight uppercase font-sans tracking-tight">
+                        DEEP FLOW
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                      <div className="bg-emerald-400 h-full w-3/4 rounded-full" />
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: "daktilo",
+                title: "Global Capital Shift",
+                category: "Editorial & News",
+                aspectRatio: "16:9",
+                duration: 20,
+                prompt: "Create a 20-second investigative financial editorial video in Daktilo Dispatch style analyzing 'The 2026 Global Capital Shift' with clean editorial newsprint style, animated market trend bars, and comparative asset inflow data.",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-[#fcfbf7] flex flex-col justify-between p-2.5 overflow-hidden border border-stone-300">
+                    <div className="flex items-center justify-between border-b border-stone-300 pb-1">
+                      <span className="text-[6px] font-black uppercase text-stone-700 tracking-wider font-serif">
+                        FINANCIAL DISPATCH
+                      </span>
+                      <span className="text-[6px] text-emerald-700 font-bold">+$4.2T</span>
+                    </div>
+                    <div className="flex flex-col text-left my-auto">
+                      <span className="text-[9px] font-black text-stone-900 tracking-tight leading-tight uppercase font-serif">
+                        WHERE DID THE CAPITAL GO?
+                      </span>
+                      <span className="text-[7px] text-stone-600 mt-0.5 font-sans">
+                        Macro Inflow Analysis
+                      </span>
+                    </div>
+                    <div className="flex items-end gap-1 h-3">
+                      <div className="bg-stone-300 w-2 h-1 rounded-xs" />
+                      <div className="bg-stone-400 w-2 h-2 rounded-xs" />
+                      <div className="bg-emerald-700 w-2 h-3 rounded-xs" />
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                id: "neon_kernel",
+                title: "Neon Kernel 4.0",
+                category: "SaaS & Tech",
+                aspectRatio: "16:9",
+                duration: 15,
+                prompt: "Create a 15-second cyberpunk developer promo for Neon Kernel 4.0 featuring terminal code snippets, glowing toxic green and magenta vector lines, benchmark comparisons, and instant npm install CTA.",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-[#04060c] flex flex-col justify-between p-2.5 overflow-hidden font-mono border border-emerald-950">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[7px] text-[#00ff9d] font-bold">
+                        &gt; kernel.init()
+                      </span>
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#ff007f] shadow-[0_0_6px_#ff007f]" />
+                    </div>
+                    <div className="flex flex-col text-left my-auto">
+                      <span className="text-[10px] font-black text-white tracking-tighter">
+                        NEON KERNEL
+                      </span>
+                      <span className="text-[7px] text-[#00ff9d]/90">
+                        0.04ms cold boot
+                      </span>
+                    </div>
+                    <span className="text-[6px] text-slate-500 truncate">
+                      $ npm i @neon/kernel
+                    </span>
+                  </div>
+                ),
+              },
+              {
                 id: "counterform",
-                title: "Counterform",
-                prompt: "Create a bold typographic presentation video featuring Standard Deviation with high-contrast monochrome layout and magenta accents",
+                title: "Counterform (Standard)",
+                category: "Minimalist & Design",
+                aspectRatio: "16:9",
+                duration: 15,
+                prompt: "Create a 15-second bold Swiss minimalist typography video for Standard Deviation featuring high-contrast monochrome grid layout, vermilion red geometric accents, and smooth staggered kinetic reveals.",
                 renderThumbnail: () => (
                   <div className="relative h-full w-full bg-[#111215] flex items-center justify-between p-2.5 overflow-hidden">
                     <div className="flex flex-col text-left">
@@ -3152,14 +3346,118 @@ window.__timelines["main"] = tl;`);
                         DEVIATION
                       </span>
                     </div>
-                    <div className="h-5 w-5 rounded-full bg-[#ec4899] shrink-0 shadow-sm" />
+                    <div className="h-4 w-4 rounded-full bg-[#ff3b30] shrink-0 shadow-sm" />
+                  </div>
+                ),
+              },
+              {
+                id: "aura_energy",
+                title: "Aura Clean Energy",
+                category: "Commercial & Brand",
+                aspectRatio: "16:9",
+                duration: 15,
+                prompt: "Create a 15-second inspiring clean energy sustainability video for Aura Power featuring emerald green ambient lighting, live solar efficiency metrics, carbon reduction proof points, and an inspiring call-to-action.",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-gradient-to-tr from-[#03170e] via-[#06301d] to-[#0d5032] flex flex-col justify-between p-2.5 overflow-hidden border border-emerald-800/40">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[7px] font-bold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 rounded">
+                        100% CLEAN
+                      </span>
+                      <span className="text-[7px] text-lime-400 font-bold">24.8% EFF</span>
+                    </div>
+                    <div className="flex flex-col text-left my-auto">
+                      <span className="text-[10px] font-extrabold text-white leading-tight">
+                        Aura Power
+                      </span>
+                      <span className="text-[7px] text-emerald-300/80">
+                        Zero-Carbon Grid
+                      </span>
+                    </div>
+                    <span className="text-[6px] text-emerald-400/90 font-medium">1.2M Tons Offset</span>
+                  </div>
+                ),
+              },
+              {
+                id: "flowstate",
+                title: "FlowState Mindfulness",
+                category: "Social Reels (9:16)",
+                aspectRatio: "9:16",
+                duration: 12,
+                prompt: "Create a 12-second vertical 9:16 mobile app promo for FlowState meditation app with pastel lilac and peach gradients, floating feature badges, calm breathing rhythm animation, and 'Download Free' app store badge.",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-gradient-to-b from-[#1b1330] via-[#2c1d48] to-[#120b22] flex flex-col justify-between p-2.5 overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[7px] font-medium text-pink-300">CALM PROTOCOL</span>
+                      <span className="text-[7px] font-bold text-amber-300">★ 4.9</span>
+                    </div>
+                    <div className="flex flex-col items-center text-center my-auto">
+                      <div className="w-5 h-5 rounded-full border border-purple-400/50 bg-gradient-to-br from-purple-400/20 to-pink-400/20 flex items-center justify-center mb-1">
+                        <div className="w-2 h-2 rounded-full bg-purple-300 animate-pulse" />
+                      </div>
+                      <span className="text-[10px] font-bold text-white tracking-tight">
+                        FlowState
+                      </span>
+                      <span className="text-[7px] text-purple-200/80">Breathe &amp; Focus</span>
+                    </div>
+                    <span className="text-[6px] text-pink-300 text-center">-58% Stress</span>
+                  </div>
+                ),
+              },
+              {
+                id: "tangerine",
+                title: "Tangerine Pulse Agency",
+                category: "Commercial & Brand",
+                aspectRatio: "16:9",
+                duration: 15,
+                prompt: "Create a 15-second high-energy growth marketing agency promo with bold Tangerine gradients, kinetic typography, revenue surge charts, and an aggressive 'Move Fast' call-to-action.",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-gradient-to-r from-[#ea580c] via-[#f97316] to-[#fbbf24] flex flex-col justify-center p-2.5 text-left overflow-hidden">
+                    <span className="text-[7px] font-extrabold uppercase text-white leading-tight">
+                      GROWTH MARKETING
+                    </span>
+                    <span className="text-[9px] font-black text-red-950 uppercase mt-0.5 tracking-tight">
+                      Move Fast.
+                    </span>
+                    <span className="text-[6px] font-bold text-white/90 mt-1 uppercase">
+                      +340% Pipeline Scale
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                id: "event_horizon",
+                title: "Event Horizon: Singularity",
+                category: "Editorial & News",
+                aspectRatio: "16:9",
+                duration: 20,
+                prompt: "Create a 20-second cinematic science explainer exploring 'What Happens at the Event Horizon?' with deep space nebula backgrounds, animated gravitational wave diagrams, and step-by-step cosmic physics breakdown.",
+                renderThumbnail: () => (
+                  <div className="relative h-full w-full bg-[#03020a] flex flex-col justify-between p-2.5 overflow-hidden border border-purple-900/40">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[6px] tracking-wider text-purple-400 font-bold uppercase">
+                        ASTROPHYSICS
+                      </span>
+                      <span className="text-[6px] text-cyan-400">c = 300,000 km/s</span>
+                    </div>
+                    <div className="flex flex-col text-left my-auto">
+                      <span className="text-[10px] font-black text-white leading-tight font-serif">
+                        EVENT HORIZON
+                      </span>
+                      <span className="text-[7px] text-purple-300/80">Singularity Mechanics</span>
+                    </div>
+                    <div className="w-full bg-purple-950 h-1 rounded-full overflow-hidden">
+                      <div className="bg-gradient-to-r from-purple-500 to-cyan-400 h-full w-4/5" />
+                    </div>
                   </div>
                 ),
               },
               {
                 id: "salt_air",
-                title: "Salt Air",
-                prompt: "Create a serene coastal cinematic video with turquoise ocean wave aerial shots and elegant Salt Air typography",
+                title: "Salt Air Coastal",
+                category: "Commercial & Brand",
+                aspectRatio: "16:9",
+                duration: 15,
+                prompt: "Create a 15-second serene coastal cinematic brand video for Salt Air featuring deep turquoise ocean gradients, elegant serif typography, calm fluid transitions, and a refined seaside resort call-to-action.",
                 renderThumbnail: () => (
                   <div className="relative h-full w-full bg-gradient-to-tr from-[#0e4e5e] via-[#156e7e] to-[#45b0a5] flex items-center justify-center p-2.5 overflow-hidden">
                     <span className="text-xs font-serif italic font-bold text-white drop-shadow-md">
@@ -3169,85 +3467,106 @@ window.__timelines["main"] = tl;`);
                 ),
               },
               {
-                id: "rosette",
-                title: "Rosette",
-                prompt: "Create a joyful company celebration video for Rosette with pastel confetti bursts and team highlights",
+                id: "absolute_batman",
+                title: "Absolute Batman (Comic)",
+                category: "Luxury & Cinematic",
+                aspectRatio: "16:9",
+                duration: 15,
+                prompt: "Create a 15-second graphic novel comic book trailer for Absolute Batman with bold comic yellow and black ink aesthetic, dossier character panels, high-contrast action typography, and dramatic issue reveal.",
                 renderThumbnail: () => (
-                  <div className="relative h-full w-full bg-gradient-to-r from-[#e980a0] via-[#c084fc] to-[#f472b6] flex flex-col items-center justify-center p-2 overflow-hidden text-center">
-                    <span className="text-[10px] font-bold text-white tracking-wide">
-                      Rosette
-                    </span>
-                    <span className="text-[6px] text-white/80 uppercase tracking-tighter mt-0.5">
-                      Celebrations
-                    </span>
+                  <div className="relative h-full w-full bg-[#FFE600] flex flex-col justify-between p-2.5 overflow-hidden border border-black text-black">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[6px] font-black bg-black text-[#FFE600] px-1 py-0.5 uppercase">
+                        DC ALL IN
+                      </span>
+                      <span className="text-[6px] font-bold">100% GRIT</span>
+                    </div>
+                    <div className="flex flex-col text-left my-auto">
+                      <span className="text-[11px] font-black text-black leading-tight uppercase font-sans tracking-tight">
+                        ABSOLUTE
+                      </span>
+                      <span className="text-[11px] font-black text-black leading-tight uppercase font-sans tracking-tight">
+                        BATMAN
+                      </span>
+                    </div>
+                    <span className="text-[6px] font-black tracking-wider uppercase">NO BILLIONS. PURE FORCE.</span>
                   </div>
                 ),
               },
-              {
-                id: "daktilo_dispatch",
-                title: "Daktilo Dispatch",
-                prompt: "Create an investigative financial editorial video in Daktilo Dispatch newspaper style with dynamic headline transitions",
-                renderThumbnail: () => (
-                  <div className="relative h-full w-full bg-[#f3f4f6] flex flex-col justify-center p-2.5 overflow-hidden border border-slate-200">
-                    <span className="text-[8px] font-black text-slate-900 tracking-tight leading-tight uppercase font-serif">
-                      WHERE DID THE MONEY GO?
-                    </span>
+            ]
+              .filter(
+                (tmpl) =>
+                  selectedTemplateCategory === "All" ||
+                  tmpl.category === selectedTemplateCategory,
+              )
+              .map((tmpl) => {
+                const isSelected = selectedTemplateId === tmpl.id;
+                return (
+                  <div
+                    key={tmpl.id}
+                    onClick={() => {
+                      setSelectedTemplateId(tmpl.id);
+                      setPrompt(tmpl.prompt);
+                      setName(tmpl.title);
+                      setDuration(tmpl.duration);
+                      setAspectRatio(tmpl.aspectRatio);
+                      toast.success(`Template loaded: "${tmpl.title}"`, {
+                        description: `${tmpl.category} • ${tmpl.aspectRatio} • ${tmpl.duration}s. Review the prompt or click Generate Video!`,
+                      });
+                      promptInputRef.current?.focus();
+                      promptContainerRef.current?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center",
+                      });
+                    }}
+                    className={`group cursor-pointer flex flex-col transition rounded-xl p-1.5 ${
+                      isSelected
+                        ? "ring-2 ring-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 shadow-md"
+                        : "hover:bg-slate-50 dark:hover:bg-neutral-900/60"
+                    }`}
+                  >
+                    <div className="relative aspect-[16/10] w-full rounded-lg overflow-hidden mb-1.5 border border-slate-200/90 shadow-2xs group-hover:shadow-md group-hover:scale-[1.03] transition dark:border-white/10">
+                      {tmpl.renderThumbnail()}
+
+                      {/* Aspect Ratio & Duration Tag */}
+                      <div className="absolute top-1.5 right-1.5 flex items-center gap-1 z-10">
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-black/60 text-white backdrop-blur-xs">
+                          {tmpl.aspectRatio}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-600/80 text-white backdrop-blur-xs">
+                          {tmpl.duration}s
+                        </span>
+                      </div>
+
+                      {/* Active Checkmark */}
+                      {isSelected && (
+                        <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 z-10 px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[8px] font-bold shadow-xs">
+                          <Check className="w-2.5 h-2.5" />
+                          <span>Active</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col text-left px-0.5">
+                      <span className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition truncate">
+                        {tmpl.title}
+                      </span>
+                      <span className="text-[9px] text-slate-400 dark:text-neutral-500 truncate">
+                        {tmpl.category}
+                      </span>
+                    </div>
                   </div>
-                ),
-              },
-              {
-                id: "tangerine_pulse",
-                title: "Tangerine (Pulse)",
-                prompt: "Create a high-energy growth marketing agency promo with bold Tangerine gradients and kinetic typography",
-                renderThumbnail: () => (
-                  <div className="relative h-full w-full bg-gradient-to-r from-[#ea580c] via-[#f97316] to-[#fbbf24] flex flex-col justify-center p-2 text-left overflow-hidden">
-                    <span className="text-[7px] font-extrabold uppercase text-white leading-tight">
-                      GROWTH MARKETING
-                    </span>
-                    <span className="text-[8px] font-black text-red-950 uppercase mt-0.5">
-                      Move.
-                    </span>
-                  </div>
-                ),
-              },
-              {
-                id: "further_study",
-                title: "Further Study",
-                prompt: "Create a thoughtful minimalist design manifesto video for Further Study with atmospheric color fields and typography",
-                renderThumbnail: () => (
-                  <div className="relative h-full w-full bg-gradient-to-br from-[#fed7aa] via-[#f4b5a4] to-[#f97316] flex flex-col justify-center p-2 text-left overflow-hidden">
-                    <span className="text-[7px] font-medium text-slate-800 leading-tight">
-                      EVERYTHING BUILT WANTS TO LAST
-                    </span>
-                  </div>
-                ),
-              },
-            ].map((tmpl) => (
-              <div
-                key={tmpl.id}
-                onClick={() => {
-                  setPrompt(tmpl.prompt);
-                  promptInputRef.current?.focus();
-                }}
-                className="group cursor-pointer flex flex-col transition"
-              >
-                <div className="relative aspect-[16/10] w-full rounded-xl overflow-hidden mb-1.5 border border-slate-200/90 shadow-2xs group-hover:shadow-md group-hover:scale-[1.03] transition dark:border-white/10">
-                  {tmpl.renderThumbnail()}
-                </div>
-                <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition text-left truncate">
-                  {tmpl.title}
-                </span>
-              </div>
-            ))}
+                );
+              })}
           </div>
 
           {/* View all templates button */}
-          <div className="mt-4 flex justify-center">
+          <div className="mt-5 flex justify-center">
             <Link
               href="/projects"
-              className="inline-flex items-center rounded-full border border-slate-200 bg-white px-5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800 transition"
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-slate-300 dark:hover:bg-neutral-800 transition"
             >
-              View all templates
+              <span>Explore workspace projects</span>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
             </Link>
           </div>
         </div>
