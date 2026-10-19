@@ -168,7 +168,7 @@ export function VideoProductionPlanStudio({
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-400/40 dark:bg-indigo-500/15 dark:text-indigo-300">
                 <Sparkles className="h-3.5 w-3.5 animate-pulse text-indigo-500 dark:text-indigo-400" />
-                HEYGEN VIDEO AGENT • PLAN MODE
+                AI VIDEO AGENT • PLAN MODE
               </span>
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-mono text-slate-600 dark:bg-white/10 dark:text-neutral-300">
                 v{plan.version || 1}

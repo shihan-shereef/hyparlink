@@ -745,66 +745,164 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
     feedback: string,
   ): VideoProductionPlan {
     const fLower = feedback.toLowerCase();
-    const updatedScenes = [...currentPlan.scenes];
-    let updatedScript = { ...currentPlan.script };
-    let updatedPalette = { ...currentPlan.creativeBrief.colorPalette };
+    const brief = currentPlan.creativeBrief || ({} as any);
+    const targetDuration = Number(brief.duration) || 10;
+    const updatedScenes = (currentPlan.scenes || []).map((s) => ({
+      ...s,
+      onScreenText: { ...(s.onScreenText || {}) },
+    }));
+    let updatedScript = { ...(currentPlan.script || {}) };
+    const bp = brief.colorPalette || {};
+    let updatedPalette = Object.assign(
+      {
+        primary: "#6366f1",
+        secondary: "#818cf8",
+        accent: "#06b6d4",
+        backgroundColor: "#070913",
+        surfaceColor: "#0f172a",
+        textColor: "#ffffff",
+        textMutedColor: "#94a3b8",
+        glowColor: "rgba(99, 102, 241, 0.4)",
+        borderColor: "rgba(255, 255, 255, 0.1)",
+      },
+      bp,
+    );
+    let updatedVisualDirection = brief.visualDirection || "Cinematic modern aesthetic";
+    let updatedTypography = {
+      displayFont: brief.typography?.displayFont || "Outfit",
+      bodyFont: brief.typography?.bodyFont || "Inter",
+      weights: brief.typography?.weights || ["400", "700", "800"],
+    };
 
-    // 1. Color palette changes
-    if (fLower.includes("brighter") || fLower.includes("light")) {
-      updatedPalette.backgroundColor = "#0F172A";
-      updatedPalette.textColor = "#FFFFFF";
+    // 1. Color palette & style changes
+    if (fLower.includes("cinematic") || fLower.includes("high-contrast") || fLower.includes("high contrast")) {
+      updatedPalette.backgroundColor = "#030712";
+      updatedPalette.primary = "#F59E0B";
       updatedPalette.accent = "#38BDF8";
+      updatedPalette.textColor = "#FFFFFF";
+      updatedVisualDirection = "Cinematic high-contrast aesthetic with dramatic rim lighting and deep shadow falloff";
+      for (const s of updatedScenes) {
+        s.visualDescription = `${s.visualDescription || "Scene visual"} with cinematic high-contrast lighting, sharp rim highlights, and atmospheric depth.`;
+      }
+    } else if (fLower.includes("brighter") || fLower.includes("vibrant") || fLower.includes("light")) {
+      updatedPalette.backgroundColor = "#0B0F19";
+      updatedPalette.primary = "#6366F1";
+      updatedPalette.accent = "#06B6D4";
+      updatedPalette.textColor = "#FFFFFF";
+      updatedVisualDirection = "Vibrant bright visual style with electric neon accents and vivid ambient glow";
+      for (const s of updatedScenes) {
+        s.visualDescription = `${s.visualDescription || "Scene visual"} in an ultra-vibrant space featuring electric glowing accents.`;
+      }
     } else if (fLower.includes("emerald") || fLower.includes("green")) {
       updatedPalette.primary = "#10B981";
       updatedPalette.accent = "#34D399";
       updatedPalette.backgroundColor = "#062319";
-    } else if (fLower.includes("cinematic") || fLower.includes("dark")) {
-      updatedPalette.backgroundColor = "#030712";
-      updatedPalette.accent = "#F59E0B";
     }
 
-    // 2. Specific scene modifications (e.g. "replace the second scene", "change scene 1")
-    if (fLower.includes("second scene") || fLower.includes("scene 2")) {
-      if (updatedScenes[1]) {
-        updatedScenes[1].name = "Enhanced Feature Showcase";
-        updatedScenes[1].purpose = "Highlight key product features with direct visuals";
-        updatedScenes[1].layoutArchetype = "hero-product-showcase";
-        updatedScenes[1].visualDescription = "Product featured front and center with interactive telemetry badges";
-        updatedScenes[1].onScreenText.headline = "POWERFUL CAPABILITY";
-        updatedScenes[1].onScreenText.subtitle = "Unrivaled performance tailored for your workflow";
+    // 2. Kinetic typography / Energy
+    if (fLower.includes("kinetic") || fLower.includes("faster") || fLower.includes("energetic")) {
+      updatedTypography.weights = ["700", "800", "900"];
+      for (const s of updatedScenes) {
+        s.animationDirection = "High-energy kinetic typography with rapid spring reveal and fluid dynamic acceleration";
+        s.transition = "zoom-in";
       }
-    } else if (fLower.includes("first scene") || fLower.includes("scene 1") || fLower.includes("opening")) {
+    }
+
+    // 3. Timing / Duration adjustments (e.g. "shorten scene 1 to 2 seconds and extend the climax")
+    if (fLower.includes("shorten scene 1") || (fLower.includes("scene 1") && fLower.includes("2 second"))) {
       if (updatedScenes[0]) {
-        updatedScenes[0].onScreenText.headline = "THE NEXT GENERATION";
-        updatedScenes[0].visualDescription = "Cinematic widescreen letterboxed opening with golden rim lighting";
+        updatedScenes[0].duration = 2.0;
+        const remaining = Math.max(2, targetDuration - 2.0);
+        const otherScenes = updatedScenes.slice(1);
+        if (otherScenes.length > 0) {
+          const perOther = Number((remaining / otherScenes.length).toFixed(2));
+          otherScenes.forEach((s, idx) => {
+            if (idx === otherScenes.length - 1) {
+              s.duration = Number((targetDuration - 2.0 - perOther * (otherScenes.length - 1)).toFixed(2));
+            } else {
+              s.duration = perOther;
+            }
+          });
+        }
       }
-    } else if (fLower.includes("final") || fLower.includes("last") || fLower.includes("call to action") || fLower.includes("cta")) {
+    }
+
+    // 4. Specific scene modifications
+    // Scene 2 / Second scene
+    if (fLower.includes("second scene") || fLower.includes("scene 2") || fLower.includes("product feature")) {
+      if (updatedScenes[1]) {
+        updatedScenes[1].name = "Product Features Showcase";
+        updatedScenes[1].purpose = "Highlight key product features and precision capabilities";
+        updatedScenes[1].layoutArchetype = "hero-product-showcase";
+        updatedScenes[1].visualDescription = "Product featured front and center with interactive telemetry badges and floating feature callouts.";
+        updatedScenes[1].onScreenText.headline = "PRECISION ENGINEERING";
+        updatedScenes[1].onScreenText.subtitle = "Advanced capabilities built with relentless attention to detail.";
+        updatedScenes[1].onScreenText.badge = "FLAGSHIP FEATURES";
+      }
+    }
+
+    // Scene 1 / First scene
+    if (fLower.includes("first scene") || (fLower.includes("scene 1") && !fLower.includes("shorten"))) {
+      if (updatedScenes[0]) {
+        updatedScenes[0].name = "Cinematic Reveal & Hook";
+        updatedScenes[0].onScreenText.headline = "THE FUTURE OF CREATION";
+        updatedScenes[0].visualDescription = "Cinematic widescreen opening with dramatic lighting and bold presence.";
+      }
+    }
+
+    // Final / Last / Climax / Call to action
+    if (fLower.includes("final") || fLower.includes("last") || fLower.includes("call to action") || fLower.includes("cta") || fLower.includes("climax")) {
       const last = updatedScenes[updatedScenes.length - 1];
       if (last) {
-        last.onScreenText.headline = "START CREATING NOW";
-        last.onScreenText.ctaText = "JOIN TODAY";
-        updatedScript.callToAction = "Join today and start creating";
+        last.name = "Climax & Immediate Action";
+        last.onScreenText.headline = "START CREATING TODAY";
+        last.onScreenText.subtitle = "Join the next era of high-performance video production.";
+        last.onScreenText.ctaText = "GET STARTED NOW";
+        last.layoutArchetype = "cinematic-climax-cta";
+        updatedScript.callToAction = "Get started now and experience the next level of creation.";
       }
     }
 
-    // 3. Audio / Narration adjustments
-    let audioPlan = { ...currentPlan.audioPlan };
-    if (fLower.includes("remove narration") || fLower.includes("no narration") || fLower.includes("silent")) {
+    // 5. Custom quote / headline extraction if user types specific text in quotes
+    const quoteMatch = feedback.match(/["“]([^"”]+)["”]/);
+    if (quoteMatch && quoteMatch[1]) {
+      const customText = quoteMatch[1].trim();
+      if (fLower.includes("scene 1") && updatedScenes[0]) {
+        updatedScenes[0].onScreenText.headline = customText.toUpperCase();
+      } else if (fLower.includes("scene 2") && updatedScenes[1]) {
+        updatedScenes[1].onScreenText.headline = customText.toUpperCase();
+      } else if ((fLower.includes("final") || fLower.includes("cta") || fLower.includes("last")) && updatedScenes.length > 0) {
+        updatedScenes[updatedScenes.length - 1].onScreenText.headline = customText.toUpperCase();
+      } else if (updatedScenes[0]) {
+        updatedScenes[0].onScreenText.headline = customText.toUpperCase();
+      }
+    }
+
+    // 6. Audio / Narration adjustments
+    let audioPlan = { ...(currentPlan.audioPlan || { isSilent: false }) };
+    if (fLower.includes("remove narration") || fLower.includes("no narration") || fLower.includes("silent") || fLower.includes("mute")) {
       for (const s of updatedScenes) {
         s.narration = "";
       }
       audioPlan.isSilent = true;
+    } else if (fLower.includes("add narration") || fLower.includes("with voiceover")) {
+      audioPlan.isSilent = false;
     }
+
+    // 7. Re-calculate normalized start, duration, and end times across all scenes
+    const normalizedScenes = this.normalizeSceneTimings(updatedScenes, targetDuration);
 
     return {
       ...currentPlan,
-      version: currentPlan.version + 1,
+      version: (currentPlan.version || 1) + 1,
       creativeBrief: {
-        ...currentPlan.creativeBrief,
+        ...brief,
+        visualDirection: updatedVisualDirection,
         colorPalette: updatedPalette,
+        typography: updatedTypography,
       },
       script: updatedScript,
-      scenes: updatedScenes,
+      scenes: normalizedScenes,
       audioPlan,
       status: "ready",
       lastRevisionFeedback: feedback,
