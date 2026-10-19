@@ -1334,6 +1334,7 @@ window.__timelines["main"] = tl;`);
   const promptContainerRef = useRef<HTMLFormElement>(null);
   const [selectedTemplateCategory, setSelectedTemplateCategory] = useState<string>("All");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [showAllTemplates, setShowAllTemplates] = useState<boolean>(false);
 
   // Auto-fill template when navigated with ?template=<templateId>
   useEffect(() => {
@@ -1346,6 +1347,7 @@ window.__timelines["main"] = tl;`);
       setName(tmpl.title);
       setDuration(tmpl.duration);
       setAspectRatio(tmpl.aspectRatio);
+      setShowAllTemplates(true);
       toast.success(`Template loaded: "${tmpl.title}"`, {
         description: `${tmpl.category} • ${tmpl.aspectRatio} • ${tmpl.duration}s. Click Generate Video or customize your prompt!`,
       });
@@ -3180,13 +3182,18 @@ window.__timelines["main"] = tl;`);
 
           {/* Template Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5">
-            {READY_MADE_TEMPLATES
-              .filter(
+            {(() => {
+              const matchingTemplates = READY_MADE_TEMPLATES.filter(
                 (tmpl) =>
                   selectedTemplateCategory === "All" ||
                   tmpl.category === selectedTemplateCategory,
-              )
-              .map((tmpl) => {
+              );
+              const displayed =
+                showAllTemplates || selectedTemplateCategory !== "All"
+                  ? matchingTemplates
+                  : matchingTemplates.slice(0, 6);
+
+              return displayed.map((tmpl) => {
                 const isSelected = selectedTemplateId === tmpl.id;
                 return (
                   <div
@@ -3243,19 +3250,29 @@ window.__timelines["main"] = tl;`);
                     </div>
                   </div>
                 );
-              })}
+              });
+            })()}
           </div>
 
-          {/* View all templates button */}
+          {/* View all templates button (toggles inline without redirecting) */}
           <div className="mt-5 flex justify-center">
-            <Link
-              href="/projects?tab=templates"
-              className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50/70 px-5 py-2 text-xs font-semibold text-indigo-700 shadow-2xs hover:bg-indigo-100 hover:border-indigo-300 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900 transition"
+            <button
+              type="button"
+              onClick={() => setShowAllTemplates(!showAllTemplates)}
+              className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50/70 px-5 py-2 text-xs font-semibold text-indigo-700 shadow-2xs hover:bg-indigo-100 hover:border-indigo-300 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900 transition cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-              <span>View all 15 ready-made templates</span>
-              <ArrowRight className="w-3.5 h-3.5 text-indigo-500" />
-            </Link>
+              <span>
+                {showAllTemplates
+                  ? "Show fewer templates"
+                  : "View all 15 ready-made templates"}
+              </span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-indigo-500 transition-transform duration-200 ${
+                  showAllTemplates ? "rotate-180" : ""
+                }`}
+              />
+            </button>
           </div>
         </div>
 

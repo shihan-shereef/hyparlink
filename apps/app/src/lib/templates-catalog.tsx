@@ -6,13 +6,10 @@ export interface VideoTemplate {
   subtitle: string;
   category:
     | "SaaS & Tech"
-    | "Commercial & Brand"
-    | "Social Reels (9:16)"
-    | "Editorial & News"
     | "Luxury & Cinematic"
-    | "Minimalist & Design"
-    | "Clean Energy & ESG"
-    | "Fitness & Lifestyle";
+    | "Social Reels (9:16)"
+    | "Commercial & Brand"
+    | "Editorial & News";
   aspectRatio: "16:9" | "9:16";
   duration: number;
   prompt: string;
@@ -29,8 +26,6 @@ export const TEMPLATE_CATEGORIES = [
   "Social Reels (9:16)",
   "Commercial & Brand",
   "Editorial & News",
-  "Clean Energy & ESG",
-  "Fitness & Lifestyle",
 ] as const;
 
 export const READY_MADE_TEMPLATES: VideoTemplate[] = [
@@ -211,7 +206,7 @@ export const READY_MADE_TEMPLATES: VideoTemplate[] = [
     id: "counterform",
     title: "Counterform Studio",
     subtitle: "Swiss Modernism & Brutalism",
-    category: "Minimalist & Design",
+    category: "Commercial & Brand",
     aspectRatio: "16:9",
     duration: 15,
     badge: "SWISS STYLE",
@@ -246,7 +241,7 @@ export const READY_MADE_TEMPLATES: VideoTemplate[] = [
     id: "aura_energy",
     title: "Aura Smart Solar Grid",
     subtitle: "ESG Impact & Clean Tech",
-    category: "Clean Energy & ESG",
+    category: "SaaS & Tech",
     aspectRatio: "16:9",
     duration: 15,
     badge: "CLEAN TECH",
@@ -279,7 +274,7 @@ export const READY_MADE_TEMPLATES: VideoTemplate[] = [
     id: "flowstate",
     title: "Flowstate Meditation",
     subtitle: "Mindfulness & Mental Wellbeing",
-    category: "Fitness & Lifestyle",
+    category: "Luxury & Cinematic",
     aspectRatio: "16:9",
     duration: 15,
     badge: "MINDFULNESS",
@@ -514,7 +509,7 @@ export const READY_MADE_TEMPLATES: VideoTemplate[] = [
     id: "iron_core_athletic",
     title: "Iron Core Elite Athletics",
     subtitle: "High-Intensity Training Promo",
-    category: "Fitness & Lifestyle",
+    category: "Social Reels (9:16)",
     aspectRatio: "9:16",
     duration: 10,
     badge: "WORKOUT 9:16",
