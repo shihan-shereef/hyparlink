@@ -473,7 +473,7 @@ function extractAvatarParams(prompt = "", input = {}) {
   }
 
   if (!avatarId) {
-    avatarId = "sarah_studio";
+    return { avatarId: null, voiceId: null, isAvatar: false, mode: "hyperframes_only", compositionMode: "hyperframes_only" };
   }
   if (!voiceId && avatarId) {
     const avatarVoiceMap = {
@@ -4309,40 +4309,8 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             let finalVideoPath = report.outputPath;
             let videoUrl = `/outputs/${filename}`;
 
-            // Background Music & Speech-Aware Audio Processing
-            const promptLower = prompt.toLowerCase();
-            const negativeVoice = /\b(no\s*voice|don'?t\s*need\s*(?:any\s*)?voice|without\s*voice|no\s*narration|song\s*only|music\s*only|no\s*speech|no\s*avatar)\b/i.test(promptLower);
-            const wantsVoice =
-              !negativeVoice &&
-              (promptLower.includes("with voice") ||
-              promptLower.includes("spoken voiceover") ||
-              promptLower.includes("voice narration"));
-
+            // Voice reading out prompt is disabled as requested
             let speechAudioPath = null;
-            if (wantsVoice) {
-              try {
-                console.log(`[API Generate] Synthesizing synchronized voiceover narration...`);
-                const voiceText = report.creativeBrief?.closingMessage || `Experience the next generation. ${prompt}`;
-                const speechDir = path.resolve(AI_GENERATOR_DIR, "generated-assets/speech");
-                fs.mkdirSync(speechDir, { recursive: true });
-                const audioPath = path.join(speechDir, `voice_${Date.now()}.aiff`);
-                const mp3AudioPath = path.join(speechDir, `voice_${Date.now()}.mp3`);
-                try {
-                  execSync(`say -v "Daniel" "${voiceText.replace(/"/g, '\\"')}" -o "${audioPath}"`);
-                  execSync(`ffmpeg -y -i "${audioPath}" -c:a libmp3lame -q:a 2 "${mp3AudioPath}" 2>/dev/null`);
-                } catch {
-                  try {
-                    execSync(`say "${voiceText.replace(/"/g, '\\"')}" -o "${audioPath}"`);
-                    execSync(`ffmpeg -y -i "${audioPath}" -c:a libmp3lame -q:a 2 "${mp3AudioPath}" 2>/dev/null`);
-                  } catch {}
-                }
-                if (fs.existsSync(mp3AudioPath)) {
-                  speechAudioPath = mp3AudioPath;
-                }
-              } catch (vErr) {
-                console.warn(`[API Generate] Voiceover synthesis notice:`, vErr.message);
-              }
-            }
 
             // Intelligent Background Music Selection
             let chosenBgmTrack = null;
@@ -4957,115 +4925,7 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
                   );
               }
 
-              // Phase 6B: Automated Synchronized Voiceover Narration & FFmpeg Multiplexing
-              // Phase 6B: Automated Synchronized Voiceover Narration & FFmpeg Multiplexing
-              const promptLower = (input.prompt || "").toLowerCase();
-              const wantsVoice =
-                promptLower.includes("voice") ||
-                promptLower.includes("narrat") ||
-                promptLower.includes("speech") ||
-                promptLower.includes("spoken");
-
-              if (wantsVoice && fs.existsSync(report.outputPath)) {
-                try {
-                  console.log(`[Backend] Generating synchronized voiceover narration for prompt...`);
-                  let videoDuration = Math.round(report.duration || 30);
-                  try {
-                    const probeOut = execSync(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${report.outputPath}"`, { encoding: "utf8" }).trim();
-                    const parsedDur = parseFloat(probeOut);
-                    if (!isNaN(parsedDur) && parsedDur > 0) videoDuration = parsedDur;
-                  } catch {}
-                  const duration = Math.max(Math.round(videoDuration), 5);
-                  const tempVoScript = path.join("/tmp", `vo-${jobId}.sh`);
-                  const tempAudioPath = path.join("/tmp", `vo-audio-${jobId}.aac`);
-                  const tempMuxedVideo = path.join("/tmp", `video-voiced-${jobId}.mp4`);
-
-                  let lines = [];
-                  try {
-                    const voRes = await fetch("https://api.ollima.com/v1/chat/completions", {
-                      method: "POST",
-                      headers: {
-                        "Authorization": `Bearer ${process.env.AI_API_KEY || "sk-t0-OrygKg8d2nMe-ggcBcOt1mBfkld0gsMCmNO9fErYOAEHcoNfVhPDEsDa3w8En"}`,
-                        "Content-Type": "application/json",
-                      },
-                      body: JSON.stringify({
-                        model: "gemini-3-flash",
-                        messages: [
-                          { role: "system", content: "You are a professional video voiceover copywriter. Write 5 concise, engaging spoken sentences (each 8-14 words) specifically about the user's prompt for this video. Return ONLY a JSON array of 5 strings: [\"sentence 1\", \"sentence 2\", \"sentence 3\", \"sentence 4\", \"sentence 5\"]" },
-                          { role: "user", content: input.prompt || "product showcase video" }
-                        ]
-                      })
-                    });
-                    if (voRes.ok) {
-                      const voData = await voRes.json();
-                      const rawText = voData.choices?.[0]?.message?.content || "";
-                      const clean = rawText.replace(/```(?:json)?/g, "").replace(/```/g, "").trim();
-                      const parsed = JSON.parse(clean);
-                      if (Array.isArray(parsed) && parsed.length >= 5) {
-                        const step = Math.floor((duration * 1000) / 5);
-                        lines = [
-                          { time: 500, text: parsed[0] },
-                          { time: step + 500, text: parsed[1] },
-                          { time: step * 2 + 500, text: parsed[2] },
-                          { time: step * 3 + 500, text: parsed[3] },
-                          { time: Math.min(step * 4 + 500, (duration - 5) * 1000), text: parsed[4] },
-                        ];
-                      }
-                    }
-                  } catch (voErr) {
-                    console.warn(`[Backend] Dynamic voiceover LLM notice: ${voErr.message}`);
-                  }
-
-                  if (lines.length === 0) {
-                    const cleanP = (input.prompt || "Video Presentation")
-                      .replace(/^create\s+(?:a\s+)?/i, "")
-                      .trim();
-                    lines = [
-                      { time: 500, text: `Welcome to this presentation on ${cleanP.slice(0, 40)}.` },
-                      { time: 6500, text: "Engineered for clarity, dynamic performance, and engaging visual impact." },
-                      { time: 12500, text: "Discover the core principles and key insights behind our approach." },
-                      { time: 18500, text: "Built with modern architecture and seamless design execution." },
-                      { time: 24500, text: `Take the next step with ${cleanP.slice(0, 30)} today.` },
-                    ];
-                  }
-
-                  let scriptContent = `#!/bin/bash\nset -e\n`;
-                  lines.forEach((l, idx) => {
-                    scriptContent += `say -v "Samantha" -o "/tmp/vo_${jobId}_${idx}.aiff" "${l.text}"\n`;
-                    scriptContent += `ffmpeg -y -i "/tmp/vo_${jobId}_${idx}.aiff" -af "adelay=${l.time}|${l.time}" "/tmp/vo_${jobId}_${idx}.wav"\n`;
-                  });
-
-                  const filterInputs = lines.map((_, idx) => `[${idx}:a]`).join("");
-                  scriptContent += `ffmpeg -y `;
-                  lines.forEach((_, idx) => {
-                    scriptContent += `-i "/tmp/vo_${jobId}_${idx}.wav" `;
-                  });
-                  scriptContent += `-f lavfi -i "sine=frequency=55:duration=${duration}" `;
-                  scriptContent += `-filter_complex "${filterInputs}amix=inputs=${lines.length}:dropout_transition=0:weights=1 1 1 1 1[voice];[${lines.length}:a]volume=0.08,lowpass=f=120[ambient];[voice][ambient]amix=inputs=2:dropout_transition=0:weights=1.2 0.3[out]" `;
-                  scriptContent += `-map "[out]" -t ${duration} -c:a aac -b:a 192k "${tempAudioPath}"\n`;
-
-                  fs.writeFileSync(tempVoScript, scriptContent, { mode: 0o755 });
-                  execSync(tempVoScript, { stdio: "ignore" });
-
-                  if (fs.existsSync(tempAudioPath)) {
-                    execSync(`ffmpeg -y -i "${report.outputPath}" -i "${tempAudioPath}" -map 0:v:0 -map 1:a:0 -c:v copy -c:a copy -t ${duration} "${tempMuxedVideo}"`, { stdio: "ignore" });
-                    if (fs.existsSync(tempMuxedVideo)) {
-                      fs.copyFileSync(tempMuxedVideo, report.outputPath);
-                      console.log(`[Backend] Synchronized audio narration multiplexed into video successfully.`);
-                      try {
-                        fs.unlinkSync(tempMuxedVideo);
-                        fs.unlinkSync(tempAudioPath);
-                        fs.unlinkSync(tempVoScript);
-                        lines.forEach((_, idx) => {
-                          try { fs.unlinkSync(`/tmp/vo_${jobId}_${idx}.aiff`); fs.unlinkSync(`/tmp/vo_${jobId}_${idx}.wav`); } catch {}
-                        });
-                      } catch {}
-                    }
-                  }
-                } catch (audioErr) {
-                  console.warn(`[Backend] Audio synthesis notice: ${audioErr.message}`);
-                }
-              }
+              // Automated prompt voiceover reading is disabled as requested
 
               // 5. Phase 7: Notify progress: Uploading to Cloud Storage
               await postWebhook({

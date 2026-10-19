@@ -773,8 +773,8 @@ window.__timelines["main"] = tl;`);
   const [selectedMusicSource, setSelectedMusicSource] = useState<string>("auto");
   const [selectedBgmTrack, setSelectedBgmTrack] = useState<string>("auto");
   const [bgmVolume, setBgmVolume] = useState<number>(0.35);
-  const [musicDuckingEnabled, setMusicDuckingEnabled] = useState<boolean>(true);
-  const [preserveNarrationSetting, setPreserveNarrationSetting] = useState<boolean>(true);
+  const [musicDuckingEnabled, setMusicDuckingEnabled] = useState<boolean>(false);
+  const [preserveNarrationSetting, setPreserveNarrationSetting] = useState<boolean>(false);
   const [fadeInDuration, setFadeInDuration] = useState<number>(1.0);
   const [fadeOutDuration, setFadeOutDuration] = useState<number>(2.0);
   const [musicCandidatesList, setMusicCandidatesList] = useState<any[]>([]);
@@ -1018,8 +1018,8 @@ window.__timelines["main"] = tl;`);
     }
   };
 
-  // HeyGen AI Avatar & Cinematic Composition Studio State
-  const [compositionMode, setCompositionMode] = useState<"auto" | "mode_a" | "mode_b" | "mode_c" | "hyperframes_only">("auto");
+  // Cinematic Composition Studio State (Voice reading prompt removed by default)
+  const [compositionMode, setCompositionMode] = useState<"auto" | "mode_a" | "mode_b" | "mode_c" | "hyperframes_only">("hyperframes_only");
   const [visualStyle, setVisualStyle] = useState<string>("cinematic");
   const [avatarLanguage, setAvatarLanguage] = useState<string>("all");
   const [availableAvatars, setAvailableAvatars] = useState<any[]>([]);
@@ -1028,11 +1028,11 @@ window.__timelines["main"] = tl;`);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
 
-  const [generationMode, setGenerationMode] = useState<"hyperframes_only" | "avatar_mixed" | "avatar_presenter">("avatar_mixed");
-  const [avatarId, setAvatarId] = useState<string>("sarah_studio");
-  const [avatarName, setAvatarName] = useState<string>("Sarah Jenkins");
-  const [voiceId, setVoiceId] = useState<string>("en-US-JennyNeural");
-  const [voiceName, setVoiceName] = useState<string>("Jenny (US)");
+  const [generationMode, setGenerationMode] = useState<"hyperframes_only" | "avatar_mixed" | "avatar_presenter">("hyperframes_only");
+  const [avatarId, setAvatarId] = useState<string>("");
+  const [avatarName, setAvatarName] = useState<string>("");
+  const [voiceId, setVoiceId] = useState<string>("");
+  const [voiceName, setVoiceName] = useState<string>("");
   const [heygenApiKey, setHeygenApiKey] = useState<string>("");
   const [showApiKey, setShowApiKey] = useState<boolean>(false);
   const [apiKeyValidating, setApiKeyValidating] = useState<boolean>(false);
