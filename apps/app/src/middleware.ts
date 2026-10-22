@@ -12,7 +12,7 @@ const I18nMiddleware = createI18nMiddleware({
   urlMappingStrategy: "rewrite",
 });
 
-const isSignInPage = createRouteMatcher(["/login"]);
+const isSignInPage = createRouteMatcher(["/login", "/login(.*)"]);
 const isPublicRoute = createRouteMatcher([
   "/storage(.*)",
   "/cdn(.*)",
@@ -25,6 +25,7 @@ const isPublicRoute = createRouteMatcher([
   "/editor/session(.*)",
   "/backend-api(.*)",
   "/convex(.*)",
+  "/monitoring(.*)",
 ]);
 
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
@@ -38,6 +39,10 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
       return nextjsMiddlewareRedirect(request, "/");
     }
     return I18nMiddleware(request);
+  }
+
+  if (!(await convexAuth.isAuthenticated())) {
+    return nextjsMiddlewareRedirect(request, "/login");
   }
 
   return I18nMiddleware(request);

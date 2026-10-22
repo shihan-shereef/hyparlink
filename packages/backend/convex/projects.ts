@@ -31,10 +31,53 @@ export const list = query({
       .query("projects")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .order("desc")
-      .take(100);
+      .take(150);
+
+    const activeItems = items.filter((p) => !p.deletedAt);
 
     return Promise.all(
-      items.map(async (p) => {
+      activeItems.map(async (p) => {
+        let videoUrl = p.cdnUrl || p.storageUrl || p.outputUrl;
+        if (!videoUrl && p.outputStorageId) {
+          videoUrl = (await ctx.storage.getUrl(p.outputStorageId)) ?? undefined;
+        }
+        if (videoUrl && videoUrl.includes("localhost:4000")) {
+          videoUrl = videoUrl.replace(/^https?:\/\/[^/]+/, "");
+        }
+        let thumbnailUrl = p.thumbnailUrl;
+        if (thumbnailUrl && thumbnailUrl.includes("localhost:4000")) {
+          thumbnailUrl = thumbnailUrl.replace(/^https?:\/\/[^/]+/, "");
+        }
+        return {
+          ...p,
+          videoUrl,
+          thumbnailUrl,
+        };
+      }),
+    );
+  },
+});
+
+export const listTrash = query({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId) {
+      await requireMember(ctx, userId, workspaceId);
+    }
+
+    const items = await ctx.db
+      .query("projects")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .order("desc")
+      .take(150);
+
+    const trashedItems = items
+      .filter((p) => typeof p.deletedAt === "number")
+      .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+
+    return Promise.all(
+      trashedItems.map(async (p) => {
         let videoUrl = p.cdnUrl || p.storageUrl || p.outputUrl;
         if (!videoUrl && p.outputStorageId) {
           videoUrl = (await ctx.storage.getUrl(p.outputStorageId)) ?? undefined;
@@ -730,22 +773,76 @@ export const duplicate = mutation({
   },
 });
 
-export const remove = mutation({
+/**
+ * Soft delete: Move project/video to Trash.
+ */
+export const moveToTrash = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, { projectId }) => {
-    let userId = await getAuthUserId(ctx);
-    if (!userId) {
-      const defaultUser = await ctx.db.query("users").first();
-      if (defaultUser) userId = defaultUser._id;
-    }
+    const userId = await getAuthUserId(ctx);
     const project = await ctx.db.get(projectId);
     if (!project) throw new Error("Project not found");
     if (userId) {
-      try {
-        await requireMember(ctx, userId, project.workspaceId);
-      } catch {
-        // Allow deletion in local/demo environment
-      }
+      await requireMember(ctx, userId, project.workspaceId);
+    }
+
+    await ctx.db.patch(projectId, {
+      deletedAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    if (userId) {
+      await audit(ctx, project.workspaceId, userId, "project.move_to_trash", {
+        projectId,
+        name: project.name,
+      });
+    }
+    return { success: true };
+  },
+});
+
+// Alias remove to moveToTrash so standard delete action sends to Trash
+export const remove = moveToTrash;
+
+/**
+ * Restore project/video from Trash.
+ */
+export const restoreFromTrash = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, { projectId }) => {
+    const userId = await getAuthUserId(ctx);
+    const project = await ctx.db.get(projectId);
+    if (!project) throw new Error("Project not found");
+    if (userId) {
+      await requireMember(ctx, userId, project.workspaceId);
+    }
+
+    await ctx.db.patch(projectId, {
+      deletedAt: undefined,
+      updatedAt: Date.now(),
+    });
+
+    if (userId) {
+      await audit(ctx, project.workspaceId, userId, "project.restore", {
+        projectId,
+        name: project.name,
+      });
+    }
+    return { success: true };
+  },
+});
+
+/**
+ * Permanently purge a single project and its stored assets.
+ */
+export const permanentDelete = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, { projectId }) => {
+    const userId = await getAuthUserId(ctx);
+    const project = await ctx.db.get(projectId);
+    if (!project) return { success: true };
+    if (userId) {
+      await requireMember(ctx, userId, project.workspaceId);
     }
 
     if (project.outputStorageId) {
@@ -766,11 +863,54 @@ export const remove = mutation({
 
     await ctx.db.delete(projectId);
     if (userId) {
-      await audit(ctx, project.workspaceId, userId, "project.delete", {
+      await audit(ctx, project.workspaceId, userId, "project.permanent_delete", {
         projectId,
         name: project.name,
       });
     }
+    return { success: true };
+  },
+});
+
+/**
+ * Empty Trash: Permanently purge all trashed projects for a workspace.
+ */
+export const emptyTrash = mutation({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId) {
+      await requireMember(ctx, userId, workspaceId);
+    }
+
+    const all = await ctx.db
+      .query("projects")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+
+    const trashed = all.filter((p) => typeof p.deletedAt === "number");
+    let count = 0;
+
+    for (const project of trashed) {
+      if (project.outputStorageId) {
+        try {
+          await ctx.storage.delete(project.outputStorageId);
+        } catch {}
+      }
+      if (project.jobId) {
+        try {
+          await ctx.db.delete(project.jobId);
+        } catch {}
+      }
+      await ctx.db.delete(project._id);
+      count++;
+    }
+
+    if (userId && count > 0) {
+      await audit(ctx, workspaceId, userId, "project.empty_trash", { count });
+    }
+
+    return { success: true, count };
   },
 });
 

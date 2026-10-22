@@ -2,9 +2,12 @@
 
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Button } from "@v1/ui/button";
+import { KeyRound, Mail, Lock } from "lucide-react";
 import { useState } from "react";
 
 type Mode = "signIn" | "signUp" | "verify" | "forgot" | "reset";
+type AuthMethod = "password" | "otp";
+
 const input =
   "w-full rounded-xl border border-slate-200 bg-white dark:bg-[#121620] dark:border-neutral-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition shadow-2xs";
 
@@ -29,7 +32,7 @@ function Shell({
       <Button
         type="submit"
         disabled={pending}
-        className="w-full h-10 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm transition"
+        className="w-full h-10 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm transition cursor-pointer"
       >
         {pending ? "Connecting..." : cta}
       </Button>
@@ -59,6 +62,7 @@ const Switch = ({ label, onClick }: { label: string; onClick: () => void }) => (
 
 export function AuthForm() {
   const { signIn } = useAuthActions();
+  const [authMethod, setAuthMethod] = useState<AuthMethod>("password");
   const [mode, setMode] = useState<Mode>("signIn");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -67,6 +71,7 @@ export function AuthForm() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [otpSent, setOtpSent] = useState(false);
 
   const go = (fn: () => Promise<void>) => async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,6 +95,7 @@ export function AuthForm() {
     await signIn("password", { email, password, flow: "signIn" });
     window.location.href = "/";
   });
+
   const submitSignUp = go(async () => {
     await signIn("password", { email, password, flow: "signUp" });
     setInfo(
@@ -97,15 +103,18 @@ export function AuthForm() {
     );
     setMode("verify");
   });
+
   const submitVerify = go(async () => {
     await signIn("password", { email, code, flow: "email-verification" });
     window.location.href = "/";
   });
+
   const submitForgot = go(async () => {
     await signIn("password", { email, flow: "reset" });
     setInfo("Password reset code sent to your email via Ollastack.");
     setMode("reset");
   });
+
   const submitReset = go(async () => {
     await signIn("password", {
       email,
@@ -115,6 +124,19 @@ export function AuthForm() {
     });
     window.location.href = "/";
   });
+
+  // Passwordless Email OTP Flow via Ollastack Mailbox
+  const submitOtpRequest = go(async () => {
+    await signIn("resend-otp", { email });
+    setOtpSent(true);
+    setInfo("8-digit verification code sent to your email via Ollastack Mailbox.");
+  });
+
+  const submitOtpVerify = go(async () => {
+    await signIn("resend-otp", { email, code });
+    window.location.href = "/";
+  });
+
   const switchTo = (m: Mode) => {
     setError(null);
     setInfo(null);
@@ -124,123 +146,236 @@ export function AuthForm() {
   const shellProps = { pending, error, info };
 
   return (
-    <div className="flex flex-col items-center gap-3 w-full">
-      {mode === "signIn" && (
-        <>
-          <Shell onSubmit={submitSignIn} cta="Sign in" {...shellProps}>
-            <input
-              className={input}
-              type="email"
-              placeholder="Email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <input
-              className={input}
-              type="password"
-              placeholder="Password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </Shell>
-          <div className="flex w-full justify-between px-1">
-            <Switch label="Create account" onClick={() => switchTo("signUp")} />
-            <Switch
-              label="Forgot password?"
-              onClick={() => switchTo("forgot")}
-            />
-          </div>
-        </>
-      )}
-      {mode === "signUp" && (
-        <>
-          <Shell onSubmit={submitSignUp} cta="Create account" {...shellProps}>
-            <input
-              className={input}
-              type="email"
-              placeholder="Email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <input
-              className={input}
-              type="password"
-              placeholder="Password (8+, upper, lower, number)"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </Shell>
-          <Switch
-            label="Have an account? Sign in"
-            onClick={() => switchTo("signIn")}
-          />
-        </>
-      )}
-      {mode === "verify" && (
-        <Shell onSubmit={submitVerify} cta="Verify email" {...shellProps}>
-          <p className="text-xs text-muted-foreground">Code sent to {email}</p>
-          <input
-            className={input}
-            inputMode="numeric"
-            placeholder="Verification code"
-            required
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-        </Shell>
-      )}
-      {mode === "forgot" && (
-        <>
-          <Shell onSubmit={submitForgot} cta="Send reset code" {...shellProps}>
-            <input
-              className={input}
-              type="email"
-              placeholder="Email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </Shell>
-          <Switch label="Back to sign in" onClick={() => switchTo("signIn")} />
-        </>
-      )}
-      {mode === "reset" && (
-        <Shell onSubmit={submitReset} cta="Set new password" {...shellProps}>
-          <p className="text-xs text-muted-foreground">
-            Reset code for {email}
-          </p>
-          <input
-            className={input}
-            inputMode="numeric"
-            placeholder="Reset code"
-            required
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-          <input
-            className={input}
-            type="password"
-            placeholder="New password"
-            required
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-          />
-        </Shell>
+    <div className="flex flex-col items-center gap-4 w-full">
+      {/* Auth Method Selector Toggle (Password vs Email OTP) */}
+      <div className="flex w-full rounded-xl bg-slate-100 p-1 dark:bg-neutral-800/80 border border-slate-200 dark:border-neutral-700/60">
+        <button
+          type="button"
+          onClick={() => {
+            setAuthMethod("password");
+            setError(null);
+            setInfo(null);
+          }}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
+            authMethod === "password"
+              ? "bg-white text-slate-900 shadow-2xs dark:bg-[#121620] dark:text-white"
+              : "text-slate-500 hover:text-slate-900 dark:text-neutral-400 dark:hover:text-white"
+          }`}
+        >
+          <Lock className="h-3.5 w-3.5" />
+          <span>Password</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setAuthMethod("otp");
+            setError(null);
+            setInfo(null);
+          }}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
+            authMethod === "otp"
+              ? "bg-white text-slate-900 shadow-2xs dark:bg-[#121620] dark:text-white"
+              : "text-slate-500 hover:text-slate-900 dark:text-neutral-400 dark:hover:text-white"
+          }`}
+        >
+          <KeyRound className="h-3.5 w-3.5" />
+          <span>Email OTP</span>
+        </button>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 1. PASSWORD AUTH METHOD */}
+      {/* ========================================================================= */}
+      {authMethod === "password" && (
+        <div className="w-full flex flex-col items-center gap-3">
+          {mode === "signIn" && (
+            <>
+              <Shell onSubmit={submitSignIn} cta="Sign in with Password" {...shellProps}>
+                <input
+                  className={input}
+                  type="email"
+                  placeholder="Email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <input
+                  className={input}
+                  type="password"
+                  placeholder="Password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </Shell>
+              <div className="flex w-full justify-between px-1">
+                <Switch label="Create account" onClick={() => switchTo("signUp")} />
+                <Switch
+                  label="Forgot password?"
+                  onClick={() => switchTo("forgot")}
+                />
+              </div>
+            </>
+          )}
+
+          {mode === "signUp" && (
+            <>
+              <Shell onSubmit={submitSignUp} cta="Create account" {...shellProps}>
+                <input
+                  className={input}
+                  type="email"
+                  placeholder="Email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <input
+                  className={input}
+                  type="password"
+                  placeholder="Password (8+, upper, lower, number)"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </Shell>
+              <Switch
+                label="Have an account? Sign in"
+                onClick={() => switchTo("signIn")}
+              />
+            </>
+          )}
+
+          {mode === "verify" && (
+            <Shell onSubmit={submitVerify} cta="Verify Email Code" {...shellProps}>
+              <p className="text-xs text-muted-foreground text-center">
+                Enter the 8-digit verification code sent to <strong>{email}</strong>
+              </p>
+              <input
+                className={input}
+                inputMode="numeric"
+                placeholder="8-digit verification code"
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+              />
+            </Shell>
+          )}
+
+          {mode === "forgot" && (
+            <>
+              <Shell onSubmit={submitForgot} cta="Send Reset Code via Ollastack" {...shellProps}>
+                <input
+                  className={input}
+                  type="email"
+                  placeholder="Email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </Shell>
+              <Switch label="Back to sign in" onClick={() => switchTo("signIn")} />
+            </>
+          )}
+
+          {mode === "reset" && (
+            <Shell onSubmit={submitReset} cta="Set New Password" {...shellProps}>
+              <p className="text-xs text-muted-foreground text-center">
+                Enter the reset code sent to <strong>{email}</strong>
+              </p>
+              <input
+                className={input}
+                inputMode="numeric"
+                placeholder="Reset code"
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+              />
+              <input
+                className={input}
+                type="password"
+                placeholder="New password (8+, upper, lower, number)"
+                required
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </Shell>
+          )}
+        </div>
       )}
 
+      {/* ========================================================================= */}
+      {/* 2. PASSWORDLESS EMAIL OTP AUTH METHOD (POWERED BY OLLASTACK) */}
+      {/* ========================================================================= */}
+      {authMethod === "otp" && (
+        <div className="w-full flex flex-col items-center gap-3">
+          {!otpSent ? (
+            <Shell onSubmit={submitOtpRequest} cta="Send OTP Code via Ollastack" {...shellProps}>
+              <div className="text-xs text-slate-500 dark:text-neutral-400 text-center mb-1">
+                We will email an 8-digit one-time passcode to sign you in securely.
+              </div>
+              <input
+                className={input}
+                type="email"
+                placeholder="you@example.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </Shell>
+          ) : (
+            <Shell onSubmit={submitOtpVerify} cta="Verify & Sign In" {...shellProps}>
+              <div className="text-xs text-slate-600 dark:text-neutral-300 text-center mb-1">
+                Code sent to <span className="font-semibold text-indigo-600 dark:text-indigo-400">{email}</span>
+              </div>
+              <input
+                className={input}
+                inputMode="numeric"
+                placeholder="Enter 8-digit OTP code"
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+              />
+              <div className="flex items-center justify-between mt-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCode("");
+                    setOtpSent(false);
+                    setError(null);
+                    setInfo(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+                >
+                  Change email
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void signIn("resend-otp", { email }).then(() => {
+                      setInfo("New 8-digit code sent via Ollastack.");
+                    });
+                  }}
+                  className="text-indigo-600 hover:underline dark:text-indigo-400 font-medium cursor-pointer"
+                >
+                  Resend code
+                </button>
+              </div>
+            </Shell>
+          )}
+        </div>
+      )}
+
+      {/* Social / Google divider */}
       <div className="flex w-full items-center gap-3 text-xs text-muted-foreground my-1">
         <span className="h-px flex-1 bg-border" />
         or
         <span className="h-px flex-1 bg-border" />
       </div>
+
       <Button
         type="button"
         variant="outline"
-        className="w-full h-10 rounded-xl font-medium flex items-center justify-center gap-2 border-slate-200 dark:border-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-800 transition"
+        className="w-full h-10 rounded-xl font-medium flex items-center justify-center gap-2 border-slate-200 dark:border-neutral-800 hover:bg-slate-50 dark:hover:bg-neutral-800 transition cursor-pointer"
         disabled={pending}
         onClick={async () => {
           setError(null);

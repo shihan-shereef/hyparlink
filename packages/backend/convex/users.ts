@@ -8,27 +8,9 @@ import { username } from "./utils/validators";
 
 export const getUser = query({
   handler: async (ctx) => {
-    let userId = await getAuthUserId(ctx);
+    const userId = await getAuthUserId(ctx);
     if (!userId) {
-      const existing = await ctx.db.query("users").first();
-      if (existing) {
-        return {
-          ...existing,
-          name: existing.username || existing.name || "Admin",
-          username: existing.username || "admin",
-          email: existing.email || "admin@hyparlink.com",
-          avatarUrl: undefined as string | undefined,
-          subscription: undefined,
-        };
-      }
-      return {
-        _id: "demo" as any,
-        name: "Admin",
-        username: "admin",
-        email: "admin@hyparlink.com",
-        avatarUrl: undefined as string | undefined,
-        subscription: undefined,
-      };
+      return null;
     }
     const user = await ctx.db.get(userId);
     if (!user) {

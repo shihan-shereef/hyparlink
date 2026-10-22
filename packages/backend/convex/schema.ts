@@ -232,10 +232,13 @@ export default defineSchema({
         }),
       ),
     ),
+    // Trash & Soft Delete management
+    deletedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_user", ["userId"])
-    .index("by_workspace_status", ["workspaceId", "status"]),
+    .index("by_workspace_status", ["workspaceId", "status"])
+    .index("by_workspace_deletedAt", ["workspaceId", "deletedAt"]),
 });

@@ -1921,8 +1921,11 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // DEV OTP INSPECTION (Mailpit capture proxy)
+    // DEV OTP INSPECTION (Only allowed when explicitly enabled in local dev environment)
     if (req.method === "GET" && req.url.startsWith("/api/dev-otp")) {
+      if (process.env.ENABLE_DEV_OTP !== "true") {
+        return send(res, 403, { error: "Forbidden: dev-otp endpoint is disabled in production" });
+      }
       try {
         const parsed = new URL(req.url, "http://localhost:4000");
         const emailFilter = (parsed.searchParams.get("email") || "")

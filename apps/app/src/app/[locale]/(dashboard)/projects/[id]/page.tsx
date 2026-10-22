@@ -81,13 +81,13 @@ export default function ProjectDetailPage() {
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this project?")) return;
+    if (!confirm("Move this project to Trash? You can restore it anytime.")) return;
     try {
       await removeProject({ projectId });
-      toast.success("Project deleted successfully");
+      toast.success("Project moved to Trash");
       router.push("/projects");
     } catch (err: any) {
-      toast.error(err.message || "Failed to delete project");
+      toast.error(err.message || "Failed to move project to Trash");
     }
   };
 

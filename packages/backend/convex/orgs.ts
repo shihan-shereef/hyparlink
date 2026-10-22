@@ -84,19 +84,9 @@ export const createWorkspaceForUser = internalMutation({
 export const ensureWorkspace = mutation({
   args: {},
   handler: async (ctx) => {
-    let userId = await getAuthUserId(ctx);
+    const userId = await getAuthUserId(ctx);
     if (!userId) {
-      let defaultUser = await ctx.db.query("users").first();
-      if (!defaultUser) {
-        const uId = await ctx.db.insert("users", {
-          name: "Admin",
-          username: "admin",
-          email: "admin@hyparlink.com",
-          emailVerificationTime: Date.now(),
-        });
-        defaultUser = await ctx.db.get(uId);
-      }
-      userId = defaultUser!._id;
+      throw new ConvexError("Not authenticated");
     }
     const existing = await ctx.db
       .query("members")
@@ -110,12 +100,8 @@ export const ensureWorkspace = mutation({
 export const myWorkspaces = query({
   args: {},
   handler: async (ctx) => {
-    let userId = await getAuthUserId(ctx);
+    const userId = await getAuthUserId(ctx);
     if (!userId) {
-      const all = await ctx.db.query("workspaces").collect();
-      if (all.length > 0) {
-        return all.map((w) => ({ ...w, role: "owner" }));
-      }
       return [];
     }
     const mems = await ctx.db
