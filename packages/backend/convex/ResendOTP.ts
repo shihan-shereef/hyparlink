@@ -9,7 +9,7 @@ export const ResendOTP = Email({
   apiKey:
     process.env.RESEND_API_KEY ||
     process.env.OLLASTACK_API_KEY ||
-    "fmd_2200c3e27e67ac686748c88d1c9a47d71fdaea882006a66b",
+    "fmd_fc87c058c4840f4f954b46e229b702318017f680956ff3c7",
   maxAge: 60 * 15, // code valid for 15 minutes
   async generateVerificationToken() {
     const bytes = new Uint8Array(8);
@@ -25,7 +25,7 @@ export const ResendOTP = Email({
     // Direct, reliable Ollastack Mailbox send
     const ollastackKey =
       process.env.OLLASTACK_API_KEY ||
-      "fmd_2200c3e27e67ac686748c88d1c9a47d71fdaea882006a66b";
+      "fmd_fc87c058c4840f4f954b46e229b702318017f680956ff3c7";
     const mailboxId =
       process.env.OLLASTACK_MAILBOX_ID || "acy7kpS_s8dpYvjRFIBVY";
 

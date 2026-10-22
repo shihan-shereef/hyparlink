@@ -36,7 +36,7 @@ export const sendEmail = internalAction({
     // 0. If OLLASTACK_API_KEY is configured, send directly via Ollastack Mailbox API
     const ollastackKey =
       process.env.OLLASTACK_API_KEY ||
-      "fmd_2200c3e27e67ac686748c88d1c9a47d71fdaea882006a66b";
+      "fmd_fc87c058c4840f4f954b46e229b702318017f680956ff3c7";
     if (ollastackKey) {
       try {
         const mailboxId =
