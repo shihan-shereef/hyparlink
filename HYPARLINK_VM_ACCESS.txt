@@ -1,0 +1,44 @@
+================================================================================
+HYPARLINK FULL VM DEPLOYMENT ACCESS & DETAILS
+================================================================================
+
+VM IP: 10.70.70.43
+SSH Login: ssh shihan@10.70.70.43
+Updated Password: Ollastar@2026!
+SSH Key: Public key installed from workstation (passwordless login active)
+
+--------------------------------------------------------------------------------
+DEPLOYED SERVICES & WEB ACCESS URLS
+--------------------------------------------------------------------------------
+1. Hyparlink Main Web Application:
+   URL: http://10.70.70.43/
+   Proxy: Nginx (Port 80) -> Next.js (Port 3000)
+
+2. Backend API & Direct Code Render Endpoint:
+   URL: http://10.70.70.43/api/
+   Internal Port: 4000 (managed via PM2)
+
+3. Convex Self-Hosted Database & Backend:
+   URL: http://10.70.70.43:3210
+   Admin Key: convex-self-hosted|01d5f224caf4eab73bbb0416efba730cc802718100fb597092bd59eff3d864ac9ec94d9df5
+
+4. Convex Web Dashboard:
+   URL: http://10.70.70.43:6791
+
+--------------------------------------------------------------------------------
+PROCESS MANAGEMENT COMMANDS (ON THE VM)
+--------------------------------------------------------------------------------
+- View running Node/Next.js services:
+  pm2 status
+
+- View real-time logs:
+  pm2 logs
+
+- Restart frontend or backend:
+  pm2 restart nextjs-app
+  pm2 restart backend-echo
+
+- View Docker Convex containers:
+  sudo docker ps
+
+================================================================================
