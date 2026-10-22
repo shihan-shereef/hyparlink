@@ -745,8 +745,8 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
     feedback: string,
   ): VideoProductionPlan {
     const fLower = feedback.toLowerCase();
-    const brief = currentPlan.creativeBrief || ({} as any);
-    const targetDuration = Number(brief.duration) || 10;
+    const brief = { ...(currentPlan.creativeBrief || ({} as any)) };
+    let targetDuration = Number(brief.duration) || 10;
     const updatedScenes = (currentPlan.scenes || []).map((s) => ({
       ...s,
       onScreenText: { ...(s.onScreenText || {}) },
@@ -774,122 +774,261 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
       weights: brief.typography?.weights || ["400", "700", "800"],
     };
 
-    // 1. Color palette & style changes
-    if (fLower.includes("cinematic") || fLower.includes("high-contrast") || fLower.includes("high contrast")) {
+    // Helper: determine which scene index is referenced
+    const resolveSceneIndex = (text: string): number => {
+      const numMatch = text.match(/scene\s*(\d+)/i);
+      if (numMatch) return Math.max(0, Math.min(updatedScenes.length - 1, parseInt(numMatch[1], 10) - 1));
+      if (text.includes("first scene") || text.includes("opening scene") || text.includes("intro scene")) return 0;
+      if (text.includes("second scene")) return Math.min(1, updatedScenes.length - 1);
+      if (text.includes("third scene")) return Math.min(2, updatedScenes.length - 1);
+      if (text.includes("fourth scene")) return Math.min(3, updatedScenes.length - 1);
+      if (text.includes("fifth scene")) return Math.min(4, updatedScenes.length - 1);
+      if (text.includes("last scene") || text.includes("final scene") || text.includes("climax") || text.includes("closing scene") || text.includes("outro")) {
+        return Math.max(0, updatedScenes.length - 1);
+      }
+      return -1;
+    };
+
+    // 1. Quoted text extraction (e.g. 'say "WELCOME TO NEXT GEN"')
+    const quotes: string[] = [];
+    const quoteRegex = /["“]([^"”]+)["”]/g;
+    let qm;
+    while ((qm = quoteRegex.exec(feedback)) !== null) {
+      if (qm[1].trim()) quotes.push(qm[1].trim());
+    }
+
+    // 2. Targeted Headline Modification
+    const explicitHeadMatch = feedback.match(/(?:headline|heading|header|title)\s*(?:for|in|of)?\s*(?:scene\s*\d+|first scene|second scene|third scene|last scene|final scene)?\s*(?:to|be|say|is|as|saying)\s*["“]?([^"”,.;\n]+)["”]?/i)
+      || feedback.match(/change\s+(?:scene\s*(\d+)|first scene|second scene|third scene|last scene|final scene)?\s*(?:headline|heading|header)\s*(?:to|be|as)\s*["“]?([^"”,.;\n]+)["”]?/i)
+      || feedback.match(/make\s+(?:scene\s*(\d+)|first scene|second scene|third scene|last scene|final scene)?\s*(?:headline|heading|header)\s*(?:say\s*)?["“]?([^"”,.;\n]+)["”]?/i);
+
+    if (explicitHeadMatch) {
+      const rawText = (explicitHeadMatch[2] || explicitHeadMatch[1] || "").trim();
+      const sIdx = resolveSceneIndex(feedback);
+      const targetIdx = sIdx >= 0 ? sIdx : 0;
+      if (rawText && updatedScenes[targetIdx]) {
+        updatedScenes[targetIdx].onScreenText.headline = rawText.toUpperCase();
+      }
+    } else if (quotes.length > 0 && !fLower.includes("call to action") && !fLower.includes("cta") && !fLower.includes("subtitle")) {
+      const sIdx = resolveSceneIndex(feedback);
+      const targetIdx = sIdx >= 0 ? sIdx : 0;
+      if (updatedScenes[targetIdx]) {
+        updatedScenes[targetIdx].onScreenText.headline = quotes[0].toUpperCase();
+      }
+    }
+
+    // 3. Subtitle / Sub-headline Modification
+    const subMatch = feedback.match(/(?:subtitle|subhead|sub-headline|sub copy)\s*(?:for|in|of)?\s*(?:scene\s*\d+|first scene|second scene|third scene|last scene|final scene)?\s*(?:to|be|say|is|as)\s*["“]?([^"”,.;\n]+)["”]?/i)
+      || feedback.match(/change\s+(?:scene\s*(\d+)|first scene|second scene|third scene|last scene|final scene)?\s*subtitle\s*(?:to|be|as)\s*["“]?([^"”,.;\n]+)["”]?/i);
+    if (subMatch) {
+      const rawText = (subMatch[2] || subMatch[1] || "").trim();
+      const sIdx = resolveSceneIndex(feedback);
+      const targetIdx = sIdx >= 0 ? sIdx : (quotes.length > 1 ? 1 : 0);
+      if (rawText && updatedScenes[targetIdx]) {
+        updatedScenes[targetIdx].onScreenText.subtitle = rawText;
+      }
+    } else if (quotes.length > 1 && !fLower.includes("call to action")) {
+      const sIdx = resolveSceneIndex(feedback);
+      const targetIdx = sIdx >= 0 ? sIdx : 0;
+      if (updatedScenes[targetIdx]) {
+        updatedScenes[targetIdx].onScreenText.subtitle = quotes[1];
+      }
+    }
+
+    // 4. Badge / Tagline Modification
+    const badgeMatch = feedback.match(/(?:badge|tag|label|tagline)\s*(?:for|in|of)?\s*(?:scene\s*\d+|first scene|second scene|third scene|last scene|final scene)?\s*(?:to|be|say|is|as)\s*["“]?([^"”,.;\n]+)["”]?/i);
+    if (badgeMatch) {
+      const rawText = badgeMatch[1].trim();
+      const sIdx = resolveSceneIndex(feedback);
+      const targetIdx = sIdx >= 0 ? sIdx : 0;
+      if (rawText && updatedScenes[targetIdx]) {
+        updatedScenes[targetIdx].onScreenText.badge = rawText.toUpperCase();
+      }
+    }
+
+    // 5. Call To Action (CTA) Modification
+    if (fLower.includes("call to action") || fLower.includes("cta") || fLower.includes("final headline")) {
+      const ctaMatch = feedback.match(/(?:call to action|cta|button text)\s*(?:headline|text)?\s*(?:to|be|say|is|as)\s*["“]?([^"”,.;\n]+)["”]?/i);
+      const lastScene = updatedScenes[updatedScenes.length - 1];
+      if (ctaMatch && ctaMatch[1]) {
+        const text = ctaMatch[1].trim();
+        if (lastScene) {
+          lastScene.onScreenText.headline = text.toUpperCase();
+          lastScene.onScreenText.ctaText = text.toUpperCase();
+        }
+        updatedScript.callToAction = text;
+      } else if (quotes.length > 0) {
+        if (lastScene) {
+          lastScene.onScreenText.headline = quotes[quotes.length - 1].toUpperCase();
+          lastScene.onScreenText.ctaText = quotes[quotes.length - 1].toUpperCase();
+        }
+        updatedScript.callToAction = quotes[quotes.length - 1];
+      } else {
+        if (lastScene) {
+          lastScene.onScreenText.headline = "EXPERIENCE IT TODAY";
+          lastScene.onScreenText.ctaText = "GET STARTED NOW";
+        }
+        updatedScript.callToAction = "Experience the future today.";
+      }
+    }
+
+    // 6. Scene Visual Focus / Description Changes
+    const visualMatch = feedback.match(/(?:change\s+scene\s*(\d+)\s+to\s+(?:show|feature|focus on)|focus\s+scene\s*(\d+)\s+on)\s+([^,.;\n]+)/i);
+    if (visualMatch) {
+      const sIdx = parseInt(visualMatch[1] || visualMatch[2], 10) - 1;
+      const desc = visualMatch[3].trim();
+      if (sIdx >= 0 && updatedScenes[sIdx] && desc) {
+        updatedScenes[sIdx].visualDescription = `Showcasing ${desc} with dynamic lighting and camera staging.`;
+        updatedScenes[sIdx].purpose = `Highlight ${desc}`;
+      }
+    } else if (fLower.includes("product feature") || fLower.includes("features")) {
+      const target = updatedScenes[1] || updatedScenes[0];
+      if (target) {
+        target.layoutArchetype = "hero-product-showcase";
+        target.name = "Key Product Features";
+        target.purpose = "Highlight core capabilities and features";
+        target.visualDescription = "Product featured front and center with interactive telemetry badges and floating feature callouts.";
+        if (!target.onScreenText.headline || target.onScreenText.headline === "UNTITLED") {
+          target.onScreenText.headline = "PRECISION ENGINEERING";
+        }
+      }
+    }
+
+    // 7. Video Project Title
+    const titleMatch = feedback.match(/(?:change\s+title\s+to|video\s+title\s+to|project\s+title\s+to|title\s+is)\s+["“]?([^"”,.;\n]+)["”]?/i);
+    if (titleMatch && titleMatch[1]) {
+      brief.title = titleMatch[1].trim();
+    }
+
+    // 8. Color Palette & Aesthetics
+    if (fLower.includes("gold") || (fLower.includes("black") && fLower.includes("gold"))) {
+      updatedPalette.primary = "#D4AF37";
+      updatedPalette.secondary = "#000000";
+      updatedPalette.accent = "#F59E0B";
+      updatedPalette.backgroundColor = "#050505";
+      updatedPalette.textColor = "#FFFFFF";
+      updatedPalette.surfaceColor = "rgba(20, 20, 20, 0.85)";
+      updatedPalette.glowColor = "rgba(212, 175, 55, 0.35)";
+      updatedVisualDirection = "Luxurious gold and deep black contrast with metallic reflections and warm rim lighting";
+    } else if (fLower.includes("red") || fLower.includes("crimson") || fLower.includes("ruby")) {
+      updatedPalette.primary = "#EF4444";
+      updatedPalette.secondary = "#991B1B";
+      updatedPalette.accent = "#F87171";
+      updatedPalette.backgroundColor = "#090506";
+      updatedPalette.textColor = "#FFFFFF";
+      updatedPalette.surfaceColor = "rgba(25, 10, 15, 0.85)";
+      updatedPalette.glowColor = "rgba(239, 68, 68, 0.35)";
+      updatedVisualDirection = "High-energy crimson and dark velvet aesthetic with intense focal contrast";
+    } else if (fLower.includes("blue") || fLower.includes("sapphire") || fLower.includes("ocean")) {
+      updatedPalette.primary = "#3B82F6";
+      updatedPalette.secondary = "#1D4ED8";
+      updatedPalette.accent = "#60A5FA";
       updatedPalette.backgroundColor = "#030712";
+      updatedPalette.textColor = "#FFFFFF";
+      updatedPalette.surfaceColor = "rgba(10, 20, 40, 0.85)";
+      updatedPalette.glowColor = "rgba(59, 130, 246, 0.35)";
+      updatedVisualDirection = "Electric sapphire blue aesthetic with deep space gradients and luminous glass surfaces";
+    } else if (fLower.includes("emerald") || fLower.includes("green") || fLower.includes("mint")) {
+      updatedPalette.primary = "#10B981";
+      updatedPalette.secondary = "#047857";
+      updatedPalette.accent = "#34D399";
+      updatedPalette.backgroundColor = "#04140E";
+      updatedPalette.textColor = "#FFFFFF";
+      updatedPalette.surfaceColor = "rgba(6, 30, 20, 0.85)";
+      updatedPalette.glowColor = "rgba(16, 185, 129, 0.35)";
+      updatedVisualDirection = "Vibrant emerald green visual palette with cyber organic accents";
+    } else if (fLower.includes("purple") || fLower.includes("violet") || fLower.includes("neon")) {
+      updatedPalette.primary = "#8B5CF6";
+      updatedPalette.secondary = "#6D28D9";
+      updatedPalette.accent = "#C084FC";
+      updatedPalette.backgroundColor = "#080414";
+      updatedPalette.textColor = "#FFFFFF";
+      updatedPalette.surfaceColor = "rgba(20, 10, 40, 0.85)";
+      updatedPalette.glowColor = "rgba(139, 92, 246, 0.35)";
+      updatedVisualDirection = "Sleek neon synthwave aesthetic with ultra-violet lighting";
+    } else if (fLower.includes("cyan") || fLower.includes("teal") || fLower.includes("cyber")) {
+      updatedPalette.primary = "#06B6D4";
+      updatedPalette.secondary = "#0891B2";
+      updatedPalette.accent = "#22D3EE";
+      updatedPalette.backgroundColor = "#041018";
+      updatedPalette.textColor = "#FFFFFF";
+      updatedPalette.surfaceColor = "rgba(6, 25, 35, 0.85)";
+      updatedPalette.glowColor = "rgba(6, 182, 212, 0.35)";
+      updatedVisualDirection = "High-tech cyber aesthetic with electric cyan holograms and sharp grid lines";
+    } else if (fLower.includes("light") || fLower.includes("white") || fLower.includes("clean") || fLower.includes("minimal")) {
+      updatedPalette.backgroundColor = "#F8FAFC";
+      updatedPalette.surfaceColor = "#FFFFFF";
+      updatedPalette.textColor = "#0F172A";
+      updatedPalette.textMutedColor = "#64748B";
+      updatedPalette.borderColor = "rgba(0, 0, 0, 0.1)";
+      updatedVisualDirection = "Clean modern minimalist light mode aesthetic with crisp typography";
+    } else if (fLower.includes("cinematic") || fLower.includes("high-contrast") || fLower.includes("high contrast") || fLower.includes("dark")) {
+      updatedPalette.backgroundColor = "#020408";
       updatedPalette.primary = "#F59E0B";
       updatedPalette.accent = "#38BDF8";
       updatedPalette.textColor = "#FFFFFF";
       updatedVisualDirection = "Cinematic high-contrast aesthetic with dramatic rim lighting and deep shadow falloff";
-      for (const s of updatedScenes) {
-        s.visualDescription = `${s.visualDescription || "Scene visual"} with cinematic high-contrast lighting, sharp rim highlights, and atmospheric depth.`;
-      }
-    } else if (fLower.includes("brighter") || fLower.includes("vibrant") || fLower.includes("light")) {
-      updatedPalette.backgroundColor = "#0B0F19";
+    } else if (fLower.includes("brighter") || fLower.includes("vibrant")) {
+      updatedPalette.backgroundColor = "#070C18";
       updatedPalette.primary = "#6366F1";
       updatedPalette.accent = "#06B6D4";
       updatedPalette.textColor = "#FFFFFF";
       updatedVisualDirection = "Vibrant bright visual style with electric neon accents and vivid ambient glow";
-      for (const s of updatedScenes) {
-        s.visualDescription = `${s.visualDescription || "Scene visual"} in an ultra-vibrant space featuring electric glowing accents.`;
-      }
-    } else if (fLower.includes("emerald") || fLower.includes("green")) {
-      updatedPalette.primary = "#10B981";
-      updatedPalette.accent = "#34D399";
-      updatedPalette.backgroundColor = "#062319";
     }
 
-    // 2. Kinetic typography / Energy
-    if (fLower.includes("kinetic") || fLower.includes("faster") || fLower.includes("energetic")) {
+    // Specific hex color mentions (e.g. #ff0055)
+    const hexMatches = feedback.match(/#[0-9a-fA-F]{6}/g);
+    if (hexMatches && hexMatches.length > 0) {
+      updatedPalette.primary = hexMatches[0];
+      if (hexMatches.length > 1) updatedPalette.accent = hexMatches[1];
+    }
+
+    // 9. Kinetic Typography / Animation Dynamics
+    if (fLower.includes("kinetic") || fLower.includes("faster") || fLower.includes("energetic") || fLower.includes("punchy")) {
       updatedTypography.weights = ["700", "800", "900"];
       for (const s of updatedScenes) {
         s.animationDirection = "High-energy kinetic typography with rapid spring reveal and fluid dynamic acceleration";
         s.transition = "zoom-in";
       }
-    }
-
-    // 3. Timing / Duration adjustments (e.g. "shorten scene 1 to 2 seconds and extend the climax")
-    if (fLower.includes("shorten scene 1") || (fLower.includes("scene 1") && fLower.includes("2 second"))) {
-      if (updatedScenes[0]) {
-        updatedScenes[0].duration = 2.0;
-        const remaining = Math.max(2, targetDuration - 2.0);
-        const otherScenes = updatedScenes.slice(1);
-        if (otherScenes.length > 0) {
-          const perOther = Number((remaining / otherScenes.length).toFixed(2));
-          otherScenes.forEach((s, idx) => {
-            if (idx === otherScenes.length - 1) {
-              s.duration = Number((targetDuration - 2.0 - perOther * (otherScenes.length - 1)).toFixed(2));
-            } else {
-              s.duration = perOther;
-            }
-          });
-        }
+    } else if (fLower.includes("smooth") || fLower.includes("slow") || fLower.includes("gentle") || fLower.includes("elegant")) {
+      for (const s of updatedScenes) {
+        s.animationDirection = "Subtle cinematic float with soft opacity ease and smooth focal push";
+        s.transition = "crossfade";
       }
     }
 
-    // 4. Specific scene modifications
-    // Scene 2 / Second scene
-    if (fLower.includes("second scene") || fLower.includes("scene 2") || fLower.includes("product feature")) {
-      if (updatedScenes[1]) {
-        updatedScenes[1].name = "Product Features Showcase";
-        updatedScenes[1].purpose = "Highlight key product features and precision capabilities";
-        updatedScenes[1].layoutArchetype = "hero-product-showcase";
-        updatedScenes[1].visualDescription = "Product featured front and center with interactive telemetry badges and floating feature callouts.";
-        updatedScenes[1].onScreenText.headline = "PRECISION ENGINEERING";
-        updatedScenes[1].onScreenText.subtitle = "Advanced capabilities built with relentless attention to detail.";
-        updatedScenes[1].onScreenText.badge = "FLAGSHIP FEATURES";
+    // 10. Timing & Duration adjustments
+    // Total duration change: "make it 30s", "change duration to 20 seconds", "duration 15s"
+    const totalDurMatch = feedback.match(/(?:total\s+duration|duration|make it|length)\s+(?:to\s+)?(\d+)\s*(?:s|sec|seconds)?/i);
+    if (totalDurMatch && totalDurMatch[1]) {
+      const newDur = Math.max(5, Math.min(60, parseInt(totalDurMatch[1], 10)));
+      brief.duration = newDur;
+      targetDuration = newDur;
+    }
+
+    // Specific scene duration adjustment: "shorten scene 1 to 2 seconds", "make scene 2 4s"
+    const sceneDurMatch = feedback.match(/(?:shorten|extend|change|make|set)\s+(?:scene\s*(\d+)|first scene|second scene|third scene|last scene)\s+(?:duration\s+)?(?:to\s+)?(\d+(?:\.\d+)?)\s*(?:s|sec|seconds)?/i);
+    if (sceneDurMatch) {
+      const sIdx = resolveSceneIndex(sceneDurMatch[1] ? `scene ${sceneDurMatch[1]}` : feedback);
+      const targetSec = parseFloat(sceneDurMatch[2]);
+      if (sIdx >= 0 && updatedScenes[sIdx] && targetSec > 0) {
+        updatedScenes[sIdx].duration = targetSec;
+        (updatedScenes[sIdx] as any).isDurationExplicit = true;
       }
     }
 
-    // Scene 1 / First scene
-    if (fLower.includes("first scene") || (fLower.includes("scene 1") && !fLower.includes("shorten"))) {
-      if (updatedScenes[0]) {
-        updatedScenes[0].name = "Cinematic Reveal & Hook";
-        updatedScenes[0].onScreenText.headline = "THE FUTURE OF CREATION";
-        updatedScenes[0].visualDescription = "Cinematic widescreen opening with dramatic lighting and bold presence.";
-      }
-    }
-
-    // Final / Last / Climax / Call to action
-    if (fLower.includes("final") || fLower.includes("last") || fLower.includes("call to action") || fLower.includes("cta") || fLower.includes("climax")) {
-      const last = updatedScenes[updatedScenes.length - 1];
-      if (last) {
-        last.name = "Climax & Immediate Action";
-        last.onScreenText.headline = "START CREATING TODAY";
-        last.onScreenText.subtitle = "Join the next era of high-performance video production.";
-        last.onScreenText.ctaText = "GET STARTED NOW";
-        last.layoutArchetype = "cinematic-climax-cta";
-        updatedScript.callToAction = "Get started now and experience the next level of creation.";
-      }
-    }
-
-    // 5. Custom quote / headline extraction if user types specific text in quotes
-    const quoteMatch = feedback.match(/["“]([^"”]+)["”]/);
-    if (quoteMatch && quoteMatch[1]) {
-      const customText = quoteMatch[1].trim();
-      if (fLower.includes("scene 1") && updatedScenes[0]) {
-        updatedScenes[0].onScreenText.headline = customText.toUpperCase();
-      } else if (fLower.includes("scene 2") && updatedScenes[1]) {
-        updatedScenes[1].onScreenText.headline = customText.toUpperCase();
-      } else if ((fLower.includes("final") || fLower.includes("cta") || fLower.includes("last")) && updatedScenes.length > 0) {
-        updatedScenes[updatedScenes.length - 1].onScreenText.headline = customText.toUpperCase();
-      } else if (updatedScenes[0]) {
-        updatedScenes[0].onScreenText.headline = customText.toUpperCase();
-      }
-    }
-
-    // 6. Audio / Narration adjustments
+    // 11. Audio / Narration adjustments
     let audioPlan = { ...(currentPlan.audioPlan || { isSilent: false }) };
-    if (fLower.includes("remove narration") || fLower.includes("no narration") || fLower.includes("silent") || fLower.includes("mute")) {
+    if (fLower.includes("remove narration") || fLower.includes("no narration") || fLower.includes("silent") || fLower.includes("mute") || fLower.includes("no voiceover")) {
       for (const s of updatedScenes) {
         s.narration = "";
       }
       audioPlan.isSilent = true;
-    } else if (fLower.includes("add narration") || fLower.includes("with voiceover")) {
+    } else if (fLower.includes("add narration") || fLower.includes("with voiceover") || fLower.includes("spoken voiceover")) {
       audioPlan.isSilent = false;
     }
 
-    // 7. Re-calculate normalized start, duration, and end times across all scenes
+    // 12. Re-calculate normalized timeline start, duration, and end times across all scenes
     const normalizedScenes = this.normalizeSceneTimings(updatedScenes, targetDuration);
 
     return {
@@ -897,6 +1036,7 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
       version: (currentPlan.version || 1) + 1,
       creativeBrief: {
         ...brief,
+        duration: targetDuration,
         visualDirection: updatedVisualDirection,
         colorPalette: updatedPalette,
         typography: updatedTypography,
@@ -912,13 +1052,28 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
 
   private static normalizeSceneTimings(scenes: any[], targetDuration: number): PlanScene[] {
     if (!Array.isArray(scenes) || scenes.length === 0) return [];
+
+    // Check if any scene has an explicitly requested duration
+    const explicitScenes = scenes.filter((s) => s.isDurationExplicit);
+    if (explicitScenes.length > 0 && explicitScenes.length < scenes.length) {
+      const explicitSum = explicitScenes.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
+      const remainingTime = Math.max(1, targetDuration - explicitSum);
+      const nonExplicitScenes = scenes.filter((s) => !s.isDurationExplicit);
+      const perNonExplicit = remainingTime / nonExplicitScenes.length;
+      for (const s of nonExplicitScenes) {
+        s.duration = Number(perNonExplicit.toFixed(2));
+      }
+    }
+
     let curTime = 0;
     const rawSum = scenes.reduce((sum, s) => sum + (Number(s.duration) || 3), 0);
     const scaleFactor = rawSum > 0 ? targetDuration / rawSum : 1;
 
     return scenes.map((s, idx) => {
       const isLast = idx === scenes.length - 1;
-      let dur = Number(((Number(s.duration) || 3) * scaleFactor).toFixed(2));
+      let dur = s.isDurationExplicit
+        ? Number(Number(s.duration).toFixed(2))
+        : Number(((Number(s.duration) || 3) * scaleFactor).toFixed(2));
       if (isLast) {
         dur = Number((targetDuration - curTime).toFixed(2));
       }

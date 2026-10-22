@@ -297,24 +297,21 @@ function resolveProjectDir(projectId, requestedWorkspaceId) {
       }
     }
 
-    // Fallback: If "latest" or project ID not yet recorded in project-map, map to most recent project
-    const sorted = entries
-      .filter((e) => e.isDirectory() && e.name.startsWith("job-"))
-      .map((e) => ({
-        name: e.name,
-        time: fs.statSync(path.join(PROJECTS_DIR, e.name)).mtimeMs,
-      }))
-      .sort((a, b) => b.time - a.time);
-    if (sorted.length > 0) {
-      recordProjectMapping(
-        projectId,
-        path.join(PROJECTS_DIR, sorted[0].name),
-        requestedWorkspaceId || "default",
-      );
-      return {
-        dir: path.join(PROJECTS_DIR, sorted[0].name),
-        workspaceId: requestedWorkspaceId || null,
-      };
+    // Fallback: ONLY if explicitly requested as "latest" or "current"
+    if (projectId === "latest" || projectId === "current") {
+      const sorted = entries
+        .filter((e) => e.isDirectory() && e.name.startsWith("job-"))
+        .map((e) => ({
+          name: e.name,
+          time: fs.statSync(path.join(PROJECTS_DIR, e.name)).mtimeMs,
+        }))
+        .sort((a, b) => b.time - a.time);
+      if (sorted.length > 0) {
+        return {
+          dir: path.join(PROJECTS_DIR, sorted[0].name),
+          workspaceId: requestedWorkspaceId || null,
+        };
+      }
     }
   }
 
@@ -878,9 +875,16 @@ function send(res, status, obj) {
   res.end(JSON.stringify(obj));
 }
 
-async function readBody(req) {
+async function readBody(req, maxBytes = 25 * 1024 * 1024) {
   const chunks = [];
-  for await (const c of req) chunks.push(c);
+  let totalBytes = 0;
+  for await (const c of req) {
+    totalBytes += c.length;
+    if (totalBytes > maxBytes) {
+      throw new Error("Payload Too Large: request body exceeds limit");
+    }
+    chunks.push(c);
+  }
   if (!chunks.length) return {};
   try {
     return JSON.parse(Buffer.concat(chunks).toString());
@@ -1064,7 +1068,10 @@ const server = http.createServer(async (req, res) => {
         const health = await aiGenerator.checkHealth();
         return send(res, 200, {
           success: true,
-          ...health,
+          configured: !!health.configured,
+          status: health.status === "connected" ? "connected" : "ready",
+          statusLabel: health.statusLabel || "Ready",
+          available: true,
         });
       } catch (err) {
         return send(res, 500, {
@@ -2048,7 +2055,17 @@ const server = http.createServer(async (req, res) => {
       (req.url.startsWith("/storage/") || req.url.startsWith("/cdn/"))
     ) {
       const urlPath = req.url.replace(/^\/(storage|cdn)\//, "").split("?")[0];
-      const localFilePath = path.join(STORAGE_DIR, urlPath);
+      const normalizedPath = path.normalize(decodeURIComponent(urlPath));
+      if (normalizedPath.startsWith("..") || path.isAbsolute(normalizedPath)) {
+        return send(res, 403, { error: "Forbidden: Invalid storage path" });
+      }
+      const localFilePath = path.resolve(STORAGE_DIR, normalizedPath);
+      if (!localFilePath.startsWith(path.resolve(STORAGE_DIR))) {
+        return send(res, 403, { error: "Forbidden: Access denied" });
+      }
+      if (!fs.existsSync(localFilePath)) {
+        return send(res, 404, { error: "File not found" });
+      }
       return streamFile(req, res, localFilePath);
     }
 
@@ -2057,7 +2074,11 @@ const server = http.createServer(async (req, res) => {
       req.method === "DELETE" &&
       (req.url.startsWith("/storage/") || req.url.startsWith("/assets/"))
     ) {
-      const objectKey = req.url.replace(/^\/(storage|assets)\//, "");
+      const objectKey = req.url.replace(/^\/(storage|assets)\//, "").split("?")[0];
+      const normalized = path.normalize(decodeURIComponent(objectKey));
+      if (normalized.startsWith("..") || path.isAbsolute(normalized)) {
+        return send(res, 403, { error: "Forbidden: Invalid object key" });
+      }
       const storage = getStorageProvider();
       const success = await storage.delete(objectKey);
       return send(res, 200, { deleted: success, objectKey });
@@ -2068,8 +2089,12 @@ const server = http.createServer(async (req, res) => {
       (req.method === "GET" || req.method === "HEAD") &&
       req.url.startsWith("/outputs/")
     ) {
-      const filename = path.basename(req.url.split("?")[0]).replace(/\.mp4$/i, "");
-      let localFilePath = path.join(OUTPUTS_DIR, path.basename(req.url.split("?")[0]));
+      const rawTarget = path.basename(req.url.split("?")[0]);
+      if (!rawTarget || rawTarget.includes("..")) {
+        return send(res, 400, { error: "Invalid output filename" });
+      }
+      const filename = rawTarget.replace(/\.mp4$/i, "");
+      let localFilePath = path.join(OUTPUTS_DIR, rawTarget);
 
       if (!fs.existsSync(localFilePath)) {
         // Check if this looks like a projectId fallback (proj_XXXX or plan_XXXX)
@@ -2086,24 +2111,12 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (!fs.existsSync(localFilePath)) {
-        const altPath = path.join(WORKSPACE_ROOT, "outputs", path.basename(req.url.split("?")[0]));
+        const altPath = path.join(WORKSPACE_ROOT, "outputs", rawTarget);
         if (fs.existsSync(altPath)) {
           localFilePath = altPath;
         } else {
-          // Final fallback: serve the most recently rendered MP4
-          try {
-            const files = fs
-              .readdirSync(OUTPUTS_DIR)
-              .filter((f) => f.endsWith(".mp4") && !f.startsWith("."))
-              .map((f) => ({
-                name: f,
-                time: fs.statSync(path.join(OUTPUTS_DIR, f)).mtimeMs,
-              }))
-              .sort((a, b) => b.time - a.time);
-            if (files.length > 0) {
-              localFilePath = path.join(OUTPUTS_DIR, files[0].name);
-            }
-          } catch {}
+          // Strictly return 404 — do NOT leak the most recently rendered MP4 from other users
+          return send(res, 404, { error: "Output file not found" });
         }
       }
       return streamFile(req, res, localFilePath);
