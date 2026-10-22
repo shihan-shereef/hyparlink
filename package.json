@@ -3,6 +3,7 @@
   "private": true,
   "workspaces": ["packages/*", "apps/*", "tooling/*"],
   "scripts": {
+    "postinstall": "node scripts/patch-convex-auth.mjs",
     "build": "turbo build",
     "clean": "git clean -xdf node_modules",
     "clean:workspaces": "turbo clean",
