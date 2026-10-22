@@ -36,6 +36,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { NativeHyperlinkEditor } from "@/components/native-editor/native-editor-view";
+import type { RenderJob } from "@/components/native-editor/types";
 
 interface EditorScene {
   id: string;
@@ -75,10 +77,10 @@ export default function ProjectLiveEditorPage() {
 
   const effectiveWs = (convexProject as any)?.workspaceId || current || "";
 
-  // View mode: companion Inspector (default for remote/tunnel), official Studio, or Rendered Video
+  // View mode: companion Inspector, official Studio, Native Hyperlink Editor, or Rendered Video
   const [activeView, setActiveView] = useState<
-    "studio" | "inspector" | "video"
-  >("inspector");
+    "native" | "studio" | "inspector" | "video"
+  >("native");
   const [activeInspectorTab, setActiveInspectorTab] = useState<
     "visual" | "code"
   >("visual");
@@ -155,6 +157,7 @@ export default function ProjectLiveEditorPage() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [previewKey, setPreviewKey] = useState<number>(Date.now());
   const [renderedVideoUrl, setRenderedVideoUrl] = useState<string | null>(null);
+  const [renders, setRenders] = useState<RenderJob[]>([]);
 
   // Backend API URL
   const backendUrl =
@@ -254,14 +257,29 @@ export default function ProjectLiveEditorPage() {
 
       const data = await res.json();
       setFiles(data.files || {});
-      setScenes(data.scenes || []);
+      const loadedScenes =
+        data.scenes && data.scenes.length > 0
+          ? data.scenes
+          : [
+              {
+                id: "scene_01",
+                file: "index.html",
+                start: 0,
+                duration: data.editableProperties?.duration || 40,
+              },
+            ];
+      setScenes(loadedScenes);
       if (data.editableProperties) {
         setProperties(data.editableProperties);
       }
-      if (data.scenes && data.scenes.length > 0) {
-        setActiveSceneId(data.scenes[0].id);
-        setSelectedFile(data.scenes[0].file);
+      if (data.renders && Array.isArray(data.renders)) {
+        setRenders(data.renders);
       }
+      if (data.renderedVideoUrl) {
+        setRenderedVideoUrl(data.renderedVideoUrl);
+      }
+      setActiveSceneId(loadedScenes[0].id);
+      setSelectedFile(loadedScenes[0].file);
       setHasUnsavedChanges(false);
     } catch (err: any) {
       console.error("[LiveEditor] Load error:", err);
@@ -287,12 +305,12 @@ export default function ProjectLiveEditorPage() {
     }
   }, [convexProject]);
 
-  // Handle Sync & Re-Render
-  const handleSyncAndRender = async () => {
+  // Handle Sync & Re-Render with optional export settings
+  const handleSyncAndRender = async (options?: any) => {
     try {
       setRendering(true);
       toast.info(
-        "Validating Studio edits and rendering updated composition...",
+        "Validating composition and rendering production video...",
       );
 
       const res = await fetch(
@@ -306,6 +324,11 @@ export default function ProjectLiveEditorPage() {
           body: JSON.stringify({
             files,
             properties,
+            resolution: options?.resolution || properties.resolution,
+            fps: options?.fps || properties.fps,
+            format: options?.format || "mp4",
+            filename: options?.filename,
+            includeAudio: options?.includeAudio,
           }),
         },
       );
@@ -320,6 +343,11 @@ export default function ProjectLiveEditorPage() {
       toast.success("Composition rendered and synchronized with Convex!");
       if (data.videoUrl) {
         setRenderedVideoUrl(data.videoUrl);
+      }
+      if (data.renders && Array.isArray(data.renders)) {
+        setRenders(data.renders);
+      } else if (data.job) {
+        setRenders((prev) => [data.job, ...prev.filter((j) => j.id !== data.job.id)]);
       }
       setHasUnsavedChanges(false);
       // Reload project files
@@ -448,9 +476,9 @@ export default function ProjectLiveEditorPage() {
   const previewSrc = `${backendUrl}/editor/project/${projectId}/raw/index.html?t=${previewKey}`;
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] w-full flex-col bg-background text-foreground overflow-hidden">
+    <div className="flex h-screen w-full flex-col bg-[#f8fafc] text-foreground overflow-hidden">
       {/* TOP HEADER */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 z-20">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-white px-4 z-20 text-gray-900 shadow-xs">
         <div className="flex items-center gap-3">
           <Link
             href="/projects"
@@ -463,49 +491,22 @@ export default function ProjectLiveEditorPage() {
 
           <div className="h-4 w-px bg-border" />
 
-          {/* Project Details */}
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm text-primary max-w-xs truncate">
+          {/* Project Details with Ollastar Logo */}
+          <div className="flex items-center gap-2.5">
+            <img
+              src="/ollastar-logo.png"
+              alt="Ollastar"
+              className="h-7 w-7 rounded-full border border-gray-200 object-contain shadow-xs shrink-0 bg-white"
+            />
+            <span className="font-bold text-sm text-gray-900 max-w-xs truncate">
               {projectTitle}
             </span>
-            <span className="rounded bg-primary/10 border border-primary/20 px-1.5 py-0.5 text-[10px] font-mono text-primary font-medium">
+            <span className="rounded bg-gray-100 border border-gray-200 px-1.5 py-0.5 text-[10px] font-mono text-gray-700 font-semibold">
               {properties.resolution}
             </span>
-            <span className="rounded bg-secondary border border-border px-1.5 py-0.5 text-[10px] font-mono text-primary/60">
+            <span className="rounded bg-gray-100 border border-gray-200 px-1.5 py-0.5 text-[10px] font-mono text-gray-600">
               {properties.duration}s @ {properties.fps}fps
             </span>
-          </div>
-
-          <div className="h-4 w-px bg-border hidden sm:block" />
-
-          {/* Studio Connection Status Indicator */}
-          <div className="hidden sm:flex items-center gap-2">
-            {sessionStatus === "initializing" && (
-              <span className="flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-500">
-                <RotateCw className="h-3 w-3 animate-spin" />
-                Connecting Studio...
-              </span>
-            )}
-            {sessionStatus === "ready" && session && (
-              <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-500">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                </span>
-                Studio Live :{session.port}
-              </span>
-            )}
-            {sessionStatus === "error" && (
-              <button
-                type="button"
-                onClick={initStudioSession}
-                className="flex items-center gap-1.5 rounded-full border border-destructive/20 bg-destructive/10 px-2.5 py-0.5 text-[11px] font-medium text-destructive hover:bg-destructive/20 transition"
-                title="Click to retry starting Studio"
-              >
-                <WifiOff className="h-3 w-3" />
-                Studio Disconnected &bull; Retry
-              </button>
-            )}
           </div>
         </div>
 
@@ -513,39 +514,14 @@ export default function ProjectLiveEditorPage() {
         <div className="flex items-center rounded-lg border border-border/80 bg-background/60 p-0.5">
           <button
             type="button"
-            onClick={() => setActiveView("studio")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition ${
-              activeView === "studio"
-                ? "bg-purple-500/15 text-purple-400 border border-purple-500/30 shadow-xs"
+            onClick={() => setActiveView("native")}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition ${
+              activeView === "native"
+                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/40 shadow-xs"
                 : "text-primary/60 hover:text-primary"
             }`}
           >
-            <Tv className="h-3.5 w-3.5" /> Official Studio
-          </button>
-
-          {session?.studioUrl && (
-            <a
-              href={session.studioUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden lg:flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 transition"
-              title="Open Studio in an independent browser tab"
-            >
-              <ExternalLink className="h-3 w-3" />
-              <span>Open Tab</span>
-            </a>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setActiveView("inspector")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition ${
-              activeView === "inspector"
-                ? "bg-primary/15 text-primary border border-primary/30 shadow-xs"
-                : "text-primary/60 hover:text-primary"
-            }`}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" /> Scene Inspector
+            <Sparkles className="h-3.5 w-3.5 text-emerald-400" /> Native Editor
           </button>
 
           <button
@@ -639,7 +615,42 @@ export default function ProjectLiveEditorPage() {
       </header>
 
       {/* MAIN CONTENT AREA */}
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 min-w-0 min-h-0 overflow-hidden relative">
+        {/* VIEW 0: NATIVE HYPERLINK VIDEO EDITOR (INDEPENDENT) */}
+        {activeView === "native" && (
+          <div
+            className={`transition-all duration-300 ease-in-out ${
+              isFullscreen
+                ? "fixed inset-0 z-[100] w-screen h-screen bg-[#f8fafc] flex flex-col"
+                : "flex-1 flex flex-col w-full h-full bg-[#f8fafc] relative overflow-hidden"
+            }`}
+          >
+            <NativeHyperlinkEditor
+              projectId={projectId}
+              projectTitle={projectTitle}
+              duration={properties.duration}
+              fps={properties.fps}
+              resolution={properties.resolution}
+              scenes={scenes}
+              onUpdateScenes={setScenes}
+              files={files}
+              selectedFile={selectedFile}
+              onSelectFile={setSelectedFile}
+              onCodeChange={handleCodeChange}
+              onSaveProject={handleSave}
+              onSyncAndRender={handleSyncAndRender}
+              isRendering={rendering}
+              previewSrc={previewSrc}
+              renderedVideoUrl={renderedVideoUrl}
+              renders={renders}
+              hasUnsavedChanges={hasUnsavedChanges}
+              isSaving={saving}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={toggleFullscreen}
+            />
+          </div>
+        )}
+
         {/* VIEW 1: OFFICIAL HYPERFRAMES STUDIO (PRIMARY) */}
         {activeView === "studio" && (
           <div

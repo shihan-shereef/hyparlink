@@ -87,7 +87,9 @@ export class Renderer {
     const ffmpegPath = await this.getFfmpegPath();
     const ffmpegDir = path.dirname(ffmpegPath);
     const envPath = `${ffmpegDir}:${process.env.PATH || ""}`;
-    const command = `npx --yes hyperframes@0.8.139 render ${resFlag ? resFlag + " " : ""}--format ${format} -o "${outputPath}"`;
+    const hasLocalHf = await fs.access("/usr/local/bin/hyperframes").then(() => true).catch(() => false);
+    const hfBin = hasLocalHf ? "/usr/local/bin/hyperframes" : "npx --yes hyperframes@0.8.139";
+    const command = `${hfBin} render ${resFlag ? resFlag + " " : ""}--format ${format} -o "${outputPath}"`;
 
     console.log(`[Renderer] Render started...`);
     console.log(`[Renderer] Command: ${command}`);
@@ -107,6 +109,35 @@ export class Renderer {
       const renderTimeSeconds = Number(
         ((Date.now() - startTime) / 1000).toFixed(2),
       );
+
+      // Optimize for smooth web streaming & browser compatibility:
+      // 1. Adds +faststart (moov atom at head for immediate playback without full file download)
+      // 2. Injects a clean silent AAC audio stream if video has none (Safari AVPlayer CoreMedia compatibility)
+      // 3. Normalizes web bitrate with CRF 22 to prevent tunnel buffer starvation
+      try {
+        const initialProbe = await this.probeVideo(outputPath).catch(() => null);
+        const ffmpegBin = await this.getFfmpegPath();
+        const tempWebOpt = outputPath.replace(/\.mp4$/i, `_webopt_${Date.now()}.mp4`);
+
+        let optCmd = "";
+        if (initialProbe && !initialProbe.hasAudio) {
+          optCmd = `"${ffmpegBin}" -y -i "${outputPath}" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p -c:a aac -b:a 128k -shortest -movflags +faststart "${tempWebOpt}"`;
+        } else {
+          optCmd = `"${ffmpegBin}" -y -i "${outputPath}" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p -c:a copy -movflags +faststart "${tempWebOpt}"`;
+        }
+
+        await execAsync(optCmd);
+        const optStats = await fs.stat(tempWebOpt).catch(() => null);
+        if (optStats && optStats.size > 0) {
+          await fs.unlink(outputPath).catch(() => {});
+          await fs.rename(tempWebOpt, outputPath);
+          console.log(
+            `[Renderer/WebOpt] Video optimized for browser playback: ${(optStats.size / (1024 * 1024)).toFixed(1)} MB with faststart & audio track.`,
+          );
+        }
+      } catch (optErr: any) {
+        console.warn(`[Renderer/WebOpt] Optimization notice: ${optErr.message}`);
+      }
 
       // Verify output file exists
       const stats = await fs.stat(outputPath);

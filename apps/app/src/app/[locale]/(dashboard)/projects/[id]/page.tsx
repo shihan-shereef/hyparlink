@@ -340,6 +340,9 @@ export default function ProjectDetailPage() {
                 poster={project.thumbnailUrl || project.thumbnailCdnUrl}
                 controls
                 autoPlay
+                muted
+                playsInline
+                preload="metadata"
                 className="h-full w-full object-contain"
               />
             </div>

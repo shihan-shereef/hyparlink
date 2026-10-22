@@ -200,10 +200,15 @@ export function SurgicalSceneRevision({
               src={activeVideoUrl}
               controls
               autoPlay
+              muted
               loop
               playsInline
+              preload="metadata"
               className="h-full w-full object-contain"
-            />
+            >
+              <source src={activeVideoUrl} type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
           </div>
 
           {/* Video metadata and action bar */}

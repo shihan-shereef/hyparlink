@@ -12,9 +12,9 @@ export default async function Layout({
     <WorkspaceProvider>
       <div className="min-h-screen w-full bg-[#f8fafc] dark:bg-[#090d14] md:flex">
         <Sidebar />
-        <main className="flex min-w-0 flex-1 flex-col">
+        <main className="flex min-w-0 flex-1 flex-col h-full w-full">
           <Topbar />
-          <div className="min-h-0 flex-1">{children}</div>
+          <div className="min-h-0 flex-1 flex flex-col h-full w-full overflow-y-auto">{children}</div>
         </main>
       </div>
       <Toaster richColors position="top-right" />

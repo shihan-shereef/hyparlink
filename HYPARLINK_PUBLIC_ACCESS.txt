@@ -1,29 +1,29 @@
 ================================================================================
 HYPARLINK DASHBOARD & HYPERFRAMES EDITOR — PUBLIC CLOUDFLARE ACCESS
-Generated: 2026-10-19 09:10:19 IST
+Generated: 2026-10-22 08:53:03 IST
 Status: PERSISTENT DAEMONS RUNNING IN BACKGROUND (Independent of Antigravity)
 ================================================================================
 
 PUBLIC DASHBOARD URL:
-https://effort-thinkpad-westminster-fully.trycloudflare.com
+https://sie-least-americas-rarely.trycloudflare.com
 
 CREATE VIDEO PAGE (AI Video Production Agent):
-https://effort-thinkpad-westminster-fully.trycloudflare.com/create-video
+https://sie-least-americas-rarely.trycloudflare.com/create-video
 
 HYPERFRAMES EDITOR DIRECT URL (Absolute Batman Video Project):
-https://effort-thinkpad-westminster-fully.trycloudflare.com/editor/m579g6v1s41trb1d80re8jfdds8g27n3
+https://sie-least-americas-rarely.trycloudflare.com/editor/m579g6v1s41trb1d80re8jfdds8g27n3
 
 LIVE COMPOSITION PREVIEW (HTML/GSAP Timeline):
-https://effort-thinkpad-westminster-fully.trycloudflare.com/editor/project/m579g6v1s41trb1d80re8jfdds8g27n3/raw/index.html
+https://sie-least-americas-rarely.trycloudflare.com/editor/project/m579g6v1s41trb1d80re8jfdds8g27n3/raw/index.html
 
 RENDERED VIDEO CDN STREAM:
-https://effort-thinkpad-westminster-fully.trycloudflare.com/cdn/workspaces/mh7eadmg10g11yqwbjtyc41yjs8fxx17/projects/m579g6v1s41trb1d80re8jfdds8g27n3/renders/ks748m9rrs7r2krtpngf9m49q18g2955/video.mp4
+https://sie-least-americas-rarely.trycloudflare.com/cdn/workspaces/mh7eadmg10g11yqwbjtyc41yjs8fxx17/projects/m579g6v1s41trb1d80re8jfdds8g27n3/renders/ks748m9rrs7r2krtpngf9m49q18g2955/video.mp4
 
 CONVEX BACKEND TUNNEL:
-https://calculate-handed-venice-printing.trycloudflare.com
+https://batch-beam-floppy-mini.trycloudflare.com
 
 HYPERFRAMES STUDIO:
-https://perspectives-describe-confident-conversion.trycloudflare.com
+https://mountain-quarter-filling-sublime.trycloudflare.com
 
 --------------------------------------------------------------------------------
 PROCESS HEALTH & VERIFICATION:
@@ -33,11 +33,11 @@ PROCESS HEALTH & VERIFICATION:
 - Composition:      HTTP 200 OK
 - Convex Sync:      HTTP 200 OK
 - Studio:           HTTP 200 OK
-- Backend Echo PID: 2969 (Port 4000)
-- Next.js PID:      3194 (Port 3000)
-- Convex Tunnel PID:2976
-- Studio Tunnel PID:3154
-- App Tunnel PID:   3207
+- Backend Echo PID: 11180 (Port 4000)
+- Next.js PID:      11398 (Port 3000)
+- Convex Tunnel PID:11187
+- Studio Tunnel PID:11359
+- App Tunnel PID:   11408
 
 --------------------------------------------------------------------------------
 SURVIVES ANTIGRAVITY EXIT:

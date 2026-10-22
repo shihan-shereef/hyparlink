@@ -167,6 +167,7 @@ function createPersistentMap(filePath) {
 
 const apiJobStore = createPersistentMap(JOB_STORE_FILE);
 const apiProjectStore = createPersistentMap(PROJECT_STORE_FILE);
+const activeRenderProjects = new Set();
 
 const PROJECT_MAP_FILE = path.resolve(AI_GENERATOR_DIR, "project-map.json");
 
@@ -2118,7 +2119,8 @@ const server = http.createServer(async (req, res) => {
       req.method === "GET" &&
       req.url.startsWith("/editor/project/") &&
       !req.url.includes("/raw/") &&
-      !req.url.includes("/export")
+      !req.url.includes("/export") &&
+      !req.url.includes("/renders")
     ) {
       const parts = req.url
         .split("?")[0]
@@ -2164,10 +2166,43 @@ const server = http.createServer(async (req, res) => {
 
         const compDir = path.join(projectDir, "compositions");
         const scenes = [];
-        if (fs.existsSync(compDir)) {
+        const rootContent = files["index.html"] || "";
+
+        // 1. Check index.html for subcomposition declarations (e.g. data-composition-src="compositions/scene_X.html")
+        const subCompMatches = [...rootContent.matchAll(/<([a-z0-9]+)\b([^>]*data-composition-src=["'][^"']+["'][^>]*)>/gi)];
+        if (subCompMatches.length > 0) {
+          for (let i = 0; i < subCompMatches.length; i++) {
+            const tagStr = subCompMatches[i][2];
+            const srcMatch = tagStr.match(/data-composition-src=["']([^"']+)["']/i);
+            const idMatch = tagStr.match(/id=["']([^"']+)["']/i) || tagStr.match(/data-composition-id=["']([^"']+)["']/i);
+            const startMatch = tagStr.match(/data-start=["']([\d\.]+)["']/i);
+            const durMatch = tagStr.match(/data-duration=["']([\d\.]+)["']/i);
+
+            const fileRel = srcMatch ? srcMatch[1] : `compositions/scene_${i + 1}.html`;
+            const sceneId = idMatch ? idMatch[1] : `scene-${i + 1}`;
+            const startVal = startMatch ? parseFloat(startMatch[1]) : 0;
+            const durVal = durMatch ? parseFloat(durMatch[1]) : (meta.duration || 30) / subCompMatches.length;
+
+            scenes.push({
+              id: sceneId,
+              file: fileRel,
+              start: startVal,
+              duration: durVal,
+            });
+
+            // Read subcomposition file into files dictionary
+            const absPath = path.join(projectDir, fileRel);
+            if (fs.existsSync(absPath)) {
+              files[fileRel] = fs.readFileSync(absPath, "utf-8");
+            }
+          }
+        } else if (fs.existsSync(compDir)) {
+          // Fallback if index.html didn't have data-composition-src attributes but compositions folder exists
           const compFiles = fs
             .readdirSync(compDir)
-            .filter((f) => f.endsWith(".html"));
+            .filter((f) => f.endsWith(".html"))
+            .sort();
+          let runningStart = 0;
           for (const cf of compFiles) {
             const rel = `compositions/${cf}`;
             const compContent = fs.readFileSync(
@@ -2182,13 +2217,49 @@ const server = http.createServer(async (req, res) => {
             const durMatch = compContent.match(/data-duration="([^"]+)"/);
             const startMatch = compContent.match(/data-start="([^"]+)"/);
 
+            const d = durMatch ? Number(durMatch[1]) : (meta.duration || 15) / compFiles.length;
+            const s = startMatch ? Number(startMatch[1]) : runningStart;
+            runningStart = s + d;
+
             scenes.push({
               id: compIdMatch ? compIdMatch[1] : cf.replace(".html", ""),
               file: rel,
-              start: startMatch ? Number(startMatch[1]) : 0,
-              duration: durMatch ? Number(durMatch[1]) : meta.duration || 15,
+              start: s,
+              duration: d,
             });
           }
+        } else {
+          // Single-file composition: check for <section class="scene"> tags
+          const sectionMatches = [...rootContent.matchAll(/<section\b([^>]*\bclass=["'][^"']*\bscene\b[^"']*["'][^>]*)>/gi)];
+          if (sectionMatches.length > 0) {
+            const totalDur = meta.duration || 40;
+            const autoDur = totalDur / sectionMatches.length;
+            sectionMatches.forEach((m, idx) => {
+              const attrs = m[1];
+              const idMatch = attrs.match(/id=["']([^"']+)["']/i) || attrs.match(/data-scene=["']([^"']+)["']/i);
+              const startMatch = attrs.match(/data-start=["']([\d\.]+)["']/i);
+              const durMatch = attrs.match(/data-duration=["']([\d\.]+)["']/i);
+              scenes.push({
+                id: idMatch ? idMatch[1] : `scene-${idx + 1}`,
+                file: "index.html",
+                start: startMatch ? parseFloat(startMatch[1]) : idx * autoDur,
+                duration: durMatch ? parseFloat(durMatch[1]) : autoDur,
+              });
+            });
+          }
+        }
+
+        // Sort scenes deterministically by start time
+        scenes.sort((a, b) => a.start - b.start);
+
+        if (scenes.length === 0) {
+          const defaultDuration = Number(meta.duration) || 15;
+          scenes.push({
+            id: "scene_01",
+            file: "index.html",
+            start: 0,
+            duration: defaultDuration,
+          });
         }
 
         const scene01Html =
@@ -2229,6 +2300,10 @@ const server = http.createServer(async (req, res) => {
           scenes,
           editableProperties,
           previewUrl: `/editor/project/${projectId}/raw/index.html`,
+          renderedVideoUrl: meta.renderedVideoUrl || (Array.isArray(meta.renders) && meta.renders[0]?.videoUrl) || null,
+          thumbnailUrl: meta.thumbnailUrl || (Array.isArray(meta.renders) && meta.renders[0]?.thumbnailUrl) || null,
+          renders: Array.isArray(meta.renders) ? meta.renders : [],
+          isRendering: activeRenderProjects.has(projectId),
         });
       } catch (err) {
         if (err.status === 403) {
@@ -2340,6 +2415,16 @@ const server = http.createServer(async (req, res) => {
         req.headers["x-workspace-id"] ||
         parsedUrl.searchParams.get("workspaceId");
 
+      if (activeRenderProjects.has(projectId)) {
+        return send(res, 409, {
+          success: false,
+          error: "A render job is already actively in progress for this project. Please wait for it to finish.",
+          isRendering: true,
+        });
+      }
+
+      activeRenderProjects.add(projectId);
+
       try {
         const resolved = resolveProjectDir(projectId, reqWs);
         if (!resolved) {
@@ -2379,7 +2464,7 @@ const server = http.createServer(async (req, res) => {
           });
         }
 
-        // 2. Render output
+        // 2. Read meta and resolve export options
         const metaPath = path.join(projectDir, "meta.json");
         let meta = {};
         try {
@@ -2388,28 +2473,54 @@ const server = http.createServer(async (req, res) => {
         } catch {}
 
         const resOption =
-          typeof meta.resolution === "object" && meta.resolution.width === 1280
+          body.resolution ||
+          (typeof meta.resolution === "object" && meta.resolution.width === 1280
             ? "720p"
-            : "1080p";
+            : (typeof meta.resolution === "string" ? meta.resolution : "1080p"));
+        const formatOption = body.format || "mp4";
+        const fpsOption = Number(body.fps) || meta.fps || 30;
+
+        const timestamp = Date.now();
+        const jobId = `render-${timestamp}`;
+        const cleanName = (body.filename || `editor-${projectId}-${timestamp}`)
+          .replace(/[^a-zA-Z0-9_-]/g, "_");
         const outputPath = path.join(
           OUTPUTS_DIR,
-          `editor-${projectId}-${Date.now()}.mp4`,
+          `${cleanName}.${formatOption}`,
         );
 
-        console.log(`[Editor] Rendering updated video to ${outputPath}...`);
+        console.log(`[Editor] Rendering updated video to ${outputPath} (${resOption}, ${fpsOption}fps, ${formatOption})...`);
         const renderResult = await Renderer.render({
           projectDir,
           outputPath,
           resolution: resOption,
-          format: "mp4",
+          format: formatOption,
         });
 
         if (!renderResult.success || !fs.existsSync(outputPath)) {
           console.error(`[Editor] Rendering failed: ${renderResult.error}`);
-          // Previous render is completely preserved!
+          // Record failed job in meta.renders
+          try {
+            if (!Array.isArray(meta.renders)) meta.renders = [];
+            meta.renders.unshift({
+              id: jobId,
+              projectId,
+              status: "failed",
+              progress: 0,
+              createdAt: new Date(timestamp).toLocaleString(),
+              duration: meta.duration || 15,
+              resolution: resOption,
+              fps: fpsOption,
+              format: formatOption,
+              error: renderResult.error || "Rendering process failed",
+            });
+            fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), "utf-8");
+          } catch {}
+
           return send(res, 500, {
             success: false,
             error: renderResult.error || "Rendering updated video failed",
+            jobId,
           });
         }
 
@@ -2419,20 +2530,21 @@ const server = http.createServer(async (req, res) => {
         const objectKey = buildObjectKey(
           wsId,
           projectId,
-          `editor-${Date.now()}`,
+          jobId,
         );
 
         const uploadResult = await storage.upload(outputPath, objectKey, {
-          contentType: "video/mp4",
+          contentType: formatOption === "webm" ? "video/webm" : "video/mp4",
           metadata: {
             projectId: String(projectId),
-            source: "live-editor",
-            duration: String(meta.duration || 15),
+            source: "native-editor",
+            duration: String(renderResult.duration || meta.duration || 15),
+            resolution: String(renderResult.resolution || resOption),
           },
         });
 
         // 4. Generate thumbnail
-        const tempThumb = path.join("/tmp", `thumb-editor-${Date.now()}.webp`);
+        const tempThumb = path.join("/tmp", `thumb-${jobId}.webp`);
         const thumbResult = await MediaProcessor.generateThumbnail(
           outputPath,
           tempThumb,
@@ -2440,7 +2552,7 @@ const server = http.createServer(async (req, res) => {
         );
         let thumbnailUrl = null;
         if (thumbResult.success) {
-          const thumbKey = `workspaces/${wsId}/projects/${projectId}/renders/editor-${Date.now()}/thumbnail.webp`;
+          const thumbKey = `workspaces/${wsId}/projects/${projectId}/renders/${jobId}/thumbnail.webp`;
           const thumbUpload = await storage.upload(
             thumbResult.outputPath,
             thumbKey,
@@ -2454,32 +2566,133 @@ const server = http.createServer(async (req, res) => {
 
         const finalVideoUrl = uploadResult.cdnUrl || uploadResult.storageUrl;
 
-        // 5. Update Convex record via webhook
-        await postWebhook({
-          type: "job.result",
-          jobId: `editor-${Date.now()}`,
-          result: {
-            status: "completed",
-            projectId,
-            videoUrl: finalVideoUrl,
-            storageKey: uploadResult.storageKey,
-            storageProvider: uploadResult.storageProvider,
-            fileSize: uploadResult.fileSize,
-            thumbnailUrl: thumbnailUrl || undefined,
-            duration: meta.duration || 15,
-            resolution: resOption,
-            renderTimeSeconds: renderResult.renderTimeSeconds,
-          },
+        // 5. Construct completed job record
+        const jobRecord = {
+          id: jobId,
+          projectId: String(projectId),
+          status: "completed",
+          progress: 100,
+          createdAt: new Date(timestamp).toLocaleString(),
+          completedAt: new Date().toLocaleString(),
+          duration: renderResult.duration || meta.duration || 15,
+          resolution: renderResult.resolution || resOption,
+          fps: renderResult.fps || fpsOption,
+          format: formatOption,
+          fileSizeBytes: renderResult.fileSizeBytes,
+          fileSizeFormatted: renderResult.fileSizeFormatted,
+          outputUrl: finalVideoUrl,
+          videoUrl: finalVideoUrl,
+          thumbnailUrl: thumbnailUrl || undefined,
+          renderTimeSeconds: renderResult.renderTimeSeconds,
+        };
+
+        // Update persistent stores
+        apiJobStore.set(jobId, jobRecord);
+        const projCur = apiProjectStore.get(projectId) || {};
+        apiProjectStore.set(projectId, {
+          ...projCur,
+          videoUrl: finalVideoUrl,
+          thumbnailUrl,
+          lastRenderedAt: timestamp,
+          status: "completed",
         });
+
+        // Persist to project meta.json
+        try {
+          meta.renderedVideoUrl = finalVideoUrl;
+          meta.thumbnailUrl = thumbnailUrl;
+          meta.lastRenderedAt = timestamp;
+          if (!Array.isArray(meta.renders)) meta.renders = [];
+          meta.renders.unshift(jobRecord);
+          if (meta.renders.length > 20) meta.renders = meta.renders.slice(0, 20);
+          fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), "utf-8");
+        } catch (e) {
+          console.warn("[Editor] Failed to save meta.renders:", e.message);
+        }
+
+        // 6. Update Convex record via webhook if configured
+        try {
+          await postWebhook({
+            type: "job.result",
+            jobId,
+            result: {
+              status: "completed",
+              projectId,
+              videoUrl: finalVideoUrl,
+              storageKey: uploadResult.storageKey,
+              storageProvider: uploadResult.storageProvider,
+              fileSize: uploadResult.fileSize,
+              thumbnailUrl: thumbnailUrl || undefined,
+              duration: renderResult.duration || meta.duration || 15,
+              resolution: renderResult.resolution || resOption,
+              renderTimeSeconds: renderResult.renderTimeSeconds,
+            },
+          });
+        } catch {}
+
+        return send(res, 200, {
+          success: true,
+          jobId,
+          projectId,
+          videoUrl: finalVideoUrl,
+          thumbnailUrl,
+          duration: renderResult.duration || meta.duration || 15,
+          resolution: renderResult.resolution || resOption,
+          fps: renderResult.fps || fpsOption,
+          format: formatOption,
+          fileSizeBytes: renderResult.fileSizeBytes,
+          fileSizeFormatted: renderResult.fileSizeFormatted,
+          renderTimeSeconds: renderResult.renderTimeSeconds,
+          job: jobRecord,
+          renders: meta.renders,
+        });
+      } catch (err) {
+        if (err.status === 403) return send(res, 403, { error: err.message });
+        return send(res, 500, { error: err.message });
+      } finally {
+        activeRenderProjects.delete(projectId);
+      }
+    }
+
+    // 3b. GET /editor/project/:projectId/renders — Query render jobs & history
+    if (
+      req.method === "GET" &&
+      req.url.includes("/editor/project/") &&
+      req.url.endsWith("/renders")
+    ) {
+      const parts = req.url
+        .split("?")[0]
+        .replace("/editor/project/", "")
+        .split("/");
+      const projectId = parts[0];
+      const parsedUrl = new URL(req.url, "http://localhost");
+      const reqWs =
+        req.headers["x-workspace-id"] ||
+        parsedUrl.searchParams.get("workspaceId");
+
+      try {
+        const resolved = resolveProjectDir(projectId, reqWs);
+        if (!resolved) {
+          return send(res, 404, {
+            error: `HyperFrames project ${projectId} not found`,
+          });
+        }
+
+        const projectDir = resolved.dir;
+        const metaPath = path.join(projectDir, "meta.json");
+        let meta = {};
+        try {
+          if (fs.existsSync(metaPath))
+            meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+        } catch {}
 
         return send(res, 200, {
           success: true,
           projectId,
-          videoUrl: finalVideoUrl,
-          thumbnailUrl,
-          duration: meta.duration || 15,
-          resolution: resOption,
-          renderTimeSeconds: renderResult.renderTimeSeconds,
+          isRendering: activeRenderProjects.has(projectId),
+          renderedVideoUrl: meta.renderedVideoUrl || (Array.isArray(meta.renders) && meta.renders[0]?.videoUrl) || null,
+          thumbnailUrl: meta.thumbnailUrl || (Array.isArray(meta.renders) && meta.renders[0]?.thumbnailUrl) || null,
+          renders: Array.isArray(meta.renders) ? meta.renders : [],
         });
       } catch (err) {
         if (err.status === 403) return send(res, 403, { error: err.message });
@@ -2507,10 +2720,27 @@ const server = http.createServer(async (req, res) => {
         const resolved = resolveProjectDir(projectId, reqWs);
         if (!resolved) return send(res, 404, { error: "Project not found" });
 
-        const targetFile = path.resolve(resolved.dir, subPath);
+        let targetFile = path.resolve(resolved.dir, subPath);
         if (!targetFile.startsWith(resolved.dir)) {
           return send(res, 403, { error: "Path traversal denied" });
         }
+
+        // Always serve the project's real index.html directly from resolved.dir
+        if (subPath === "index.html") {
+          const directIndex = path.join(resolved.dir, "index.html");
+          if (fs.existsSync(directIndex)) {
+            targetFile = directIndex;
+          } else {
+            const previewDir = path.join(resolved.dir, ".hyperframes", "preview");
+            if (fs.existsSync(previewDir)) {
+              const previewFiles = fs.readdirSync(previewDir).filter((f) => f.endsWith(".html"));
+              if (previewFiles.length > 0) {
+                targetFile = path.join(previewDir, previewFiles[0]);
+              }
+            }
+          }
+        }
+
         if (!fs.existsSync(targetFile)) {
           return send(res, 404, { error: `File not found: ${subPath}` });
         }
@@ -2529,6 +2759,31 @@ const server = http.createServer(async (req, res) => {
       } catch (err) {
         if (err.status === 403) return send(res, 403, { error: err.message });
         return send(res, 500, { error: err.message });
+      }
+    }
+
+    // 4b. GET /api/projects/:jobId/preview/assets/* or /projects/:jobId/assets/* — Fallback asset routing
+    if (
+      (req.method === "GET" || req.method === "HEAD") &&
+      (req.url.startsWith("/api/projects/") || req.url.startsWith("/projects/"))
+    ) {
+      const match = req.url.match(/\/(?:api\/)?projects\/([^/?]+)\/(?:preview\/)?(.+)$/);
+      if (match) {
+        const pId = match[1];
+        const assetSub = decodeURIComponent(match[2].split("?")[0]);
+        const resolved = resolveProjectDir(pId);
+        if (resolved) {
+          const target = path.resolve(resolved.dir, assetSub);
+          if (fs.existsSync(target) && target.startsWith(resolved.dir)) {
+            const contentType = getContentType(target);
+            res.writeHead(200, {
+              "Content-Type": contentType,
+              "Access-Control-Allow-Origin": "*",
+              "Cache-Control": "public, max-age=86400",
+            });
+            return fs.createReadStream(target).pipe(res);
+          }
+        }
       }
     }
 
@@ -2688,7 +2943,7 @@ const server = http.createServer(async (req, res) => {
 
     // 8. GET /editor/project/:projectId/export — Stream project directory as ZIP archive
     if (
-      req.method === "GET" &&
+      (req.method === "GET" || req.method === "HEAD") &&
       req.url.includes("/editor/project/") &&
       req.url.endsWith("/export")
     ) {
@@ -3269,8 +3524,85 @@ const server = http.createServer(async (req, res) => {
       };
       await fs.promises.writeFile(path.join(projectDir, "project.json"), JSON.stringify(projectConfig, null, 2), "utf-8");
 
-      // 5. styles.css
-      let userCss = css || "";
+      // 5. Preprocess userHtml, userCss, userJs
+      let userHtml = (html || "").trim();
+      let userCss = (css || "").trim();
+      let userJs = (js || "").trim();
+
+      // Strip markdown code fences (```html ... ```)
+      userHtml = userHtml.replace(/^```[a-z0-9_-]*\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+      // Strip stray leading markdown hyphens/bullets e.g. "- \n#composition" or "-\n"
+      userHtml = userHtml.replace(/^[\s\-\*•]+(?=(?:<!DOCTYPE|<html|<div|<main|<section|#|\.|\/\*|[a-z]))/i, "").trim();
+
+      // Extract inline <style>...</style> from HTML and merge into userCss
+      const inlineStyles = userHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+      if (inlineStyles) {
+        for (const st of inlineStyles) {
+          const content = st.replace(/<\/?style[^>]*>/gi, "").trim();
+          if (content && !userCss.includes(content.slice(0, 30))) {
+            userCss = (userCss ? userCss + "\n\n" : "") + content;
+          }
+        }
+        userHtml = userHtml.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "").trim();
+      }
+
+      // Extract inline <script>...</script> (without src) from HTML and merge into userJs
+      const inlineScripts = userHtml.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi);
+      if (inlineScripts) {
+        for (const sc of inlineScripts) {
+          const content = sc.replace(/<\/?script[^>]*>/gi, "").trim();
+          if (content && !userJs.includes(content.slice(0, 30))) {
+            userJs = (userJs ? userJs + "\n\n" : "") + content;
+          }
+        }
+        userHtml = userHtml.replace(/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/gi, "").trim();
+      }
+
+      // If user pasted pure CSS into HTML tab (contains CSS rules with no HTML opening/closing tags)
+      const hasHtmlTags = /<[a-z0-9_-]+[\s>]/i.test(userHtml);
+      const looksLikeCss = /(?:^|\n)\s*(?:#[a-z0-9_-]+|\.[a-z0-9_-]+|[a-z0-9_-]+)\s*\{[^}]*\}/i.test(userHtml);
+      if (!hasHtmlTags && looksLikeCss) {
+        if (!userCss.includes(userHtml.slice(0, 30))) {
+          userCss = (userCss ? userCss + "\n\n" : "") + userHtml;
+        }
+        userHtml = `<div id="composition" class="clip" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true">
+  <section class="scene clip" data-start="0" data-duration="${durNum.toFixed(2)}">
+    <div class="scene-background"></div>
+    <div class="content">
+      <h1 class="main-heading">${title || "Ollastar Motion Studio"}</h1>
+      <p class="sub-heading">HyperFrames & FFmpeg Direct Composition</p>
+    </div>
+  </section>
+</div>`;
+      }
+
+      // Auto-inject missing styles if user provided structured scenes without CSS definitions
+      if (userHtml.includes("scene-content") && !userCss.includes(".scene-content")) {
+        userCss += `
+/* Cinematic Scene Layout & Text Styles */
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #071b12; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+#composition { position: relative; width: 100%; height: 100%; overflow: hidden; background: #071b12; color: #fff; }
+.scene { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; opacity: 0; visibility: hidden; z-index: 1; }
+.scene.active { opacity: 1; visibility: visible; z-index: 2; }
+.scene-background { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+.scene-overlay { position: absolute; inset: 0; z-index: 2; background: linear-gradient(90deg, rgba(3, 20, 12, 0.85) 0%, rgba(3, 20, 12, 0.45) 55%, rgba(3, 20, 12, 0.15) 100%), linear-gradient(0deg, rgba(3, 20, 12, 0.65), transparent 60%); }
+.scene-content { position: absolute; z-index: 10; left: 8%; bottom: 16%; max-width: 78%; }
+.eyebrow { margin: 0 0 16px; color: #d8bd72; font-size: 18px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; text-shadow: 0 2px 8px rgba(0,0,0,0.9); }
+.headline { margin: 0; color: #fff8e7; font-family: Georgia, "Times New Roman", serif; font-size: 76px; font-weight: 700; line-height: 1.05; text-shadow: 0 4px 24px rgba(0, 0, 0, 0.9); }
+.description { max-width: 650px; margin-top: 22px; color: rgba(255, 255, 255, 0.95); font-size: 22px; line-height: 1.6; text-shadow: 0 2px 10px rgba(0,0,0,0.9); }
+.gold-line { width: 90px; height: 4px; margin-top: 26px; background: #d8bd72; box-shadow: 0 2px 10px rgba(216, 189, 114, 0.5); transform-origin: left center; }
+.scene-number { position: absolute; right: 5%; bottom: 5%; z-index: 10; color: rgba(255, 255, 255, 0.85); font-size: 14px; font-weight: 600; letter-spacing: 0.15em; font-family: monospace; }
+.progress-track { position: absolute; z-index: 20; right: 5%; bottom: 3%; left: 5%; height: 3px; background: rgba(255, 255, 255, 0.25); border-radius: 2px; }
+.progress-bar { width: 0%; height: 100%; background: #d8bd72; border-radius: 2px; transform-origin: left center; }
+.film-grain { position: absolute; inset: 0; z-index: 15; pointer-events: none; opacity: 0.1; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E"); }
+.finale-content { left: 50%; right: auto; bottom: 50%; width: 85%; max-width: 1000px; text-align: center; transform: translate(-50%, 50%); }
+.finale-content .gold-line { margin: 26px auto 0 auto; }
+.finale-content .description { margin: 22px auto 0 auto; }
+`;
+      }
+
+      // 6. styles.css
       userCss = userCss.replace(/(\.scene-background\s*\{[^}]*?)transform\s*:\s*scale\([^)]+\)\s*;?/gi, '$1');
       await fs.promises.writeFile(path.join(projectDir, "styles.css"), userCss, "utf-8");
 
@@ -3294,27 +3626,93 @@ const server = http.createServer(async (req, res) => {
       }
 
       // 7. script.js
-      let userJs = (js || "").trim();
+      userJs = userJs.trim();
+
+      // Auto-inject GSAP choreography if user provided scenes but JS tab does not animate them
+      if (userHtml.includes("scene") && !userJs.includes(".scene")) {
+        userJs = `
+const composition = document.getElementById("composition") || document.getElementById("root");
+const scenes = [...document.querySelectorAll(".scene")];
+const progressBar = document.querySelector(".progress-bar");
+const TOTAL_DURATION = ${durNum.toFixed(2)};
+const sceneCount = Math.max(scenes.length, 1);
+const SCENE_DURATION = TOTAL_DURATION / sceneCount;
+
+const tl = gsap.timeline({ paused: true, defaults: { ease: "power2.out" } });
+
+// Make scene 1 immediately visible from frame 0 so thumbnail & initial seek shows text!
+if (scenes[0]) {
+  gsap.set(scenes[0], { autoAlpha: 1 });
+}
+
+scenes.forEach((scene, index) => {
+  const start = index * SCENE_DURATION;
+  const background = scene.querySelector(".scene-background");
+  const content = scene.querySelector(".scene-content");
+  const eyebrow = scene.querySelector(".eyebrow");
+  const headline = scene.querySelector(".headline");
+  const description = scene.querySelector(".description");
+  const line = scene.querySelector(".gold-line");
+
+  tl.set(scene, { autoAlpha: 1 }, start);
+
+  if (background) {
+    tl.fromTo(background, { scale: 1.12, xPercent: -1 }, { scale: 1.0, xPercent: 1, duration: SCENE_DURATION, ease: "none" }, start);
+  }
+  if (eyebrow) {
+    tl.fromTo(eyebrow, { y: 20, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.8 }, start + 0.1);
+  }
+  if (headline) {
+    tl.fromTo(headline, { y: 35, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 1.0 }, start + 0.2);
+  }
+  if (description) {
+    tl.fromTo(description, { y: 20, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.8 }, start + 0.4);
+  }
+  if (line) {
+    tl.fromTo(line, { scaleX: 0, autoAlpha: 0 }, { scaleX: 1, autoAlpha: 1, duration: 0.8 }, start + 0.5);
+  }
+
+  if (index < scenes.length - 1) {
+    tl.to(scene, { autoAlpha: 0, duration: 0.8 }, start + SCENE_DURATION - 0.8);
+  }
+});
+
+if (progressBar) {
+  tl.to(progressBar, { width: "100%", duration: TOTAL_DURATION, ease: "none" }, 0);
+}
+
+if (scenes.length > 0) {
+  tl.set(scenes[scenes.length - 1], { autoAlpha: 1 }, TOTAL_DURATION - 0.05);
+}
+
+window.__timelines = window.__timelines || {};
+window.__timelines["main"] = tl;
+window.__timelines["${title || "main"}"] = tl;
+`;
+      }
+
       const allCode = (html || "") + "\n" + userJs;
       const tlKeyMatch = allCode.match(/window\.__timelines\[["']([^"']+)["']\]/);
       const detectedTlId = tlKeyMatch ? tlKeyMatch[1] : null;
 
-      // Neutralize timeline.play() calls safely with block comment and void 0 so we never break if-statements without braces
-      userJs = userJs.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '/* timeline.play() bypassed for seek */ (void 0);');
+      // Clean up any corrupt nested comment fragments from past runs
+      userJs = userJs.replace(/\/\*[\s\S]*?timeline\.play[\s\S]*?\*\/(\s*\(void 0\);?|\s*bypassed for seek(\s*\*\/)?)*/gi, '(void 0);');
+      userJs = userJs.replace(/bypassed for seek(\s*\*\/)?\s*(\(void 0\);)?/gi, '');
+      // Neutralize timeline.play() calls safely with (void 0);
+      userJs = userJs.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '(void 0);');
 
       userJs = `window.__timelines = window.__timelines || {};
 ${userJs}
-if (typeof tl !== "undefined" && !window.__timelines["main"]) {
-  window.__timelines["main"] = tl;
-}
 ${detectedTlId && detectedTlId !== "main" ? `
-if (window.__timelines["${detectedTlId}"] && !window.__timelines["main"]) {
+if (window.__timelines["${detectedTlId}"]) {
   window.__timelines["main"] = window.__timelines["${detectedTlId}"];
-}
-if (window.__timelines["main"] && !window.__timelines["${detectedTlId}"]) {
+} else if (window.__timelines["main"]) {
   window.__timelines["${detectedTlId}"] = window.__timelines["main"];
 }
 ` : ""}
+if (typeof tl !== "undefined" && !window.__timelines["main"]) {
+  window.__timelines["main"] = tl;
+}
 if (!window.__timelines["main"] && typeof gsap !== "undefined") {
   const _baseTl = gsap.timeline({ paused: true });
   _baseTl.to("#root", { x: 0.01, duration: ${durNum.toFixed(2)}, ease: "none" });
@@ -3324,9 +3722,11 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
       await fs.promises.writeFile(path.join(projectDir, "script.js"), userJs, "utf-8");
 
       // 8. index.html
-      let userHtml = (html || "").trim();
+      userHtml = userHtml.trim();
       userHtml = userHtml.replace(/(\.scene-background\s*\{[^}]*?)transform\s*:\s*scale\([^)]+\)\s*;?/gi, '$1');
-      userHtml = userHtml.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '/* timeline.play() bypassed for seek */ (void 0);');
+      userHtml = userHtml.replace(/\/\*[\s\S]*?timeline\.play[\s\S]*?\*\/(\s*\(void 0\);?|\s*bypassed for seek(\s*\*\/)?)*/gi, '(void 0);');
+      userHtml = userHtml.replace(/bypassed for seek(\s*\*\/)?\s*(\(void 0\);)?/gi, '');
+      userHtml = userHtml.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '(void 0);');
       userHtml = userHtml.replace(/<\/html\s*$/i, '</html>');
       userHtml = userHtml.replace(/<section\b([^>]*\bclass=["'][^"']*\bscene\b[^"']*["'][^>]*)>/gi, (match, attrs) => {
         if (!/\bclip\b/.test(attrs)) {
@@ -3684,7 +4084,7 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             outputPath: outputMp4Path,
             resolution,
             format: "mp4",
-            extractFrames: true,
+            extractFrames: false,
           });
 
           if (!renderResult.success || !fs.existsSync(outputMp4Path)) {
@@ -3847,6 +4247,139 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
         }
       });
       return;
+    }
+
+    // AI VIDEO AGENT — Ollama LLM Editing & Element-targeted modifications
+    if (
+      req.method === "POST" &&
+      (req.url === "/api/agent/edit" || req.url === "/backend-api/agent/edit" || req.url === "/agent/edit")
+    ) {
+      try {
+        const body = await readBody(req);
+        const {
+          projectId,
+          instruction,
+          selectedElement,
+          currentCode,
+          selectedFile = "index.html",
+          model,
+          endpoint: customEndpoint,
+          apiKey: customApiKey,
+        } = body;
+
+        if (!instruction || !instruction.trim()) {
+          return send(res, 400, { success: false, error: "Instruction prompt is required" });
+        }
+
+        const apiKey = customApiKey || process.env.AI_API_KEY || process.env.OLLAMA_API_KEY;
+        const rawBaseUrl = customEndpoint || process.env.AI_BASE_URL || process.env.AI_ENDPOINT || process.env.OLLAMA_BASE_URL || "https://api.ollima.com/v1";
+        const baseUrl = rawBaseUrl.replace(/\/+$/, "");
+        const targetUrl = baseUrl.endsWith("/chat/completions") ? baseUrl : `${baseUrl}/chat/completions`;
+        const activeModel = model || process.env.AI_MODEL || "gemini-3-flash";
+
+        // Build target element context snippet
+        let elementContext = "No specific element selected. Apply edits across the composition or active scene as requested.";
+        if (selectedElement) {
+          elementContext = `TARGET ELEMENT SELECTED BY USER:
+- Tag: <${selectedElement.tag || "div"}>
+- ID: #${selectedElement.id || "unknown"}
+- Class / Type: ${selectedElement.type || "element"}
+- Current Text: ${selectedElement.text ? `"${selectedElement.text}"` : "(none/container)"}
+- Current Styles: ${JSON.stringify(selectedElement.styles || {})}
+- Current Attributes: ${JSON.stringify(selectedElement.attributes || {})}`;
+        }
+
+        const systemPrompt = `You are an expert AI Video Editor & Motion Graphics Designer for HyperFrames compositions.
+HyperFrames compositions are frame-accurate web videos built using HTML5, CSS3, and GSAP timelines.
+Key rules:
+1. When modifying code, keep deterministic motion rules: preserve data-start, data-duration, class="clip", and existing valid structure.
+2. If the user specifies changes for the selected element, apply surgical edits targeting that specific element's styles, text, animations, or layout while preserving the rest of the composition intact.
+3. If the user asks for new visual flair, fonts, gradients, glowing effects, or GSAP keyframe animations, provide sleek, high-end production-quality motion design.
+4. Output your response STRICTLY as valid JSON with NO markdown code fences or backticks outside the JSON:
+{
+  "summary": "Brief 1-sentence description of the edit made",
+  "updatedCode": "The complete updated source code for ${selectedFile}",
+  "diffSummary": "Short explanation of exactly what was modified or added",
+  "targetElementId": "${selectedElement?.id || ""}"
+}`;
+
+        const userPrompt = `${elementContext}
+
+USER INSTRUCTION:
+${instruction}
+
+CURRENT FILE CONTENT (${selectedFile}):
+\`\`\`
+${currentCode || ""}
+\`\`\`
+
+Return only the JSON object containing the updated code and summary.`;
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
+
+        const aiResponse = await fetch(targetUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+          },
+          body: JSON.stringify({
+            model: activeModel,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            temperature: 0.2,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        if (!aiResponse.ok) {
+          const errText = await aiResponse.text();
+          return send(res, aiResponse.status, {
+            success: false,
+            error: `Ollama API Error (${aiResponse.status}): ${errText}`,
+          });
+        }
+
+        const aiJson = await aiResponse.json();
+        const content = aiJson.choices?.[0]?.message?.content || "";
+
+        // Parse JSON from content (handling possible markdown fences ```json ... ```)
+        let cleaned = content.trim();
+        if (cleaned.startsWith("```")) {
+          cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+        }
+
+        let parsed;
+        try {
+          parsed = JSON.parse(cleaned);
+        } catch (pErr) {
+          // If JSON parse fails, check if the LLM returned raw HTML/code
+          parsed = {
+            summary: "AI edits applied directly to composition.",
+            updatedCode: cleaned,
+            diffSummary: instruction,
+          };
+        }
+
+        return send(res, 200, {
+          success: true,
+          model: activeModel,
+          summary: parsed.summary || "Edit applied successfully",
+          diffSummary: parsed.diffSummary || "Modified composition code",
+          updatedCode: parsed.updatedCode || currentCode,
+          targetElementId: parsed.targetElementId || selectedElement?.id || null,
+        });
+      } catch (err) {
+        console.error("[Agent Edit Error]:", err);
+        return send(res, 500, {
+          success: false,
+          error: err.message || String(err),
+        });
+      }
     }
 
     // DIRECT GENERATE API — Allows headless / tunnel direct video generation with web crawling & AI rendering

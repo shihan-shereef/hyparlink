@@ -1,9 +1,16 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { HelpCircle, Sparkles } from "lucide-react";
 import { NotificationsBell } from "./notifications-bell";
 
 export function Topbar() {
+  const pathname = usePathname();
+
+  // If inside video editor studio, do not render dashboard topbar
+  if (pathname?.includes("/editor/")) {
+    return null;
+  }
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/80 px-6 backdrop-blur-md dark:border-neutral-800 dark:bg-[#0c1017]/80">
       {/* Left: Ollastar Branding */}

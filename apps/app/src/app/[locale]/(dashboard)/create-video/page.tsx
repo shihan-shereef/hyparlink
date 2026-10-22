@@ -545,12 +545,71 @@ window.__timelines["main"] = tl;`);
     }
   };
 
-  const handleAutoFixDirectCode = async () => {
-    let repairedHtml = directHtml;
-    let repairedJs = directJs;
-    let repairedCss = directCss;
+  const repairDirectCodePayload = (
+    inHtml: string,
+    inCss: string,
+    inJs: string,
+    dur: number,
+    res: string
+  ) => {
+    let repairedHtml = (inHtml || "").trim();
+    let repairedJs = (inJs || "").trim();
+    let repairedCss = (inCss || "").trim();
 
-    // 0. Auto-strip leading comments before <!DOCTYPE html> and ensure valid HTML wrapper
+    // 0a. Strip markdown code fences (```html ... ``` or ```css ... ``` or ```)
+    repairedHtml = repairedHtml
+      .replace(/^```[a-z0-9_-]*\s*\n?/i, "")
+      .replace(/\n?```\s*$/i, "")
+      .trim();
+
+    // 0b. Strip stray leading markdown hyphens/bullets, e.g. "-\n" or "- #composition" or "* "
+    repairedHtml = repairedHtml
+      .replace(/^[\s\-\*•]+(?=(?:<!DOCTYPE|<html|<div|<main|<section|#|\.|\/\*|[a-z]))/i, "")
+      .trim();
+
+    // 0c. Extract <style>...</style> if present in HTML and copy to repairedCss without deleting from HTML
+    const styleMatches = repairedHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+    if (styleMatches) {
+      for (const match of styleMatches) {
+        const cssContent = match.replace(/<\/?style[^>]*>/gi, "").trim();
+        if (cssContent && !repairedCss.includes(cssContent.slice(0, 30))) {
+          repairedCss = (repairedCss ? repairedCss + "\n\n" : "") + cssContent;
+        }
+      }
+    }
+
+    // 0d. Extract inline <script>...</script> if present (exclude scripts with src=) and copy to repairedJs without deleting from HTML
+    const scriptMatches = repairedHtml.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi);
+    if (scriptMatches) {
+      for (const match of scriptMatches) {
+        const jsContent = match.replace(/<\/?script[^>]*>/gi, "").trim();
+        if (jsContent && !repairedJs.includes(jsContent.slice(0, 30))) {
+          repairedJs = (repairedJs ? repairedJs + "\n\n" : "") + jsContent;
+        }
+      }
+    }
+
+    // 0e. Check if user pasted pure CSS into the HTML tab (CSS rules with no HTML opening/closing tags)
+    const hasHtmlTags = /<[a-z0-9_-]+[\s>]/i.test(repairedHtml);
+    const looksLikeCss = /(?:^|\n)\s*(?:#[a-z0-9_-]+|\.[a-z0-9_-]+|[a-z0-9_-]+)\s*\{[^}]*\}/i.test(repairedHtml);
+    if (!hasHtmlTags && looksLikeCss) {
+      if (!repairedCss.includes(repairedHtml.slice(0, 30))) {
+        repairedCss = (repairedCss ? repairedCss + "\n\n" : "") + repairedHtml;
+      }
+      const w = res === "720p" ? 1280 : 1920;
+      const h = res === "720p" ? 720 : 1080;
+      repairedHtml = `<div id="composition" class="clip" data-start="0" data-duration="${dur}" data-width="${w}" data-height="${h}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true">
+  <section class="scene clip" data-start="0" data-duration="${dur}">
+    <div class="scene-background"></div>
+    <div class="content">
+      <h1 class="main-heading">Ollastar Motion Studio</h1>
+      <p class="sub-heading">HyperFrames & FFmpeg Direct Composition</p>
+    </div>
+  </section>
+</div>`;
+    }
+
+    // 0f. Auto-strip leading comments before <!DOCTYPE html> and ensure valid HTML wrapper if needed
     repairedHtml = repairedHtml.replace(/^(\s*<!--[\s\S]*?-->\s*)+/i, "");
     if (!/<!doctype\s+html/i.test(repairedHtml)) {
       if (/<html\b/i.test(repairedHtml)) {
@@ -604,10 +663,10 @@ window.__timelines["main"] = tl;`);
         }
         // ensure start & duration
         if (!/data-start=/i.test(updated)) updated += ` data-start="0"`;
-        if (!/data-duration=/i.test(updated)) updated += ` data-duration="${directDuration}"`;
+        if (!/data-duration=/i.test(updated)) updated += ` data-duration="${dur}"`;
         // ensure dimensions and layout overrides
-        const w = directResolution === "720p" ? 1280 : 1920;
-        const h = directResolution === "720p" ? 720 : 1080;
+        const w = res === "720p" ? 1280 : 1920;
+        const h = res === "720p" ? 720 : 1080;
         if (!/data-width=/i.test(updated)) updated += ` data-width="${w}"`;
         if (!/data-height=/i.test(updated)) updated += ` data-height="${h}"`;
         if (!/data-layout-allow-overflow=/i.test(updated)) updated += ` data-layout-allow-overflow="true"`;
@@ -625,24 +684,44 @@ window.__timelines["main"] = tl;`);
     repairedHtml = repairedHtml.replace(/(['"]?letter[-S]pacing['"]?\s*:\s*)[^,\}\n]+/gi, '/* letterSpacing held */ opacity: 1');
     repairedJs = repairedJs.replace(/(['"]?letter[-S]pacing['"]?\s*:\s*)[^,\}\n]+/gi, '/* letterSpacing held */ opacity: 1');
 
-    // 5. Neutralize timeline.play() calls so they don't break seek
-    repairedHtml = repairedHtml.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '/* timeline.play() bypassed for seek */ (void 0);');
-    repairedJs = repairedJs.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '/* timeline.play() bypassed for seek */ (void 0);');
+    // 5. Clean up any corrupted comment fragments from previous runs
+    repairedHtml = repairedHtml.replace(/\/\*[\s\S]*?timeline\.play[\s\S]*?\*\/(\s*\(void 0\);?|\s*bypassed for seek(\s*\*\/)?)*/gi, '(void 0);');
+    repairedHtml = repairedHtml.replace(/bypassed for seek(\s*\*\/)?\s*(\(void 0\);)?/gi, '');
+    repairedJs = repairedJs.replace(/\/\*[\s\S]*?timeline\.play[\s\S]*?\*\/(\s*\(void 0\);?|\s*bypassed for seek(\s*\*\/)?)*/gi, '(void 0);');
+    repairedJs = repairedJs.replace(/bypassed for seek(\s*\*\/)?\s*(\(void 0\);)?/gi, '');
+
+    // Safely neutralize timeline.play() calls without comments so keywords never get exposed
+    repairedHtml = repairedHtml.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '(void 0);');
+    repairedJs = repairedJs.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '(void 0);');
 
     // 6. Detect duration from code if present (e.g. TOTAL_DURATION = 40 or data-duration="40")
     const durMatch = (repairedHtml + "\n" + repairedJs).match(/(?:TOTAL_DURATION|data-duration)=["']?(\d+)["']?/i);
-    let matchedDur = directDuration;
+    let matchedDur = dur;
     if (durMatch && durMatch[1]) {
       const parsedDur = parseInt(durMatch[1], 10);
       if ([5, 15, 30, 40, 60].includes(parsedDur)) {
         matchedDur = parsedDur;
-        setDirectDuration(parsedDur);
       }
     }
 
-    setDirectHtml(repairedHtml);
-    setDirectJs(repairedJs);
-    setDirectCss(repairedCss);
+    return { repairedHtml, repairedCss, repairedJs, matchedDur };
+  };
+
+  const handleAutoFixDirectCode = async () => {
+    const cleaned = repairDirectCodePayload(
+      directHtml,
+      directCss,
+      directJs,
+      directDuration,
+      directResolution
+    );
+
+    if (cleaned.matchedDur !== directDuration) {
+      setDirectDuration(cleaned.matchedDur);
+    }
+    setDirectHtml(cleaned.repairedHtml);
+    setDirectJs(cleaned.repairedJs);
+    setDirectCss(cleaned.repairedCss);
 
     toast.loading("Applying fixes & re-validating...", { id: "autofix" });
     try {
@@ -650,10 +729,10 @@ window.__timelines["main"] = tl;`);
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          html: repairedHtml,
-          css: repairedCss,
-          js: repairedJs,
-          duration: matchedDur,
+          html: cleaned.repairedHtml,
+          css: cleaned.repairedCss,
+          js: cleaned.repairedJs,
+          duration: cleaned.matchedDur,
           width: directResolution === "720p" ? 1280 : 1920,
           height: directResolution === "720p" ? 720 : 1080,
           fps: directFps,
@@ -675,11 +754,31 @@ window.__timelines["main"] = tl;`);
   };
 
   const handleRenderDirectCode = async (overrideHtml?: string | React.SyntheticEvent) => {
-    const htmlToRender = (typeof overrideHtml === "string" ? overrideHtml : directHtml).trim();
-    if (!htmlToRender) {
+    const rawHtml = (typeof overrideHtml === "string" ? overrideHtml : directHtml).trim();
+    if (!rawHtml) {
       toast.error("Please enter HTML source code");
       return;
     }
+
+    // Auto-repair code prior to sending to ensure bulletproof compilation
+    const cleaned = repairDirectCodePayload(
+      rawHtml,
+      directCss,
+      directJs,
+      directDuration,
+      directResolution
+    );
+
+    setDirectHtml(cleaned.repairedHtml);
+    setDirectCss(cleaned.repairedCss);
+    setDirectJs(cleaned.repairedJs);
+    if (cleaned.matchedDur !== directDuration) {
+      setDirectDuration(cleaned.matchedDur);
+    }
+
+    const htmlToRender = cleaned.repairedHtml;
+    const effectiveDuration = cleaned.matchedDur;
+
     setIsSubmitting(true);
     try {
       const targetWs = current || activeWorkspaceId;
@@ -693,33 +792,9 @@ window.__timelines["main"] = tl;`);
       const extractedTitle = titleMatch && titleMatch[1] ? titleMatch[1].trim() : "";
       const effectiveTitle = (directTitle || extractedTitle || "Direct Code Video").trim();
 
-      // Extract duration from data-duration attribute if present
-      let effectiveDuration = directDuration || 30;
-      const durMatch = htmlToRender.match(/data-duration=["']?(\d+)["']?/i);
-      if (durMatch && durMatch[1] && (!directDuration || directDuration === 15 || directDuration === 30)) {
-        const parsedDur = Number(durMatch[1]);
-        if (!isNaN(parsedDur) && parsedDur > 0) {
-          effectiveDuration = parsedDur;
-        }
-      }
+      const projId = `proj_code_${Date.now()}`;
 
-      let projId = `proj_code_${Date.now()}`;
-      try {
-        const res: any = await createProject({
-          workspaceId: targetWs,
-          name: effectiveTitle,
-          prompt: "DIRECT_CODE_RENDER",
-          duration: effectiveDuration,
-          width,
-          height,
-          fps: directFps,
-          mode: "direct_code",
-        });
-        if (res?.projectId) projId = res.projectId;
-      } catch (e: any) {
-        console.error("Direct code createProject notice:", e);
-      }
-
+      // Instantly set active project ID and polled state so the UI immediately shows the live 5-stage progress card
       setActiveProjectId(projId as any);
       setPolledProject({
         _id: projId,
@@ -730,14 +805,31 @@ window.__timelines["main"] = tl;`);
         duration: effectiveDuration,
       });
 
+      // Smooth scroll to top so the progress card is immediately in view
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      // Non-blocking background sync to Convex (never blocks the render pipeline)
+      createProject({
+        workspaceId: targetWs,
+        name: effectiveTitle,
+        prompt: "DIRECT_CODE_RENDER",
+        duration: effectiveDuration,
+        width,
+        height,
+        fps: directFps,
+        mode: "direct_code",
+      }).catch((e) => console.log("Direct code background sync notice:", e));
+
       const { ok, data, error } = await safeJsonFetch("/api/direct-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId: projId,
           html: htmlToRender,
-          css: directCss,
-          js: directJs,
+          css: cleaned.repairedCss,
+          js: cleaned.repairedJs,
           duration: effectiveDuration,
           width,
           height,
@@ -2339,8 +2431,8 @@ window.__timelines["main"] = tl;`);
   });
 
   return (
-    <div className="relative flex min-h-[calc(100vh-3.5rem)] w-full flex-col justify-between bg-[#fcfdfe] dark:bg-[#090d14] text-slate-800 dark:text-slate-100 px-4 py-8 overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center my-auto space-y-6">
+    <div className="relative flex min-h-[calc(100vh-3.5rem)] w-full flex-col justify-start bg-[#fcfdfe] dark:bg-[#090d14] text-slate-800 dark:text-slate-100 px-4 py-6 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-start space-y-6">
 
         {/* BRAND LOGO & MOTTO (Ollastar with Coconut Tree Logo) */}
         <div className="flex flex-col items-center justify-center space-y-4 pt-2">
@@ -2958,9 +3050,8 @@ window.__timelines["main"] = tl;`);
                 </div>
               </div>
 
-              {/* Right Controls: Language Tabs */}
+              {/* Right Controls: Language Tabs & Header Render Button */}
               <div className="flex flex-wrap items-center gap-2">
-
                 {/* Code Language Tabs */}
                 <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-neutral-800">
                   {(["html", "css", "js"] as const).map((tab) => (
@@ -2978,6 +3069,26 @@ window.__timelines["main"] = tl;`);
                     </button>
                   ))}
                 </div>
+
+                {/* Primary Top Render Button — Always visible without scrolling */}
+                <button
+                  type="button"
+                  disabled={isSubmitting || isValidatingCode || !directHtml.trim()}
+                  onClick={() => handleRenderDirectCode()}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-xs font-bold text-white shadow-md transition cursor-pointer ${
+                    isSubmitting
+                      ? "bg-slate-400 cursor-not-allowed"
+                      : "bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-indigo-500/20"
+                  }`}
+                  title="Render video from this direct code"
+                >
+                  {isSubmitting ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5 fill-current" />
+                  )}
+                  <span>Render Video ({directDuration}s)</span>
+                </button>
               </div>
             </div>
 
@@ -3002,8 +3113,8 @@ window.__timelines["main"] = tl;`);
                 <textarea
                   value={directHtml}
                   onChange={(e) => setDirectHtml(e.target.value)}
-                  rows={11}
-                  className="w-full resize-y bg-transparent font-mono text-xs leading-relaxed text-slate-200 placeholder:text-slate-600 focus:outline-none"
+                  rows={12}
+                  className="w-full max-h-[360px] resize-y overflow-y-auto bg-transparent font-mono text-xs leading-relaxed text-slate-200 placeholder:text-slate-600 focus:outline-none"
                   placeholder="<!-- Enter HTML here -->"
                   spellCheck={false}
                 />
@@ -3012,8 +3123,8 @@ window.__timelines["main"] = tl;`);
                 <textarea
                   value={directCss}
                   onChange={(e) => setDirectCss(e.target.value)}
-                  rows={11}
-                  className="w-full resize-y bg-transparent font-mono text-xs leading-relaxed text-indigo-200 placeholder:text-slate-600 focus:outline-none"
+                  rows={12}
+                  className="w-full max-h-[360px] resize-y overflow-y-auto bg-transparent font-mono text-xs leading-relaxed text-indigo-200 placeholder:text-slate-600 focus:outline-none"
                   placeholder="/* Enter CSS here */"
                   spellCheck={false}
                 />
@@ -3022,8 +3133,8 @@ window.__timelines["main"] = tl;`);
                 <textarea
                   value={directJs}
                   onChange={(e) => setDirectJs(e.target.value)}
-                  rows={11}
-                  className="w-full resize-y bg-transparent font-mono text-xs leading-relaxed text-emerald-200 placeholder:text-slate-600 focus:outline-none"
+                  rows={12}
+                  className="w-full max-h-[360px] resize-y overflow-y-auto bg-transparent font-mono text-xs leading-relaxed text-emerald-200 placeholder:text-slate-600 focus:outline-none"
                   placeholder="// Enter GSAP timeline registration here"
                   spellCheck={false}
                 />
@@ -3062,8 +3173,8 @@ window.__timelines["main"] = tl;`);
               </div>
             )}
 
-            {/* Direct Code Controls & Actions */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 pt-4 dark:border-neutral-800">
+            {/* Direct Code Controls & Actions (Sticky Bottom Bar) */}
+            <div className="sticky bottom-0 z-20 -mx-5 -mb-5 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 bg-white/95 p-4 backdrop-blur-md rounded-b-3xl dark:border-neutral-800 dark:bg-[#111520]/95 shadow-lg">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] font-semibold text-slate-400 uppercase">Duration:</span>
@@ -3128,11 +3239,11 @@ window.__timelines["main"] = tl;`);
                 <button
                   type="button"
                   disabled={isSubmitting || isValidatingCode || !directHtml.trim()}
-                  onClick={handleRenderDirectCode}
+                  onClick={() => handleRenderDirectCode()}
                   className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-xs font-bold text-white shadow-md transition cursor-pointer ${
                     isSubmitting
                       ? "bg-slate-400 cursor-not-allowed"
-                      : "bg-indigo-600 hover:bg-indigo-700"
+                      : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20 active:scale-95"
                   }`}
                 >
                   {isSubmitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5 fill-current" />}
