@@ -127,13 +127,22 @@ export function AuthForm() {
 
   // Passwordless Email OTP Flow via Ollastack Mailbox
   const submitOtpRequest = go(async () => {
-    await signIn("resend-otp", { email });
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      throw new Error("Please enter a valid email address.");
+    }
+    await signIn("resend-otp", { email: cleanEmail });
     setOtpSent(true);
-    setInfo("8-digit verification code sent to your email via Ollastack Mailbox.");
+    setInfo(`8-digit verification code sent to ${cleanEmail} via Ollastack Mailbox.`);
   });
 
   const submitOtpVerify = go(async () => {
-    await signIn("resend-otp", { email, code });
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = code.trim().replace(/\s+/g, "");
+    if (!cleanCode) {
+      throw new Error("Please enter your 8-digit verification code.");
+    }
+    await signIn("resend-otp", { email: cleanEmail, code: cleanCode });
     window.location.href = "/";
   });
 

@@ -33,4 +33,16 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [PasswordWithFlows, ResendOTP, GoogleProvider],
   // Brute-force protection: per-email token bucket (default is 10/hr) on password + OTP.
   signIn: { maxFailedAttempsPerHour: 5 },
+  callbacks: {
+    async redirect({ redirectTo }) {
+      const site =
+        process.env.SITE_URL ||
+        "https://burke-parallel-nearest-condo.trycloudflare.com";
+      if (!redirectTo || redirectTo === "/") return site;
+      if (redirectTo.startsWith("http://") || redirectTo.startsWith("https://")) {
+        return redirectTo;
+      }
+      return `${site.replace(/\/$/, "")}${redirectTo.startsWith("/") ? "" : "/"}${redirectTo}`;
+    },
+  },
 });
