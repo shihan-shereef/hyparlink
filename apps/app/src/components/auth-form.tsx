@@ -142,7 +142,10 @@ export function AuthForm() {
     if (!cleanCode) {
       throw new Error("Please enter your 8-digit verification code.");
     }
-    await signIn("resend-otp", { email: cleanEmail, code: cleanCode });
+    const res = await signIn("resend-otp", { email: cleanEmail, code: cleanCode });
+    if (!res || !res.signingIn) {
+      throw new Error("Invalid or expired verification code. Please check your latest email or click Resend code.");
+    }
     window.location.href = "/";
   });
 

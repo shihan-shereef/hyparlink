@@ -12,7 +12,7 @@ for (const rel of targetFiles) {
   const p = path.resolve(process.cwd(), rel);
   if (fs.existsSync(p)) {
     let content = fs.readFileSync(p, "utf-8");
-    if (content.includes("originURL.host !== request.headers.get(\"Host\")")) {
+    if (content.includes('originURL.host !== request.headers.get("Host")')) {
       content = content.replace(
         /export function isCorsRequest\(request[\s\S]*?\n\}/,
         `export function isCorsRequest(request) {
@@ -29,6 +29,53 @@ for (const rel of targetFiles) {
       );
       fs.writeFileSync(p, content, "utf-8");
       console.log(`[patch] Successfully patched reverse proxy support in ${rel}`);
+    }
+  }
+}
+
+const proxyFiles = [
+  "node_modules/@convex-dev/auth/dist/nextjs/server/proxy.js",
+  "node_modules/@convex-dev/auth/src/nextjs/server/proxy.ts",
+  "../../node_modules/@convex-dev/auth/dist/nextjs/server/proxy.js",
+  "../../node_modules/@convex-dev/auth/src/nextjs/server/proxy.ts",
+];
+
+for (const rel of proxyFiles) {
+  const p = path.resolve(process.cwd(), rel);
+  if (fs.existsSync(p)) {
+    let content = fs.readFileSync(p, "utf-8");
+    if (content.includes("const response = jsonResponse(null);")) {
+      content = content.replace(
+        "const response = jsonResponse(null);",
+        'const response = jsonResponse({ error: (error?.message || "Authentication failed"), tokens: null });'
+      );
+      fs.writeFileSync(p, content, "utf-8");
+      console.log(`[patch] Patched error response in ${rel}`);
+    }
+  }
+}
+
+const clientFiles = [
+  "node_modules/@convex-dev/auth/dist/react/client.js",
+  "node_modules/@convex-dev/auth/src/react/client.tsx",
+  "../../node_modules/@convex-dev/auth/dist/react/client.js",
+  "../../node_modules/@convex-dev/auth/src/react/client.tsx",
+];
+
+for (const rel of clientFiles) {
+  const p = path.resolve(process.cwd(), rel);
+  if (fs.existsSync(p)) {
+    let content = fs.readFileSync(p, "utf-8");
+    if (content.includes("const result = await client.authenticatedCall(")) {
+      content = content.replace(
+        "const result = await client.authenticatedCall(",
+        "const result = (await client.authenticatedCall("
+      ).replace(
+        'provider, params, verifier });',
+        'provider, params, verifier })) || {};'
+      );
+      fs.writeFileSync(p, content, "utf-8");
+      console.log(`[patch] Patched null safe result in ${rel}`);
     }
   }
 }
