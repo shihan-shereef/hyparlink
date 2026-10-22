@@ -1,0 +1,8 @@
+================================================================================
+HYPARLINK ACTIVE CLOUDFLARE TUNNELS (LIVE FROM VM)
+================================================================================
+Public App URL:    https://burke-parallel-nearest-condo.trycloudflare.com
+Convex Public URL: https://communicate-ecommerce-advancement-subscription.trycloudflare.com
+Direct VM IP URL:  http://10.70.70.43/
+Convex Dashboard:  http://10.70.70.43:6791/
+================================================================================
