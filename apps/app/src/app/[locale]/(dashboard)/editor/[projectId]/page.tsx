@@ -135,15 +135,19 @@ export default function ProjectOllaEditorPage() {
         (window.location.hostname === "localhost" ||
           window.location.hostname === "127.0.0.1");
 
-      if (
-        isHttps &&
-        !isLocalhost &&
-        (data.tunnelStudioUrl || process.env.NEXT_PUBLIC_STUDIO_URL)
-      ) {
-        const tunnelBase =
-          data.tunnelStudioUrl ||
-          `${process.env.NEXT_PUBLIC_STUDIO_URL}/#project/${data.projectName || data.sessionId}`;
-        finalStudioUrl = tunnelBase;
+      if (isHttps && !isLocalhost) {
+        // Remote (Cloudflare/production) deployment:
+        // Priority 1: explicit studio tunnel URL (separate CF tunnel for studio)
+        // Priority 2: proxy URL through backend-echo (works in all HTTPS deployments)
+        if (data.tunnelStudioUrl) {
+          finalStudioUrl = data.tunnelStudioUrl;
+        } else if (process.env.NEXT_PUBLIC_STUDIO_URL) {
+          const tunnelBase = process.env.NEXT_PUBLIC_STUDIO_URL.replace(/\/+$/, "");
+          finalStudioUrl = `${tunnelBase}/#project/${data.projectName || data.sessionId}`;
+        } else if (data.proxyStudioUrl) {
+          // Use the backend-echo proxy route — accessible via the main Cloudflare tunnel
+          finalStudioUrl = data.proxyStudioUrl;
+        }
       } else if (isLocalhost && finalStudioUrl) {
         finalStudioUrl = finalStudioUrl.replace("127.0.0.1", "localhost");
       }

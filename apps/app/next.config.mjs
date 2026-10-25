@@ -46,6 +46,11 @@ const nextConfig = {
         source: "/convex/:path*",
         destination: "http://127.0.0.1:3210/:path*",
       },
+      {
+        // Studio proxy: makes HyperFrames Studio accessible over HTTPS
+        source: "/studio-proxy/:path*",
+        destination: "http://127.0.0.1:4000/studio-proxy/:path*",
+      },
     ];
   },
   async headers() {

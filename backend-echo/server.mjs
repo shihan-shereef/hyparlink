@@ -3471,6 +3471,8 @@ const server = http.createServer(async (req, res) => {
           tunnelStudioUrl:
             session.tunnelStudioUrl ||
             getStudioTunnelUrl(session.projectName || projectId),
+          // Proxy URL: routed through backend-echo → accessible over HTTPS/Cloudflare
+          proxyStudioUrl: `/studio-proxy/${session.port}/#project/${session.projectName || projectId}`,
           projectName: session.projectName,
           projectDirectory: resolved.dir,
           reused: session.reused,
@@ -6613,6 +6615,121 @@ Return only the JSON object containing the updated code and summary.`;
       const body = await readBody(req);
       const r = await postWebhook({ type: "demo.echo", ...body });
       return send(res, 200, { posted: true, convexStatus: r?.status ?? 200 });
+    }
+
+    // =========================================================
+    // STUDIO PROXY: GET /studio-proxy/:port[/:path*]
+    // Transparently proxies the HyperFrames Studio SPA through
+    // backend-echo so it is reachable over HTTPS via Cloudflare.
+    // Injects <base href> + fetch interceptor for relative paths.
+    // =========================================================
+    if (req.url.startsWith("/studio-proxy/")) {
+      const urlPath = req.url.replace("/studio-proxy/", "");
+      const portMatch = urlPath.match(/^(\d{4,5})(\/.*)?(\?.*)?$/);
+      if (!portMatch) return send(res, 400, { error: "Invalid studio proxy path" });
+
+      const studioPort = parseInt(portMatch[1], 10);
+      let subPath = portMatch[2] || "/";
+
+      // Security: only allow known studio port range
+      if (studioPort < 3000 || studioPort > 4000) {
+        return send(res, 403, { error: "Port out of allowed range" });
+      }
+
+      // Preserve query string
+      const qIdx = req.url.indexOf("?");
+      const qs = qIdx >= 0 ? req.url.slice(qIdx) : "";
+      if (qs && !subPath.includes("?")) subPath = subPath + qs;
+
+      const proxyTarget = `http://127.0.0.1:${studioPort}${subPath}`;
+
+      try {
+        const proxyFetch = await fetch(proxyTarget, {
+          method: req.method,
+          headers: (() => {
+            const h = {};
+            for (const [k, v] of Object.entries(req.headers)) {
+              if (!["host", "connection", "transfer-encoding"].includes(k.toLowerCase())) {
+                h[k] = v;
+              }
+            }
+            h["host"] = `127.0.0.1:${studioPort}`;
+            return h;
+          })(),
+          signal: AbortSignal.timeout(15000),
+          // don't follow redirects — pass them through
+          redirect: "manual",
+        }).catch(() => null);
+
+        if (!proxyFetch) {
+          // Studio not yet ready on this port
+          res.writeHead(503, { "Content-Type": "text/html" });
+          res.end(`<html><body style="background:#070b14;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><div style="text-align:center"><h2 style="color:#a855f7">Olla Editor starting...</h2><p style="color:#888;margin-top:8px">Studio server initializing on port ${studioPort}. Please wait.</p><script>setTimeout(()=>location.reload(),3000)</script></div></body></html>`);
+          return;
+        }
+
+        const contentType = proxyFetch.headers.get("content-type") || "";
+        const isHtml = contentType.includes("text/html");
+
+        // Forward response headers (skip hop-by-hop)
+        const skipHeaders = new Set(["transfer-encoding", "content-encoding", "content-length", "connection", "keep-alive"]);
+        for (const [key, value] of proxyFetch.headers.entries()) {
+          if (!skipHeaders.has(key.toLowerCase())) {
+            try { res.setHeader(key, value); } catch (_) {}
+          }
+        }
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("X-Studio-Proxy", `port:${studioPort}`);
+
+        if (isHtml) {
+          let html = await proxyFetch.text();
+          const baseHref = `/studio-proxy/${studioPort}/`;
+
+          // Inject <base href> so relative URLs resolve correctly
+          if (!html.includes("<base ")) {
+            html = html.replace(/<head>/i, `<head><base href="${baseHref}">`);
+          }
+
+          // Inject fetch + XHR interceptor so absolute-path API calls
+          // are also routed through the proxy
+          const interceptor = `<script>
+(function(){
+  var BP='/studio-proxy/${studioPort}';
+  var _fetch=window.fetch;
+  window.fetch=function(input,init){
+    if(typeof input==='string'&&input.startsWith('/')&&!input.startsWith('/studio-proxy/')){input=BP+input;}
+    else if(input instanceof Request&&input.url.startsWith('/')&&!input.url.startsWith('/studio-proxy/')){input=new Request(BP+input.url,input);}
+    return _fetch.apply(this,arguments);
+  };
+  var _open=XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open=function(m,u){
+    if(typeof u==='string'&&u.startsWith('/')&&!u.startsWith('/studio-proxy/')){u=BP+u;}
+    var args=Array.from(arguments);args[1]=u;
+    return _open.apply(this,args);
+  };
+  // Fix WebSocket if used
+  var _WS=window.WebSocket;
+  if(_WS){window.WebSocket=function(url,protocols){
+    if(url&&url.startsWith('ws://localhost')||url&&url.startsWith('ws://127.0.0.1')){/* keep local ws as-is */}
+    return protocols?new _WS(url,protocols):new _WS(url);
+  };window.WebSocket.prototype=_WS.prototype;}
+})();
+</script>`;
+          html = html.replace(/<\/head>/i, `${interceptor}</head>`);
+
+          res.writeHead(proxyFetch.status);
+          res.end(html);
+        } else {
+          // Binary / non-HTML: stream bytes through
+          res.writeHead(proxyFetch.status);
+          const buf = await proxyFetch.arrayBuffer();
+          res.end(Buffer.from(buf));
+        }
+      } catch (proxyErr) {
+        res.writeHead(502, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: `Studio proxy error: ${proxyErr.message}` }));
+      }
+      return;
     }
 
     send(res, 404, { error: "not found" });
