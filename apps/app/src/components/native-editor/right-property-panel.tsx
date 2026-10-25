@@ -32,11 +32,14 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  Gauge
 } from "lucide-react";
-import { SelectedElement, RenderJob, CompositionLayer, ExportSettings } from "./types";
+import { SelectedElement, RenderJob, CompositionLayer, ExportSettings, CompositionScene } from "./types";
 import { toast } from "sonner";
 
 interface RightPropertyPanelProps {
+  activeTab?: "design" | "layers" | "renders" | "variables";
+  onTabChange?: (tab: "design" | "layers" | "renders" | "variables") => void;
   selectedElement: SelectedElement | null;
   onUpdateStyle: (elementId: string, property: string, value: string) => void;
   onUpdateText: (elementId: string, text: string) => void;
@@ -51,9 +54,15 @@ interface RightPropertyPanelProps {
   onSelectPreviewVideo?: (videoUrl: string) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  playbackSpeed?: number;
+  onSpeedChange?: (speed: number) => void;
+  activeScene?: CompositionScene;
+  onSetSceneSpeed?: (sceneId: string, speedMultiplier: number) => void;
 }
 
 export const RightPropertyPanel: React.FC<RightPropertyPanelProps> = ({
+  activeTab: controlledActiveTab,
+  onTabChange,
   selectedElement,
   onUpdateStyle,
   onUpdateText,
@@ -68,8 +77,23 @@ export const RightPropertyPanel: React.FC<RightPropertyPanelProps> = ({
   onSelectPreviewVideo,
   isCollapsed = false,
   onToggleCollapse,
+  playbackSpeed = 1,
+  onSpeedChange,
+  activeScene,
+  onSetSceneSpeed,
 }) => {
-  const [activeTab, setActiveTab] = useState<"design" | "layers" | "renders" | "variables">("design");
+  const [internalTab, setInternalTab] = useState<"design" | "layers" | "renders" | "variables">("design");
+  const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalTab;
+  const setActiveTab = (tab: "design" | "layers" | "renders" | "variables") => {
+    setInternalTab(tab);
+    onTabChange?.(tab);
+  };
+
+  React.useEffect(() => {
+    if (selectedElement) {
+      setActiveTab("design");
+    }
+  }, [selectedElement]);
   const [exportSettings, setExportSettings] = useState<ExportSettings>({
     resolution: "1080p",
     fps: 30,
@@ -570,6 +594,92 @@ export const RightPropertyPanel: React.FC<RightPropertyPanelProps> = ({
                     className="flex-1 bg-white border border-gray-300 rounded-md px-2.5 py-1.5 text-xs font-mono text-gray-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-xs transition"
                   />
                 </div>
+              </div>
+
+              {/* Video Speed & Timing Properties */}
+              <div className="space-y-3 pt-2 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-gray-500 font-bold flex items-center gap-1.5">
+                    <Gauge className="w-3.5 h-3.5 text-purple-600" />
+                    Video Speed &amp; Playback Rate
+                  </span>
+                  <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                    {playbackSpeed}x Speed
+                  </span>
+                </div>
+
+                {/* Global Playback Speed Preset Buttons */}
+                <div className="space-y-1">
+                  <label className="text-[11px] text-gray-600 font-medium">Global Playback Speed</label>
+                  <div className="grid grid-cols-5 gap-1">
+                    {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4].slice(0, 5).map((spd) => (
+                      <button
+                        key={spd}
+                        type="button"
+                        onClick={() => onSpeedChange?.(spd)}
+                        className={`py-1.5 text-xs font-mono font-bold rounded-md border transition ${
+                          playbackSpeed === spd
+                            ? "bg-purple-600 border-purple-600 text-white shadow-xs"
+                            : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300"
+                        }`}
+                      >
+                        {spd}x
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-5 gap-1 mt-1">
+                    {[1.5, 1.75, 2, 2.5, 4].map((spd) => (
+                      <button
+                        key={spd}
+                        type="button"
+                        onClick={() => onSpeedChange?.(spd)}
+                        className={`py-1.5 text-xs font-mono font-bold rounded-md border transition ${
+                          playbackSpeed === spd
+                            ? "bg-purple-600 border-purple-600 text-white shadow-xs"
+                            : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300"
+                        }`}
+                      >
+                        {spd}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Active Clip Speed Multiplier */}
+                {activeScene && onSetSceneSpeed && (
+                  <div className="pt-2 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] text-gray-600 font-medium truncate">
+                        Clip Speed: <span className="text-gray-900 font-semibold">{activeScene.name || "Active Scene"}</span>
+                      </label>
+                      <span className="text-[10px] font-mono text-gray-500">
+                        {activeScene.duration.toFixed(2)}s
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1">
+                      {[0.5, 1, 1.5, 2].map((spd) => {
+                        const isCurrent = (activeScene as any).speed === spd || (!((activeScene as any).speed) && spd === 1);
+                        return (
+                          <button
+                            key={spd}
+                            type="button"
+                            onClick={() => onSetSceneSpeed(activeScene.id, spd)}
+                            className={`py-1 text-[11px] font-mono font-bold rounded border transition ${
+                              isCurrent
+                                ? "bg-emerald-600 border-emerald-600 text-white shadow-xs"
+                                : "bg-white border-gray-200 text-gray-700 hover:bg-emerald-50 hover:border-emerald-300"
+                            }`}
+                          >
+                            {spd}x
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span className="text-[10px] text-gray-400 mt-1 block leading-tight">
+                      Adjusting clip speed automatically recalculates timeline duration.
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           )}

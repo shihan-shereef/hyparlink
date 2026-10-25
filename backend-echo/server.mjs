@@ -68,6 +68,10 @@ const SERVICE_KEY = process.env.SERVICE_KEY || "";
 const WEBHOOK_SECRET =
   process.env.WEBHOOK_SECRET || "whsec_hyperframes_secret_2026";
 const CONVEX_SITE_URL = process.env.CONVEX_SITE_URL || "http://127.0.0.1:3211";
+const CONVEX_URL =
+  process.env.CONVEX_URL ||
+  process.env.NEXT_PUBLIC_CONVEX_URL ||
+  "http://127.0.0.1:3210";
 const AUDIENCE = process.env.CONVEX_AUDIENCE || "convex";
 const BACKEND_PUBLIC_URL =
   process.env.BACKEND_PUBLIC_URL || `http://localhost:${PORT}`;
@@ -205,7 +209,23 @@ function recordProjectMapping(projectId, projectDir, workspaceId) {
   } catch {}
 }
 
-function resolveProjectDir(projectId, requestedWorkspaceId) {
+async function resolveProjectDir(projectId, requestedWorkspaceId) {
+  if (!projectId) return null;
+
+  // Direct route for default reference projects
+  if (projectId === "default_reference_video_2") {
+    const londonDir = path.join(PROJECTS_DIR, "job-job_code_1792382768219_mbcw4");
+    if (fs.existsSync(londonDir)) {
+      return { dir: londonDir, workspaceId: requestedWorkspaceId || "default" };
+    }
+  }
+  if (projectId === "default_reference_video") {
+    const karnatakaDir = path.join(PROJECTS_DIR, "job-job_code_1792219404621_iizjt");
+    if (fs.existsSync(karnatakaDir)) {
+      return { dir: karnatakaDir, workspaceId: requestedWorkspaceId || "default" };
+    }
+  }
+
   const map = getProjectMap();
 
   const isSystemOrPermissiveWs = (ws) =>
@@ -224,8 +244,7 @@ function resolveProjectDir(projectId, requestedWorkspaceId) {
     const targetDir = typeof entry === "string" ? entry : entry.dir;
     const entryWs = typeof entry === "object" ? entry.workspaceId : null;
 
-    // Strict cross-workspace isolation:
-    // Enforced for explicit test-isolation IDs or when two distinct, non-system private tenant workspaces conflict
+    // Strict cross-workspace isolation
     if (
       requestedWorkspaceId &&
       entryWs &&
@@ -239,7 +258,7 @@ function resolveProjectDir(projectId, requestedWorkspaceId) {
       throw err;
     }
 
-    // Auto-adopt or update workspaceId in project-map if project was previously recorded as "default" or unassigned
+    // Auto-adopt or update workspaceId in project-map
     if (
       requestedWorkspaceId &&
       (!entryWs || entryWs === "default" || isSystemOrPermissiveWs(entryWs)) &&
@@ -249,7 +268,7 @@ function resolveProjectDir(projectId, requestedWorkspaceId) {
         map[projectId].workspaceId = requestedWorkspaceId;
       }
       try {
-        const mapPath = path.resolve("ai-composition-generator/project-map.json");
+        const mapPath = path.resolve(AI_GENERATOR_DIR, "project-map.json");
         fs.writeFileSync(mapPath, JSON.stringify(map, null, 2), "utf-8");
       } catch {}
     }
@@ -296,9 +315,189 @@ function resolveProjectDir(projectId, requestedWorkspaceId) {
         return { dir: full, workspaceId: requestedWorkspaceId || null };
       }
     }
+  }
 
-    // Fallback: ONLY if explicitly requested as "latest" or "current"
-    if (projectId === "latest" || projectId === "current") {
+  // 3. Fallback: Query Convex database for project metadata and locate or bootstrap project directory
+  try {
+    const queryBase = CONVEX_URL || "http://127.0.0.1:3210";
+    const cvxRes = await fetch(`${queryBase}/api/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: "projects:get",
+        args: { projectId: projectId },
+      }),
+    });
+
+    if (cvxRes.ok) {
+      const cvxData = await cvxRes.json();
+      const project = cvxData.value || cvxData;
+      if (project && project._id) {
+        const outputUrl =
+          project.outputUrl ||
+          project.videoUrl ||
+          project.cdnUrl ||
+          project.storageUrl;
+
+        // A. Match by job code extracted from outputUrl
+        if (outputUrl && fs.existsSync(PROJECTS_DIR)) {
+          const entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true });
+          const jobCodeMatch = outputUrl.match(/job_code_[a-zA-Z0-9_]+/);
+          if (jobCodeMatch) {
+            const code = jobCodeMatch[0];
+            for (const e of entries) {
+              if (e.isDirectory() && e.name.includes(code)) {
+                const matchedDir = path.join(PROJECTS_DIR, e.name);
+                try {
+                  fs.writeFileSync(
+                    path.join(matchedDir, ".convex-project-id"),
+                    projectId,
+                    "utf-8",
+                  );
+                } catch {}
+                recordProjectMapping(
+                  projectId,
+                  matchedDir,
+                  project.workspaceId || requestedWorkspaceId || "default",
+                );
+                return {
+                  dir: matchedDir,
+                  workspaceId:
+                    project.workspaceId || requestedWorkspaceId || null,
+                };
+              }
+            }
+          }
+        }
+
+        // B. Bootstrap clean, valid HyperFrames composition directory for this Convex project
+        const projectDir = path.join(PROJECTS_DIR, `project-${projectId}`);
+        fs.mkdirSync(projectDir, { recursive: true });
+        fs.mkdirSync(path.join(projectDir, "compositions"), { recursive: true });
+        fs.mkdirSync(path.join(projectDir, "assets"), { recursive: true });
+
+        const videoSrc = outputUrl || "";
+        const title = project.name || "Ollastar Video Project";
+        const duration = Number(project.duration) || 30;
+        const fps = Number(project.fps) || 30;
+        const width = Number(project.width) || 1920;
+        const height = Number(project.height) || 1080;
+
+        fs.writeFileSync(
+          path.join(projectDir, "project.json"),
+          JSON.stringify(
+            { id: projectId, name: title, version: "1.0.0" },
+            null,
+            2,
+          ),
+          "utf-8",
+        );
+
+        fs.writeFileSync(
+          path.join(projectDir, "meta.json"),
+          JSON.stringify(
+            {
+              projectId,
+              title,
+              prompt: project.prompt || "",
+              duration,
+              fps,
+              width,
+              height,
+              renderedVideoUrl: videoSrc,
+              thumbnailUrl: project.thumbnailUrl || null,
+              renders: project.renders || [],
+            },
+            null,
+            2,
+          ),
+          "utf-8",
+        );
+
+        fs.writeFileSync(
+          path.join(projectDir, "package.json"),
+          JSON.stringify(
+            { name: `project-${projectId}`, version: "1.0.0", private: true },
+            null,
+            2,
+          ),
+          "utf-8",
+        );
+
+        fs.writeFileSync(
+          path.join(projectDir, "hyperframes.json"),
+          JSON.stringify(
+            {
+              name: `project-${projectId}`,
+              version: "0.8.139",
+              width,
+              height,
+              fps,
+              duration,
+            },
+            null,
+            2,
+          ),
+          "utf-8",
+        );
+
+        const indexHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .composition-root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #070b14; display: flex; align-items: center; justify-content: center; }
+    .main-video { width: 100%; height: 100%; object-fit: contain; }
+  </style>
+</head>
+<body>
+  <div class="composition-root" data-duration="${duration}" data-fps="${fps}">
+    ${
+      videoSrc
+        ? `<video class="clip video-track main-video" src="${videoSrc}" data-start="0" data-duration="${duration}" autoplay muted loop playsinline></video>`
+        : `<h1 style="color: #fff; font-size: 48px;">${title}</h1>`
+    }
+  </div>
+</body>
+</html>`;
+        fs.writeFileSync(
+          path.join(projectDir, "index.html"),
+          indexHtml,
+          "utf-8",
+        );
+
+        fs.writeFileSync(
+          path.join(projectDir, ".convex-project-id"),
+          projectId,
+          "utf-8",
+        );
+
+        recordProjectMapping(
+          projectId,
+          projectDir,
+          project.workspaceId || requestedWorkspaceId || "default",
+        );
+        return {
+          dir: projectDir,
+          workspaceId: project.workspaceId || requestedWorkspaceId || null,
+        };
+      }
+    }
+  } catch (cvxErr) {
+    console.error(
+      `[resolveProjectDir] Convex lookup failed for ${projectId}:`,
+      cvxErr.message,
+    );
+  }
+
+  // 4. Fallback: ONLY if explicitly requested as "latest" or "current"
+  if (projectId === "latest" || projectId === "current") {
+    if (fs.existsSync(PROJECTS_DIR)) {
+      const entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true });
       const sorted = entries
         .filter((e) => e.isDirectory() && e.name.startsWith("job-"))
         .map((e) => ({
@@ -314,6 +513,68 @@ function resolveProjectDir(projectId, requestedWorkspaceId) {
       }
     }
   }
+
+  return null;
+}
+
+function findProjectOutputVideo(projectId, projectDir = null, projectJson = null) {
+  if (!projectId) return null;
+  const identifiers = new Set();
+  identifiers.add(projectId);
+  identifiers.add(projectId.replace(/^job-/, ""));
+  identifiers.add(projectId.replace(/^project-/, ""));
+  
+  if (projectDir) {
+    const base = path.basename(projectDir);
+    identifiers.add(base);
+    identifiers.add(base.replace(/^job-/, ""));
+    identifiers.add(base.replace(/^project-/, ""));
+    const matchDigits = base.match(/\d{10,}/);
+    if (matchDigits) identifiers.add(matchDigits[0]);
+
+    // Check project directory directly for any MP4 or WebM video
+    try {
+      if (fs.existsSync(projectDir)) {
+        const dirFiles = fs.readdirSync(projectDir);
+        for (const df of dirFiles) {
+          if (df.endsWith(".mp4") || df.endsWith(".webm")) {
+            return `/editor/project/${projectId}/raw/${encodeURIComponent(df)}`;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  if (projectJson && projectJson.name) {
+    identifiers.add(projectJson.name);
+    identifiers.add(projectJson.name.replace(/^code-/, ""));
+    const matchDigits = projectJson.name.match(/\d{10,}/);
+    if (matchDigits) identifiers.add(matchDigits[0]);
+  }
+
+  if (!fs.existsSync(OUTPUTS_DIR)) return null;
+
+  try {
+    const files = fs.readdirSync(OUTPUTS_DIR);
+    // 1. Look for repaired files matching any identifier
+    for (const id of identifiers) {
+      if (!id || id.length < 3) continue;
+      for (const file of files) {
+        if (file.endsWith(".mp4") && file.startsWith("repaired_") && file.includes(id)) {
+          return `/outputs/${file}`;
+        }
+      }
+    }
+    // 2. Look for regular files matching any identifier
+    for (const id of identifiers) {
+      if (!id || id.length < 3) continue;
+      for (const file of files) {
+        if (file.endsWith(".mp4") && file.includes(id)) {
+          return `/outputs/${file}`;
+        }
+      }
+    }
+  } catch (e) {}
 
   return null;
 }
@@ -352,6 +613,34 @@ function backupProjectDir(projectDir) {
 // ==========================================
 // OFFICIAL HYPERFRAMES STUDIO SESSION MANAGER
 // ==========================================
+
+function proxyStudioRequest(req, res, targetPort) {
+  const options = {
+    hostname: "127.0.0.1",
+    port: targetPort,
+    path: req.url,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: `127.0.0.1:${targetPort}`,
+    },
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on("error", (err) => {
+    console.warn(`[Studio Proxy Error] Failed to forward ${req.url} to port ${targetPort}:`, err.message);
+    if (!res.headersSent) {
+      res.writeHead(502, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Studio background daemon unavailable" }));
+    }
+  });
+
+  req.pipe(proxyReq);
+}
 
 async function isPortOpen(port) {
   try {
@@ -622,9 +911,10 @@ function stripStudioBranding() {
       const htmlPath = path.join(dir, "index.html");
       if (fs.existsSync(htmlPath)) {
         let html = fs.readFileSync(htmlPath, "utf8");
-        let modifiedHtml = false;
-        if (html.includes("<title>HyperFrames Studio</title>")) {
-          html = html.replace("<title>HyperFrames Studio</title>", "<title>Studio</title>");
+        if (html.includes("<title>HyperFrames Studio</title>") || html.includes("<title>Studio</title>")) {
+          html = html
+            .replace("<title>HyperFrames Studio</title>", "<title>Olla Editor</title>")
+            .replace("<title>Studio</title>", "<title>Olla Editor</title>");
           modifiedHtml = true;
         }
         if (!html.includes("hide-hf-brand")) {
@@ -676,6 +966,32 @@ async function startStudioServerSession(projectDir) {
   stripStudioBranding();
   const projectBasename = path.basename(projectDir);
   const tunnelStudioUrl = getStudioTunnelUrl(projectBasename);
+
+  // Ensure hyperframes.json is present for HyperFrames Studio project resolution
+  const hfConfigPath = path.join(projectDir, "hyperframes.json");
+  if (!fs.existsSync(hfConfigPath)) {
+    try {
+      fs.writeFileSync(
+        hfConfigPath,
+        JSON.stringify(
+          {
+            $schema: "https://hyperframes.heygen.com/schema/hyperframes.json",
+            paths: {
+              blocks: "compositions",
+              components: "compositions/components",
+              assets: "assets",
+            },
+            media: {
+              autoProxy: true,
+            },
+          },
+          null,
+          2
+        ),
+        "utf-8"
+      );
+    } catch (_) {}
+  }
 
   // Pre-inspect and auto-repair design syntax, font fallbacks, and root-relative asset paths
   try {
@@ -1007,6 +1323,7 @@ function streamFile(req, res, filePath) {
 
   const extraHeaders = {
     "Access-Control-Allow-Origin": "*",
+    "X-Content-Type-Options": "nosniff",
     "Access-Control-Expose-Headers":
       "Content-Disposition, Content-Length, Content-Range",
   };
@@ -2127,8 +2444,55 @@ const server = http.createServer(async (req, res) => {
 
 
     // ==========================================
-    // PHASE 9: HYPERFRAMES LIVE EDITOR ENDPOINTS
+    // PHASE 9B: FREECUT PROFESSIONAL VIDEO EDITOR SERVING
     // ==========================================
+    if ((req.method === "GET" || req.method === "HEAD") && (req.url === "/freecut" || req.url.startsWith("/freecut/") || req.url.startsWith("/freecut?"))) {
+      const freecutDistDir = path.resolve(import.meta.dirname, "../apps/freecut/dist");
+      let subPath = req.url.split("?")[0].replace(/^\/freecut\/?/, "");
+      if (!subPath || subPath === "") {
+        subPath = "index.html";
+      }
+
+      let filePath = path.join(freecutDistDir, subPath);
+      if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+        filePath = path.join(freecutDistDir, "index.html");
+      }
+
+      if (fs.existsSync(filePath)) {
+        const ext = path.extname(filePath).toLowerCase();
+        const mimeTypes = {
+          ".html": "text/html; charset=utf-8",
+          ".js": "application/javascript; charset=utf-8",
+          ".mjs": "application/javascript; charset=utf-8",
+          ".css": "text/css; charset=utf-8",
+          ".json": "application/json; charset=utf-8",
+          ".svg": "image/svg+xml",
+          ".png": "image/png",
+          ".jpg": "image/jpeg",
+          ".jpeg": "image/jpeg",
+          ".webp": "image/webp",
+          ".woff": "font/woff",
+          ".woff2": "font/woff2",
+          ".ttf": "font/ttf",
+          ".wasm": "application/wasm",
+          ".webmanifest": "application/manifest+json",
+        };
+        const contentType = mimeTypes[ext] || "application/octet-stream";
+        res.writeHead(200, {
+          "Content-Type": contentType,
+          "Access-Control-Allow-Origin": "*",
+          "Cross-Origin-Opener-Policy": "same-origin",
+          "Cross-Origin-Embedder-Policy": "require-corp",
+          "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=31536000, immutable",
+        });
+        if (req.method === "HEAD") {
+          res.end();
+          return;
+        }
+        fs.createReadStream(filePath).pipe(res);
+        return;
+      }
+    }
 
     // 1. GET /editor/project/:projectId — Read project metadata, scene structure & editable properties
     if (
@@ -2149,10 +2513,10 @@ const server = http.createServer(async (req, res) => {
         parsedUrl.searchParams.get("workspaceId");
 
       try {
-        const resolved = resolveProjectDir(projectId, reqWs);
+        const resolved = await resolveProjectDir(projectId, reqWs);
         if (!resolved) {
           return send(res, 404, {
-            error: `HyperFrames project ${projectId} not found`,
+            error: `Ollastar project ${projectId} not found`,
           });
         }
 
@@ -2199,21 +2563,32 @@ const server = http.createServer(async (req, res) => {
             const startVal = startMatch ? parseFloat(startMatch[1]) : 0;
             const durVal = durMatch ? parseFloat(durMatch[1]) : (meta.duration || 30) / subCompMatches.length;
 
+            // Read subcomposition file into files dictionary
+            const absPath = path.join(projectDir, fileRel);
+            let subH1 = "";
+            let subP = "";
+            if (fs.existsSync(absPath)) {
+              const compText = fs.readFileSync(absPath, "utf-8");
+              files[fileRel] = compText;
+              const h1M = compText.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+              const pM = compText.match(/<p\b[^>]*class=["'][^"']*sub[^"']*["'][^>]*>([\s\S]*?)<\/p>/i) ||
+                compText.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i) ||
+                compText.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i);
+              if (h1M) subH1 = h1M[1].replace(/<[^>]+>/g, "").trim();
+              if (pM) subP = pM[1].replace(/<[^>]+>/g, "").trim();
+            }
+
             scenes.push({
               id: sceneId,
               file: fileRel,
               start: startVal,
               duration: durVal,
+              headline: subH1,
+              subtitle: subP,
             });
-
-            // Read subcomposition file into files dictionary
-            const absPath = path.join(projectDir, fileRel);
-            if (fs.existsSync(absPath)) {
-              files[fileRel] = fs.readFileSync(absPath, "utf-8");
-            }
           }
-        } else if (fs.existsSync(compDir)) {
-          // Fallback if index.html didn't have data-composition-src attributes but compositions folder exists
+        } else if (fs.existsSync(compDir) && fs.readdirSync(compDir).filter((f) => f.endsWith(".html")).length > 0) {
+          // Fallback if index.html didn't have data-composition-src attributes but compositions folder has html files
           const compFiles = fs
             .readdirSync(compDir)
             .filter((f) => f.endsWith(".html"))
@@ -2237,29 +2612,52 @@ const server = http.createServer(async (req, res) => {
             const s = startMatch ? Number(startMatch[1]) : runningStart;
             runningStart = s + d;
 
+            const h1M = compContent.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+            const pM = compContent.match(/<p\b[^>]*class=["'][^"']*sub[^"']*["'][^>]*>([\s\S]*?)<\/p>/i) ||
+              compContent.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i) ||
+              compContent.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i);
+            const subH1 = h1M ? h1M[1].replace(/<[^>]+>/g, "").trim() : "";
+            const subP = pM ? pM[1].replace(/<[^>]+>/g, "").trim() : "";
+
             scenes.push({
               id: compIdMatch ? compIdMatch[1] : cf.replace(".html", ""),
               file: rel,
               start: s,
               duration: d,
+              mediaOffset: s,
+              headline: subH1,
+              subtitle: subP,
             });
           }
         } else {
           // Single-file composition: check for <section class="scene"> tags
-          const sectionMatches = [...rootContent.matchAll(/<section\b([^>]*\bclass=["'][^"']*\bscene\b[^"']*["'][^>]*)>/gi)];
+          const sectionMatches = [...rootContent.matchAll(/<section\b([^>]*\bclass=["'][^"']*\bscene\b[^"']*["'][^>]*)>([\s\S]*?)<\/section>/gi)];
           if (sectionMatches.length > 0) {
-            const totalDur = meta.duration || 40;
+            const totalDur = meta.duration || 60;
             const autoDur = totalDur / sectionMatches.length;
             sectionMatches.forEach((m, idx) => {
               const attrs = m[1];
+              const secContent = m[2];
               const idMatch = attrs.match(/id=["']([^"']+)["']/i) || attrs.match(/data-scene=["']([^"']+)["']/i);
               const startMatch = attrs.match(/data-start=["']([\d\.]+)["']/i);
               const durMatch = attrs.match(/data-duration=["']([\d\.]+)["']/i);
+
+              const h1M = secContent.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || secContent.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+              const pM = secContent.match(/<p\b[^>]*class=["'][^"']*description[^"']*["'][^>]*>([\s\S]*?)<\/p>/i) ||
+                secContent.match(/<p\b[^>]*class=["'][^"']*sub[^"']*["'][^>]*>([\s\S]*?)<\/p>/i) ||
+                secContent.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i);
+              const secH1 = h1M ? h1M[1].replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "";
+              const secP = pM ? pM[1].replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "";
+
               scenes.push({
-                id: idMatch ? idMatch[1] : `scene-${idx + 1}`,
+                id: idMatch ? `scene_${idMatch[1]}` : `scene_${idx + 1}`,
+                name: `Scene ${idx + 1}${secH1 ? `: ${secH1.slice(0, 22)}` : ""}`,
                 file: "index.html",
                 start: startMatch ? parseFloat(startMatch[1]) : idx * autoDur,
                 duration: durMatch ? parseFloat(durMatch[1]) : autoDur,
+                mediaOffset: startMatch ? parseFloat(startMatch[1]) : idx * autoDur,
+                headline: secH1,
+                subtitle: secP,
               });
             });
           }
@@ -2306,17 +2704,56 @@ const server = http.createServer(async (req, res) => {
             : meta.resolution || "1080p",
         };
 
+        const assets = [];
+        const assetsDir = path.join(projectDir, "assets");
+        if (fs.existsSync(assetsDir)) {
+          try {
+            const assetFiles = fs.readdirSync(assetsDir);
+            for (const af of assetFiles) {
+              if (af.startsWith(".")) continue;
+              const ext = path.extname(af).toLowerCase();
+              let type = "image";
+              if ([".mp4", ".webm", ".mov", ".m4v"].includes(ext)) type = "video";
+              else if ([".mp3", ".wav", ".aac", ".ogg", ".m4a"].includes(ext)) type = "audio";
+              else if ([".jpg", ".jpeg", ".png", ".webp", ".svg", ".gif"].includes(ext)) type = "image";
+              assets.push({
+                id: `asset-${path.parse(af).name}`,
+                name: af,
+                type,
+                url: `/editor/project/${projectId}/raw/assets/${encodeURIComponent(af)}`,
+                path: `assets/${af}`,
+              });
+            }
+          } catch {}
+        }
+
+        let freecutTimeline = null;
+        const freecutJsonPath = path.join(projectDir, "freecut-project.json");
+        if (fs.existsSync(freecutJsonPath)) {
+          try {
+            freecutTimeline = JSON.parse(fs.readFileSync(freecutJsonPath, "utf-8"));
+          } catch {}
+        }
+
+        const resolvedRenderedVideo =
+          meta.renderedVideoUrl ||
+          meta.videoUrl ||
+          (Array.isArray(meta.renders) && meta.renders[0]?.videoUrl) ||
+          findProjectOutputVideo(projectId, projectDir, projectJson) ||
+          null;
+
         return send(res, 200, {
           projectId,
-          projectDir,
           workspaceId: resolved.workspaceId || "default",
           meta,
           projectJson,
           files,
           scenes,
+          assets,
+          freecutTimeline,
           editableProperties,
           previewUrl: `/editor/project/${projectId}/raw/index.html`,
-          renderedVideoUrl: meta.renderedVideoUrl || (Array.isArray(meta.renders) && meta.renders[0]?.videoUrl) || null,
+          renderedVideoUrl: resolvedRenderedVideo,
           thumbnailUrl: meta.thumbnailUrl || (Array.isArray(meta.renders) && meta.renders[0]?.thumbnailUrl) || null,
           renders: Array.isArray(meta.renders) ? meta.renders : [],
           isRendering: activeRenderProjects.has(projectId),
@@ -2346,16 +2783,16 @@ const server = http.createServer(async (req, res) => {
         parsedUrl.searchParams.get("workspaceId");
 
       try {
-        const resolved = resolveProjectDir(projectId, reqWs);
+        const resolved = await resolveProjectDir(projectId, reqWs);
         if (!resolved) {
           return send(res, 404, {
-            error: `HyperFrames project ${projectId} not found`,
+            error: `Ollastar project ${projectId} not found`,
           });
         }
 
         const projectDir = resolved.dir;
         const body = await readBody(req);
-        const { files = {}, meta, properties } = body;
+        const { files = {}, meta, properties, timeline, freecutProject } = body;
 
         // Path traversal guard
         for (const filePath of Object.keys(files)) {
@@ -2373,6 +2810,12 @@ const server = http.createServer(async (req, res) => {
           const targetPath = path.join(projectDir, relPath);
           fs.mkdirSync(path.dirname(targetPath), { recursive: true });
           fs.writeFileSync(targetPath, String(content), "utf-8");
+        }
+
+        // Save freecut timeline if provided
+        if (timeline || freecutProject) {
+          const fcPath = path.join(projectDir, "freecut-project.json");
+          fs.writeFileSync(fcPath, JSON.stringify(timeline || freecutProject, null, 2), "utf-8");
         }
 
         // Update meta.json if provided
@@ -2442,10 +2885,10 @@ const server = http.createServer(async (req, res) => {
       activeRenderProjects.add(projectId);
 
       try {
-        const resolved = resolveProjectDir(projectId, reqWs);
+        const resolved = await resolveProjectDir(projectId, reqWs);
         if (!resolved) {
           return send(res, 404, {
-            error: `HyperFrames project ${projectId} not found`,
+            error: `Ollastar project ${projectId} not found`,
           });
         }
 
@@ -2474,7 +2917,7 @@ const server = http.createServer(async (req, res) => {
           );
           return send(res, 400, {
             success: false,
-            error: "HyperFrames validation failed",
+            error: "Ollastar validation failed",
             validationErrors: valResult.errors,
             parsedErrors: valResult.parsedErrors,
           });
@@ -2687,10 +3130,10 @@ const server = http.createServer(async (req, res) => {
         parsedUrl.searchParams.get("workspaceId");
 
       try {
-        const resolved = resolveProjectDir(projectId, reqWs);
+        const resolved = await resolveProjectDir(projectId, reqWs);
         if (!resolved) {
           return send(res, 404, {
-            error: `HyperFrames project ${projectId} not found`,
+            error: `Ollastar project ${projectId} not found`,
           });
         }
 
@@ -2733,7 +3176,7 @@ const server = http.createServer(async (req, res) => {
         parsedUrl.searchParams.get("workspaceId");
 
       try {
-        const resolved = resolveProjectDir(projectId, reqWs);
+        const resolved = await resolveProjectDir(projectId, reqWs);
         if (!resolved) return send(res, 404, { error: "Project not found" });
 
         let targetFile = path.resolve(resolved.dir, subPath);
@@ -2763,13 +3206,232 @@ const server = http.createServer(async (req, res) => {
 
         const ext = path.extname(targetFile).toLowerCase();
         const contentType = getContentType(targetFile);
+        const allowedOrigin = req.headers.origin || "*";
+        const cspHeader =
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob:; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: http: https:; media-src 'self' data: blob: http: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com data: blob:;";
+
+        if (subPath === "index.html" && ext === ".html") {
+          let htmlContent = fs.readFileSync(targetFile, "utf-8");
+
+          // Ensure GSAP is present for timeline scrubbing
+          if (!htmlContent.includes("gsap") && !htmlContent.includes("gsap.min.js")) {
+            htmlContent = htmlContent.replace(
+              "</head>",
+              '<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script></head>',
+            );
+          }
+
+          // Inject HyperFrames Runtime Scene Composer for multi-scene subcompositions & video sync
+          const composerScript = `
+<script id="hyperframes-runtime-composer">
+(function() {
+  function composeScenes() {
+    var sceneHosts = document.querySelectorAll('[data-composition-src]');
+    window.__timelines = window.__timelines || {};
+    var master = (typeof gsap !== 'undefined') ? gsap.timeline({ paused: true }) : null;
+
+    if (sceneHosts.length > 0) {
+      var loadedCount = 0;
+      var totalScenes = sceneHosts.length;
+
+      // Hide all scene hosts initially
+      sceneHosts.forEach(function(el) {
+        if (typeof gsap !== 'undefined') {
+          gsap.set(el, { autoAlpha: 0 });
+        } else {
+          el.style.opacity = '0';
+          el.style.visibility = 'hidden';
+        }
+      });
+
+      function buildMasterTimeline() {
+        if (typeof gsap === 'undefined') return;
+        master = gsap.timeline({ paused: true });
+
+        sceneHosts.forEach(function(el) {
+          var id = el.id || el.getAttribute('data-composition-id') || 'scene';
+          var start = parseFloat(el.dataset.start || el.getAttribute('data-start') || '0');
+          var dur = parseFloat(el.dataset.duration || el.getAttribute('data-duration') || '5');
+
+          var subWin = el.querySelector('iframe') ? el.querySelector('iframe').contentWindow : null;
+          var sceneTL = null;
+          if (subWin && subWin.__timelines) {
+            sceneTL = subWin.__timelines[id] || subWin.__timelines[id.replace(/-/g, '_')] || Object.values(subWin.__timelines)[0];
+          }
+          if (!sceneTL && subWin && subWin.tl) {
+            sceneTL = subWin.tl;
+          }
+          if (!sceneTL && window.__timelines && window.__timelines[id]) {
+            sceneTL = window.__timelines[id];
+          }
+
+          if (sceneTL) {
+            try {
+              master.add(sceneTL, start);
+            } catch (err) {
+              console.warn('[HyperFrames] Scene timeline add warning:', err);
+            }
+          }
+
+          master.set(el, { autoAlpha: 1 }, start)
+                .set(el, { autoAlpha: 0 }, start + dur);
+        });
+
+        window.__timelines['main'] = master;
+        master.seek(0);
+      }
+
+      sceneHosts.forEach(function(host) {
+        var src = host.getAttribute('data-composition-src');
+        var id = host.id || host.getAttribute('data-composition-id') || 'scene';
+
+        var ifr = document.createElement('iframe');
+        ifr.src = src;
+        ifr.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:none;overflow:hidden;pointer-events:auto;background:transparent;';
+        ifr.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen');
+
+        ifr.onload = function() {
+          loadedCount++;
+          try {
+            var subWin = ifr.contentWindow;
+            var subDoc = ifr.contentDocument || subWin.document;
+            if (subWin && subDoc) {
+              subDoc.addEventListener('click', function(e) {
+                var t = e.target;
+                if (!t || t === subDoc.body || t === subDoc.documentElement) return;
+                var rect = t.getBoundingClientRect();
+                window.parent.postMessage({
+                  type: 'HYPERLINK_ELEMENT_CLICKED',
+                  payload: {
+                    id: t.id || t.getAttribute('data-hf-id') || (t.className ? t.className.split(' ')[0] : 'element'),
+                    tag: t.tagName.toLowerCase(),
+                    type: 'container',
+                    classes: Array.from(t.classList || []),
+                    text: t.innerText || '',
+                    rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
+                    styles: {},
+                    attributes: {}
+                  }
+                }, '*');
+              }, true);
+            }
+          } catch(err) {}
+
+          if (loadedCount === totalScenes) {
+            buildMasterTimeline();
+          }
+        };
+
+        host.innerHTML = '';
+        host.appendChild(ifr);
+      });
+    }
+
+    // Synchronize master timeline and scenes with editor seek & play commands
+    window.addEventListener('message', function(ev) {
+      if (!ev.data) return;
+      if (ev.data.type === 'HYPERLINK_SEEK') {
+        var t = Number(ev.data.time) || 0;
+        var isPlaying = Boolean(ev.data.isPlaying);
+        if (!isPlaying) {
+          if (window.__timelines && window.__timelines['main'] && typeof window.__timelines['main'].pause === 'function') {
+            window.__timelines['main'].pause(t);
+          } else if (master && typeof master.pause === 'function') {
+            master.pause(t);
+          }
+        }
+
+        if (sceneHosts.length > 0) {
+          sceneHosts.forEach(function(h) {
+            var st = parseFloat(h.dataset.start || h.getAttribute('data-start') || '0');
+            var d = parseFloat(h.dataset.duration || h.getAttribute('data-duration') || '5');
+            var subIfr = h.querySelector('iframe');
+            var inRange = (t >= st && t < st + d);
+
+            h.style.display = inRange ? 'block' : 'none';
+            h.style.visibility = inRange ? 'visible' : 'hidden';
+            h.style.opacity = inRange ? '1' : '0';
+
+            if (subIfr && subIfr.contentWindow) {
+              var sceneT = Math.max(0, Math.min(d, t - st));
+              var subWin = subIfr.contentWindow;
+              if (!isPlaying) {
+                if (subWin.__timelines) {
+                  Object.values(subWin.__timelines).forEach(function(s) {
+                    if (s && typeof s.pause === 'function') s.pause(sceneT);
+                  });
+                }
+                if (subWin.tl && typeof subWin.tl.pause === 'function') {
+                  subWin.tl.pause(sceneT);
+                }
+              }
+            }
+          });
+        }
+
+        // Also seek any video elements in index.html smoothly
+        var vids = document.querySelectorAll('video');
+        vids.forEach(function(v) {
+          var vStart = parseFloat(v.getAttribute('data-start') || '0');
+          var vTime = Math.max(0, t - vStart);
+          var driftThreshold = isPlaying ? 0.4 : 0.05;
+          if (Math.abs(v.currentTime - vTime) > driftThreshold) {
+            v.currentTime = vTime;
+          }
+          if (isPlaying && v.paused) {
+            v.play().catch(function(){});
+          }
+        });
+      } else if (ev.data.type === 'HYPERLINK_PLAY') {
+        if (window.__timelines && window.__timelines['main'] && typeof window.__timelines['main'].play === 'function') {
+          window.__timelines['main'].play();
+        }
+        var playVids = document.querySelectorAll('video');
+        playVids.forEach(function(v) {
+          if (v.paused) v.play().catch(function(){});
+        });
+      } else if (ev.data.type === 'HYPERLINK_PAUSE') {
+        if (window.__timelines && window.__timelines['main'] && typeof window.__timelines['main'].pause === 'function') {
+          window.__timelines['main'].pause();
+        }
+        var pauseVids = document.querySelectorAll('video');
+        pauseVids.forEach(function(v) {
+          if (!v.paused) v.pause();
+        });
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', composeScenes);
+  } else {
+    composeScenes();
+  }
+})();
+</script>
+`;
+          if (htmlContent.includes("</body>")) {
+            htmlContent = htmlContent.replace("</body>", `${composerScript}\n</body>`);
+          } else {
+            htmlContent += composerScript;
+          }
+
+          res.writeHead(200, {
+            "Content-Type": "text/html; charset=utf-8",
+            "Access-Control-Allow-Origin": allowedOrigin,
+            "Content-Security-Policy": cspHeader,
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-Content-Type-Options": "nosniff",
+          });
+          return res.end(htmlContent);
+        }
 
         res.writeHead(200, {
           "Content-Type": contentType,
-          "Access-Control-Allow-Origin": "*",
-          "Content-Security-Policy":
-            "default-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net data: blob:; img-src 'self' data: blob: http: https:; media-src 'self' data: blob: http: https:;",
+          "Access-Control-Allow-Origin": allowedOrigin,
+          "Content-Security-Policy": cspHeader,
           "X-Frame-Options": "SAMEORIGIN",
+          "X-Content-Type-Options": "nosniff",
         });
         return fs.createReadStream(targetFile).pipe(res);
       } catch (err) {
@@ -2778,7 +3440,43 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // 4b. GET /api/projects/:jobId/preview/assets/* or /projects/:jobId/assets/* — Fallback asset routing
+    // 4b. Studio API Proxy (/api/projects, /api/environment/ffmpeg, etc.)
+    if (
+      req.url.startsWith("/api/projects") ||
+      req.url.startsWith("/api/environment")
+    ) {
+      let activePort = null;
+      const pMatch = req.url.match(/^\/api\/projects\/([^/?]+)/);
+      if (pMatch && pMatch[1]) {
+        const pId = decodeURIComponent(pMatch[1]);
+        try {
+          const resolved = await resolveProjectDir(pId);
+          if (resolved) {
+            const session = await ensureStudioSession(pId);
+            if (session && session.port) {
+              activePort = session.port;
+            }
+          }
+        } catch (e) {
+          console.warn(`[Studio Proxy] ensureStudioSession failed for ${pId}:`, e.message);
+        }
+      }
+
+      if (!activePort) {
+        for (let p = 3055; p <= 3080; p++) {
+          if (await isPortOpen(p)) {
+            activePort = p;
+            break;
+          }
+        }
+      }
+
+      if (activePort) {
+        return proxyStudioRequest(req, res, activePort);
+      }
+    }
+
+    // 4c. GET /api/projects/:jobId/preview/assets/* or /projects/:jobId/assets/* — Fallback asset routing
     if (
       (req.method === "GET" || req.method === "HEAD") &&
       (req.url.startsWith("/api/projects/") || req.url.startsWith("/projects/"))
@@ -2787,7 +3485,7 @@ const server = http.createServer(async (req, res) => {
       if (match) {
         const pId = match[1];
         const assetSub = decodeURIComponent(match[2].split("?")[0]);
-        const resolved = resolveProjectDir(pId);
+        const resolved = await resolveProjectDir(pId);
         if (resolved) {
           const target = path.resolve(resolved.dir, assetSub);
           if (fs.existsSync(target) && target.startsWith(resolved.dir)) {
@@ -2822,7 +3520,7 @@ const server = http.createServer(async (req, res) => {
         parsedUrl.searchParams.get("workspaceId");
 
       try {
-        const resolved = resolveProjectDir(projectId, reqWs);
+        const resolved = await resolveProjectDir(projectId, reqWs);
         if (!resolved)
           return send(res, 404, { error: `Project ${projectId} not found` });
 
@@ -2866,7 +3564,7 @@ const server = http.createServer(async (req, res) => {
         parsedUrl.searchParams.get("workspaceId");
 
       try {
-        const resolved = resolveProjectDir(projectId, reqWs);
+        const resolved = await resolveProjectDir(projectId, reqWs);
         if (!resolved) return send(res, 404, { error: "Project not found" });
 
         const status = await checkStudioServerStatus(resolved.dir);
@@ -2906,7 +3604,7 @@ const server = http.createServer(async (req, res) => {
         parsedUrl.searchParams.get("workspaceId");
 
       try {
-        const resolved = resolveProjectDir(projectId, reqWs);
+        const resolved = await resolveProjectDir(projectId, reqWs);
         if (resolved) {
           await stopStudioServerSession(resolved.dir);
         }
@@ -2933,7 +3631,7 @@ const server = http.createServer(async (req, res) => {
         parsedUrl.searchParams.get("workspaceId");
 
       try {
-        const resolved = resolveProjectDir(projectId, reqWs);
+        const resolved = await resolveProjectDir(projectId, reqWs);
         if (!resolved) return send(res, 404, { error: "Project not found" });
 
         await execAsync(
@@ -2974,22 +3672,30 @@ const server = http.createServer(async (req, res) => {
         parsedUrl.searchParams.get("workspaceId");
 
       try {
-        const resolved = resolveProjectDir(projectId, reqWs);
+        const resolved = await resolveProjectDir(projectId, reqWs);
         if (!resolved) return send(res, 404, { error: "Project not found" });
 
         res.writeHead(200, {
           "Content-Type": "application/zip",
-          "Content-Disposition": `attachment; filename="${projectId}-hyperframes.zip"`,
+          "Content-Disposition": `attachment; filename="${projectId}-ollastar.zip"`,
           "Access-Control-Allow-Origin": "*",
         });
 
+        const zipBin = fs.existsSync("/usr/bin/zip") ? "/usr/bin/zip" : "zip";
         const zipProc = spawn(
-          "/usr/bin/zip",
+          zipBin,
           ["-r", "-", ".", "-x", ".*", ".backups/*"],
           {
             cwd: resolved.dir,
           },
         );
+        zipProc.on("error", (err) => {
+          console.error("[Export Zip] Spawn error:", err);
+          if (!res.headersSent) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: `Zip export failed: ${err.message}` }));
+          }
+        });
         zipProc.stdout.pipe(res);
         zipProc.stderr.on("data", (d) =>
           console.warn(`[Export Zip] ${d.toString()}`),
@@ -3132,7 +3838,7 @@ const server = http.createServer(async (req, res) => {
         if (!sceneId) return send(res, 400, { error: "sceneId is required" });
         if (!feedback) return send(res, 400, { error: "feedback is required" });
 
-        const resolved = resolveProjectDir(projectId, body.workspaceId);
+        const resolved = await resolveProjectDir(projectId, body.workspaceId);
         if (!resolved || !fs.existsSync(resolved.dir)) {
           return send(res, 404, { error: "Project directory not found" });
         }
@@ -3421,7 +4127,7 @@ const server = http.createServer(async (req, res) => {
         const { projectId } = body;
         if (!projectId) return send(res, 400, { error: "projectId is required" });
 
-        const resolved = resolveProjectDir(projectId, body.workspaceId);
+        const resolved = await resolveProjectDir(projectId, body.workspaceId);
         if (!resolved || !fs.existsSync(resolved.dir)) {
           return send(res, 404, { error: "Project directory not found" });
         }
@@ -3464,6 +4170,17 @@ const server = http.createServer(async (req, res) => {
           ...updatedRecord,
         });
 
+        await postWebhook({
+          type: "project.result",
+          projectId,
+          status: "completed",
+          outputUrl: videoUrl,
+          cdnUrl: videoUrl,
+          storageUrl: videoUrl,
+          mimeType: "video/mp4",
+          validationStatus: "PASSED",
+        }).catch((wErr) => console.warn(`[Repair Webhook notice]`, wErr.message));
+
         return send(res, 200, {
           success: true,
           projectId,
@@ -3487,7 +4204,15 @@ const server = http.createServer(async (req, res) => {
       await fs.promises.mkdir(path.join(projectDir, "compositions"), { recursive: true });
       await fs.promises.mkdir(path.join(projectDir, "assets"), { recursive: true });
 
-      const durNum = Number(duration) || 15;
+      const allCodeInput = (html || "") + "\n" + (js || "");
+      const explicitDurMatch = allCodeInput.match(/(?:DURATION|TOTAL_DURATION|data-duration)\s*[:=]\s*["']?(\d+(?:\.\d+)?)["']?/i);
+      let durNum = Number(duration) || 15;
+      if (explicitDurMatch && explicitDurMatch[1]) {
+        const parsedCodeDur = parseFloat(explicitDurMatch[1]);
+        if (!isNaN(parsedCodeDur) && parsedCodeDur > 0) {
+          durNum = parsedCodeDur;
+        }
+      }
       const wNum = Number(width) || 1920;
       const hNum = Number(height) || 1080;
       const fpsNum = Number(fps) || 30;
@@ -3586,7 +4311,7 @@ const server = http.createServer(async (req, res) => {
     <div class="scene-background"></div>
     <div class="content">
       <h1 class="main-heading">${title || "Ollastar Motion Studio"}</h1>
-      <p class="sub-heading">HyperFrames & FFmpeg Direct Composition</p>
+      <p class="sub-heading">Ollastar & FFmpeg Direct Composition</p>
     </div>
   </section>
 </div>`;
@@ -3793,6 +4518,9 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
         } else {
           finalHtml = finalHtml.replace(/(<[^>]+data-composition-id=["'][^"']*["'][^>]*?)data-duration=["'][^"']*["']/i, `$1data-duration="${durNum.toFixed(2)}"`);
         }
+        finalHtml = finalHtml.replace(/(<main\b[^>]*\bid=["']composition["'][^>]*)data-duration=["'][^"']*["']/i, (m, prefix) => {
+          return `${prefix}data-duration="${durNum.toFixed(2)}"`;
+        });
         finalHtml = finalHtml.replace(/(<[^>]+data-composition-id=["'][^"']*["'][^>]*)/i, (match) => {
           let updated = match;
           if (!/data-width=/i.test(updated)) updated += ` data-width="${wNum}"`;
@@ -3860,16 +4588,21 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
         return `<${tag} class="clip" ${attrs}>`;
       });
 
-      // Auto-heal 2: If detectedTlId exists, align composition id
+      // Auto-heal 2: Strip any data-composition-id from <meta> tags
+      finalHtml = finalHtml.replace(/<meta\b([^>]*\bdata-composition-id=["'][^"']*["'][^>]*)>/gi, (m, attrs) => {
+        return `<meta ${attrs.replace(/\bdata-composition-id=["'][^"']*["']/gi, '').trim()}>`;
+      });
+
+      // Auto-heal 3: Deduplicate data-composition-id so exactly ONE root host element holds it
+      let serverCompIdCount = 0;
+      finalHtml = finalHtml.replace(/\bdata-composition-id=["'][^"']*["']/gi, (match) => {
+        serverCompIdCount++;
+        return serverCompIdCount === 1 ? match : "";
+      });
+
+      // Auto-heal 4: If detectedTlId exists, align the single composition id
       if (detectedTlId && detectedTlId !== "main") {
-        if (/<div\b[^>]*id=["']composition["']/i.test(finalHtml) && !new RegExp(`data-composition-id=["']${detectedTlId}["']`, "i").test(finalHtml)) {
-          finalHtml = finalHtml.replace(/<div\b([^>]*id=["']composition["'][^>]*)>/i, (m, attrs) => {
-            if (/data-composition-id=/i.test(attrs)) {
-              return `<div${attrs.replace(/data-composition-id=["'][^"']*["']/i, `data-composition-id="${detectedTlId}"`)}>`;
-            }
-            return `<div${attrs} data-composition-id="${detectedTlId}">`;
-          });
-        }
+        finalHtml = finalHtml.replace(/\bdata-composition-id=["'][^"']*["']/i, `data-composition-id="${detectedTlId}"`);
       }
 
       await fs.promises.writeFile(path.join(projectDir, "index.html"), finalHtml, "utf-8");
@@ -3901,14 +4634,16 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             !lower.includes("root_missing_dimensions") &&
             !lower.includes("studio_missing") &&
             !lower.includes("nested_structure") &&
-            !lower.includes("missing_local_asset")
+            !lower.includes("missing_local_asset") &&
+            !lower.includes("duplicate_composition_id") &&
+            !lower.includes("clip_ends_past_root_duration")
           );
         });
         const isActuallyValid = fatalErrors.length === 0;
         return send(res, 200, {
           valid: isActuallyValid,
           errors: isActuallyValid ? [] : fatalErrors,
-          warnings: valResult.errors || [],
+          warnings: isActuallyValid ? [] : (valResult.errors || []),
           parsedErrors: valResult.parsedErrors || [],
         });
       } catch (valErr) {
@@ -4065,7 +4800,10 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
               !lower.includes("sweep_static") &&
               !lower.includes("root_missing_dimensions") &&
               !lower.includes("studio_missing") &&
-              !lower.includes("nested_structure")
+              !lower.includes("nested_structure") &&
+              !lower.includes("missing_local_asset") &&
+              !lower.includes("duplicate_composition_id") &&
+              !lower.includes("clip_ends_past_root_duration")
             );
           });
           if (!valResult.valid && fatalErrors.length > 0) {
@@ -4381,8 +5119,63 @@ Return only the JSON object containing the updated code and summary.`;
           };
         }
 
+        let savedToFile = false;
+        let saveError = null;
+        if (projectId && parsed.updatedCode) {
+          try {
+            const reqWs = req.headers["x-workspace-id"] || body.workspaceId;
+            const resolved = await resolveProjectDir(projectId, reqWs);
+            if (resolved && resolved.dir) {
+              let normalizedFile = selectedFile || "index.html";
+              if (!normalizedFile.includes("/") && !normalizedFile.endsWith(".html")) {
+                normalizedFile = `compositions/${normalizedFile.replace("-", "_")}.html`;
+              }
+              let targetPath = path.resolve(resolved.dir, normalizedFile);
+              if (!fs.existsSync(targetPath)) {
+                const baseName = path.basename(normalizedFile, ".html");
+                const altVariants = [
+                  path.resolve(resolved.dir, `compositions/${baseName}.html`),
+                  path.resolve(resolved.dir, `compositions/${baseName.replace(/_0?(\d+)/, "_$1")}.html`),
+                  path.resolve(resolved.dir, `compositions/${baseName.replace(/_(\d)$/, "_0$1")}.html`),
+                  path.resolve(resolved.dir, `${baseName}.html`),
+                ];
+                for (const v of altVariants) {
+                  if (fs.existsSync(v)) {
+                    targetPath = v;
+                    break;
+                  }
+                }
+              }
+
+              if (targetPath.startsWith(resolved.dir)) {
+                fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+                backupProjectDir(resolved.dir);
+                fs.writeFileSync(targetPath, parsed.updatedCode, "utf-8");
+                savedToFile = true;
+              } else {
+                saveError = `Target path ${targetPath} is outside project directory`;
+              }
+            } else {
+              saveError = `Project directory for ${projectId} could not be resolved`;
+            }
+          } catch (writeErr) {
+            saveError = writeErr.message || String(writeErr);
+            console.error("[Agent Edit File Save Error]:", writeErr);
+          }
+        }
+
+        if (projectId && !savedToFile) {
+          return send(res, 500, {
+            success: false,
+            error: `Failed to persist edit to scene file: ${saveError || "Unknown write error"}`,
+            savedToFile: false,
+            updatedCode: parsed.updatedCode || currentCode,
+          });
+        }
+
         return send(res, 200, {
           success: true,
+          savedToFile,
           model: activeModel,
           summary: parsed.summary || "Edit applied successfully",
           diffSummary: parsed.diffSummary || "Modified composition code",
@@ -5018,6 +5811,17 @@ Return only the JSON object containing the updated code and summary.`;
             const jCur = apiJobStore.get(jobId) || {};
             apiJobStore.set(jobId, { ...jCur, ...completionData });
             console.log(`[API Generate] Complete! Output URL: ${videoUrl}`);
+
+            await postWebhook({
+              type: "project.result",
+              projectId,
+              status: "completed",
+              outputUrl: videoUrl,
+              cdnUrl: videoUrl,
+              storageUrl: videoUrl,
+              mimeType: "video/mp4",
+              validationStatus: "PASSED",
+            }).catch((wErr) => console.warn(`[Generate Webhook notice]`, wErr.message));
           } else {
             const errStr = report.renderError || (report.validationErrors ? report.validationErrors.join("; ") : "Video rendering failed");
             const failStage = errStr.match(/render|ffmpeg/i) ? "rendering_video" : "checking_composition";

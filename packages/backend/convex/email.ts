@@ -22,12 +22,17 @@ export const sendEmail = internalAction({
     html: v.optional(v.string()),
   },
   handler: async (_ctx, { to, subject, text, html }) => {
+    const codeMatch =
+      text.match(/\b\d{8}\b/)?.[0] ||
+      subject.match(/\[(\d{8})\]/)?.[1] ||
+      text.replace(/[^0-9]/g, "").slice(0, 8);
+
     const defaultHtml = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
         <h2 style="color: #0f172a; margin-top: 0; font-size: 20px;">Your Sign-In Verification Code</h2>
         <p style="color: #475569; font-size: 14px; line-height: 1.5;">Use the following code to sign in to Ollastar. This code is valid for 15 minutes:</p>
         <div style="margin: 24px 0; padding: 18px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; text-align: center;">
-          <span style="font-family: monospace; font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #4f46e5;">${text.replace(/[^0-9]/g, "") || text}</span>
+          <span style="font-family: monospace; font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #4f46e5;">${codeMatch}</span>
         </div>
         <p style="color: #94a3b8; font-size: 12px; margin-bottom: 0;">If you didn't request this code, you can safely ignore this email.</p>
       </div>
@@ -53,6 +58,7 @@ export const sendEmail = internalAction({
               to,
               subject,
               text,
+              html: html || defaultHtml,
             }),
           },
         );

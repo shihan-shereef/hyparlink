@@ -22,7 +22,40 @@ export const ResendOTP = Email({
   ) {
     console.warn(`[auth] OTP for ${email}: ${token}`);
 
-    // Direct, reliable Ollastack Mailbox send
+    // Record OTP for instant UI verification
+    try {
+      if ((ctx as any)?.runMutation) {
+        await (ctx as any).runMutation(internal.otp.recordOtp, { email, code: token });
+      }
+    } catch (e) {
+      console.warn(`[auth] Could not record OTP in database: ${(e as Error).message}`);
+    }
+
+    const timeStr = new Date().toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
+    const subject = `[${token}] Your Ollastar Verification Code (${timeStr})`;
+    const text = `Your new Ollastar sign-in verification code is: ${token}\n\nGenerated at: ${timeStr}\nThis code is valid for 15 minutes.`;
+
+    // 1. Dispatch email delivery through Convex Action (runs in Node environment, avoids 1s mutation timeout)
+    if (ctx?.runAction) {
+      try {
+        await ctx.runAction(internal.email.sendEmail, {
+          to: email,
+          subject,
+          text,
+        });
+        console.log(`[auth] OTP email action dispatched successfully to ${email}`);
+        return;
+      } catch (err: any) {
+        console.warn(`[auth] Failed to dispatch email action: ${err?.message}`);
+      }
+    }
+
+    // Direct fallback if action not available
     const ollastackKey =
       process.env.OLLASTACK_API_KEY ||
       "fmd_fc87c058c4840f4f954b46e229b702318017f680956ff3c7";
@@ -41,8 +74,8 @@ export const ResendOTP = Email({
             },
             body: JSON.stringify({
               to: email,
-              subject: "Your Ollastar Verification Code",
-              text: `Your Ollastar sign-in verification code is: ${token}\n\nThis one-time passcode will expire in 15 minutes.`,
+              subject,
+              text,
             }),
           },
         );

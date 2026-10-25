@@ -6,6 +6,9 @@ export interface CompositionScene {
   file: string;
   start: number;
   duration: number;
+  mediaOffset?: number;
+  headline?: string;
+  subtitle?: string;
   thumbnail?: string;
 }
 
@@ -78,6 +81,8 @@ export interface TimelineClip {
   muted?: boolean;
   keyframes?: TimelineKeyframe[];
   sourceUrl?: string;
+  mediaOffset?: number;
+  speed?: number;
 }
 
 export interface TimelineHistoryEntry {

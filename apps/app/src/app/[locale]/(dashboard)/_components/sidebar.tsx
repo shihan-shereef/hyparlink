@@ -24,6 +24,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import { ThemeSwitcher } from "./theme-switcher";
 
 export function Sidebar() {
@@ -50,8 +51,6 @@ export function Sidebar() {
         .slice(0, 2)
         .toUpperCase()
     : "SW";
-
-  const PRIMARY_WS = "mh7eadmg10g11yqwbjtyc41yjs8fxx17" as Id<"workspaces">;
 
   // Exact navigation items requested by user
   const navItems = [
@@ -80,6 +79,14 @@ export function Sidebar() {
       active: pathname.startsWith("/assets"),
     },
   ];
+
+  const handleEditorNav = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (pathname.includes("/editor/")) {
+      e.preventDefault();
+      window.location.href = href;
+    }
+  };
 
   const Body = (
     <div
@@ -149,7 +156,7 @@ export function Sidebar() {
               </div>
               <div className="mt-1 space-y-1">
                 {workspaces.map((w) => {
-                  const isPrimary = w._id === PRIMARY_WS;
+                  const isPrimary = w.role === "owner";
                   const isCurrent = w._id === current;
                   return (
                     <button
@@ -157,6 +164,7 @@ export function Sidebar() {
                       type="button"
                       onClick={() => {
                         select(w._id);
+                        toast.success(`Switched to ${w.name}`);
                         setShowWorkspaceMenu(false);
                       }}
                       className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-xs text-left transition cursor-pointer ${
@@ -166,7 +174,7 @@ export function Sidebar() {
                       }`}
                     >
                       <span className="truncate">
-                        {w.name} {isPrimary ? "★ (Primary)" : ""}
+                        {w.name} {isPrimary ? "★" : ""}
                       </span>
                       {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-indigo-600" />}
                     </button>
@@ -180,6 +188,7 @@ export function Sidebar() {
         {/* "+ Create" Pill Button */}
         <Link
           href="/create-video"
+          onClick={(e) => handleEditorNav(e, "/create-video")}
           className={`flex items-center justify-center gap-2 rounded-xl bg-[#e9eefe] text-xs font-semibold text-[#3b52d9] shadow-2xs hover:bg-[#dce4fc] dark:bg-indigo-950/60 dark:text-indigo-300 dark:hover:bg-indigo-900/60 transition ${
             collapsed ? "h-10 w-10 p-0" : "w-full py-2.5"
           }`}
@@ -197,7 +206,8 @@ export function Sidebar() {
               <Link
                 key={nav.label}
                 href={nav.href}
-                className={`flex items-center rounded-xl text-xs font-medium transition ${
+                onClick={(e) => handleEditorNav(e, nav.href)}
+                className={`flex items-center rounded-xl text-xs font-medium transition cursor-pointer ${
                   collapsed
                     ? "h-10 w-10 justify-center p-0"
                     : "w-full gap-3 px-3 py-2"
@@ -219,7 +229,8 @@ export function Sidebar() {
       {/* Bottom Section: Trash & User Profile */}
       <div className={`space-y-2 border-t border-slate-100 pt-3 dark:border-neutral-800 ${collapsed ? "w-full flex flex-col items-center" : "w-full"}`}>
         <Link
-          href="/projects"
+          href="/projects?tab=trash"
+          onClick={(e) => handleEditorNav(e, "/projects?tab=trash")}
           className={`flex items-center rounded-xl text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-neutral-800 transition ${
             collapsed ? "h-10 w-10 justify-center p-0" : "gap-3 px-3 py-2"
           }`}
@@ -273,12 +284,14 @@ export function Sidebar() {
                 </div>
                 <Link
                   href="/settings"
+                  onClick={(e) => handleEditorNav(e, "/settings")}
                   className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-neutral-800 transition"
                 >
                   <Settings className="h-3.5 w-3.5" /> Workspace Settings
                 </Link>
                 <Link
                   href="/login"
+                  onClick={(e) => handleEditorNav(e, "/login")}
                   className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition font-medium"
                 >
                   <LogIn className="h-3.5 w-3.5" /> Sign In / Switch Account
@@ -317,8 +330,8 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Desktop Sticky Single Left Sidebar */}
-      <aside className="sticky top-0 hidden h-screen shrink-0 md:block">
+      {/* Desktop Sticky Single Left Sidebar with guaranteed stacking layer */}
+      <aside className="sticky top-0 hidden h-screen shrink-0 md:block relative z-40">
         {Body}
       </aside>
 

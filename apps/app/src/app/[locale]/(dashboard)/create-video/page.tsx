@@ -294,8 +294,7 @@ export default function CreateVideoPage() {
   const { current, workspaces, select } = useWorkspace();
   const activeWorkspaceId =
     current ||
-    (workspaces && workspaces[0]?._id) ||
-    ("mh7eadmg10g11yqwbjtyc41yjs8fxx17" as Id<"workspaces">);
+    (workspaces && workspaces[0]?._id);
 
   useEffect(() => {
     if (!current && workspaces && workspaces[0]) {
@@ -306,6 +305,7 @@ export default function CreateVideoPage() {
   const createProject = useMutation(api.projects.create);
   const saveProductionPlan = useMutation(api.projects.saveProductionPlan);
   const approveAndRenderPlan = useMutation(api.projects.approveAndRenderPlan);
+  const saveCompletedVideo = useMutation(api.projects.saveCompletedVideo);
   const createAsset = useMutation(api.assets.create);
   const removeAsset = useMutation(api.assets.remove);
 
@@ -343,7 +343,7 @@ export default function CreateVideoPage() {
   // PHASE TWO: Creation Mode Selection (AI Prompt Mode vs Direct Code Mode)
   const [pipelineMode, setPipelineMode] = useState<"ai_prompt" | "direct_code">("ai_prompt");
   const [codeTab, setCodeTab] = useState<"html" | "css" | "js">("html");
-  const [directHtml, setDirectHtml] = useState<string>(`<!-- HyperFrames HTML Composition -->
+  const [directHtml, setDirectHtml] = useState<string>(`<!-- Ollastar HTML Composition -->
 <div class="ollastar-card">
   <div class="brand-badge">
     <span class="dot"></span>
@@ -366,7 +366,7 @@ export default function CreateVideoPage() {
     </div>
   </div>
 </div>`);
-  const [directCss, setDirectCss] = useState<string>(`/* HyperFrames CSS Styling */
+  const [directCss, setDirectCss] = useState<string>(`/* Ollastar CSS Styling */
 .ollastar-card {
   width: 100%;
   height: 100%;
@@ -511,6 +511,17 @@ window.__timelines["main"] = tl;`);
   const [isValidatingCode, setIsValidatingCode] = useState<boolean>(false);
   const [recentTab, setRecentTab] = useState<"work" | "chats">("work");
 
+  const handleDirectHtmlChange = (val: string) => {
+    setDirectHtml(val);
+    const durMatch = val.match(/(?:DURATION|TOTAL_DURATION|data-duration)\s*[:=]\s*["']?(\d+(?:\.\d+)?)["']?/i);
+    if (durMatch && durMatch[1]) {
+      const parsed = Math.round(parseFloat(durMatch[1]));
+      if (parsed > 0) {
+        setDirectDuration(parsed);
+      }
+    }
+  };
+
   const handleValidateDirectCode = async () => {
     setIsValidatingCode(true);
     setValidationResult(null);
@@ -556,6 +567,17 @@ window.__timelines["main"] = tl;`);
     let repairedJs = (inJs || "").trim();
     let repairedCss = (inCss || "").trim();
 
+    // 0. Detect duration from code if present (e.g. DURATION = 60, TOTAL_DURATION = 60, or data-duration="60")
+    const durMatch = (repairedHtml + "\n" + repairedJs).match(/(?:DURATION|TOTAL_DURATION|data-duration)\s*[:=]\s*["']?(\d+(?:\.\d+)?)["']?/i);
+    let matchedDur = dur;
+    if (durMatch && durMatch[1]) {
+      const parsedDur = Math.round(parseFloat(durMatch[1]));
+      if (parsedDur > 0) {
+        matchedDur = parsedDur;
+        dur = parsedDur;
+      }
+    }
+
     // 0a. Strip markdown code fences (```html ... ``` or ```css ... ``` or ```)
     repairedHtml = repairedHtml
       .replace(/^```[a-z0-9_-]*\s*\n?/i, "")
@@ -573,7 +595,11 @@ window.__timelines["main"] = tl;`);
       for (const match of styleMatches) {
         const cssContent = match.replace(/<\/?style[^>]*>/gi, "").trim();
         if (cssContent && !repairedCss.includes(cssContent.slice(0, 30))) {
-          repairedCss = (repairedCss ? repairedCss + "\n\n" : "") + cssContent;
+          if (repairedCss.includes(".brand-badge") && !repairedHtml.includes("brand-badge")) {
+            repairedCss = cssContent;
+          } else {
+            repairedCss = (repairedCss ? repairedCss + "\n\n" : "") + cssContent;
+          }
         }
       }
     }
@@ -584,9 +610,18 @@ window.__timelines["main"] = tl;`);
       for (const match of scriptMatches) {
         const jsContent = match.replace(/<\/?script[^>]*>/gi, "").trim();
         if (jsContent && !repairedJs.includes(jsContent.slice(0, 30))) {
-          repairedJs = (repairedJs ? repairedJs + "\n\n" : "") + jsContent;
+          if (repairedJs.includes(".brand-badge") && !repairedHtml.includes("brand-badge")) {
+            repairedJs = jsContent;
+          } else {
+            repairedJs = (repairedJs ? repairedJs + "\n\n" : "") + jsContent;
+          }
         }
       }
+    }
+
+    // If repairedJs is leftover default template code but HTML doesn't have brand-badge, clear it
+    if (repairedJs.includes(".brand-badge") && !repairedHtml.includes("brand-badge")) {
+      repairedJs = "";
     }
 
     // 0e. Check if user pasted pure CSS into the HTML tab (CSS rules with no HTML opening/closing tags)
@@ -603,7 +638,7 @@ window.__timelines["main"] = tl;`);
     <div class="scene-background"></div>
     <div class="content">
       <h1 class="main-heading">Ollastar Motion Studio</h1>
-      <p class="sub-heading">HyperFrames & FFmpeg Direct Composition</p>
+      <p class="sub-heading">Ollastar & FFmpeg Direct Composition</p>
     </div>
   </section>
 </div>`;
@@ -636,7 +671,20 @@ window.__timelines["main"] = tl;`);
       return match;
     });
 
-    // 2. Align timeline ID between window.__timelines["..."] and data-composition-id
+    // 2. Remove duplicate composition IDs and ensure meta tags do not collide
+    repairedHtml = repairedHtml.replace(/<meta\b([^>]*\bdata-composition-id=["'][^"']*["'][^>]*)>/gi, (m, attrs) => {
+      return `<meta ${attrs.replace(/\bdata-composition-id=["'][^"']*["']/gi, '').trim()}>`;
+    });
+
+    // Strip duplicate data-composition-id attributes (keep only on the very first composition host)
+    let seenCompId = false;
+    repairedHtml = repairedHtml.replace(/\bdata-composition-id=["'][^"']*["']/gi, (match) => {
+      if (seenCompId) return "";
+      seenCompId = true;
+      return match;
+    });
+
+    // Align timeline ID between window.__timelines["..."] and data-composition-id
     const tlKeyMatch = (repairedHtml + "\n" + repairedJs).match(/window\.__timelines\[["']([^"']+)["']\]/);
     const detectedTlId = tlKeyMatch ? tlKeyMatch[1] : null;
 
@@ -657,13 +705,19 @@ window.__timelines["main"] = tl;`);
         if (detectedTlId && detectedTlId !== "main") {
           if (/data-composition-id=/i.test(updated)) {
             updated = updated.replace(/data-composition-id=["'][^"']*["']/i, `data-composition-id="${detectedTlId}"`);
-          } else {
+          } else if (!/data-composition-id=/i.test(repairedHtml)) {
             updated = `${updated} data-composition-id="${detectedTlId}"`;
           }
+        } else if (!/data-composition-id=/i.test(repairedHtml)) {
+          updated = `${updated} data-composition-id="main"`;
         }
         // ensure start & duration
         if (!/data-start=/i.test(updated)) updated += ` data-start="0"`;
-        if (!/data-duration=/i.test(updated)) updated += ` data-duration="${dur}"`;
+        if (!/data-duration=/i.test(updated)) {
+          updated += ` data-duration="${matchedDur}"`;
+        } else {
+          updated = updated.replace(/data-duration=["'][^"']*["']/i, `data-duration="${matchedDur}"`);
+        }
         // ensure dimensions and layout overrides
         const w = res === "720p" ? 1280 : 1920;
         const h = res === "720p" ? 720 : 1080;
@@ -675,6 +729,18 @@ window.__timelines["main"] = tl;`);
         return `<${tag}${updated}>`;
       });
     }
+
+    // Harmonize child clip data-duration (e.g. inner <main id="composition">) so it doesn't exceed root duration
+    repairedHtml = repairedHtml.replace(/(<main\b[^>]*\bid=["']composition["'][^>]*)data-duration=["'][^"']*["']/i, (m, prefix) => {
+      return `${prefix}data-duration="${matchedDur}"`;
+    });
+
+    // Secondary pass to deduplicate any data-composition-id if one was added
+    let finalCompIdCount = 0;
+    repairedHtml = repairedHtml.replace(/\bdata-composition-id=["'][^"']*["']/gi, (match) => {
+      finalCompIdCount++;
+      return finalCompIdCount === 1 ? match : "";
+    });
 
     // 3. Remove conflicting CSS transforms like .scene-background { transform: scale(...) }
     repairedHtml = repairedHtml.replace(/(\.scene-background\s*\{[^}]*?)transform\s*:\s*scale\([^)]+\)\s*;?/gi, '$1');
@@ -693,16 +759,6 @@ window.__timelines["main"] = tl;`);
     // Safely neutralize timeline.play() calls without comments so keywords never get exposed
     repairedHtml = repairedHtml.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '(void 0);');
     repairedJs = repairedJs.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '(void 0);');
-
-    // 6. Detect duration from code if present (e.g. TOTAL_DURATION = 40 or data-duration="40")
-    const durMatch = (repairedHtml + "\n" + repairedJs).match(/(?:TOTAL_DURATION|data-duration)=["']?(\d+)["']?/i);
-    let matchedDur = dur;
-    if (durMatch && durMatch[1]) {
-      const parsedDur = parseInt(durMatch[1], 10);
-      if ([5, 15, 30, 40, 60].includes(parsedDur)) {
-        matchedDur = parsedDur;
-      }
-    }
 
     return { repairedHtml, repairedCss, repairedJs, matchedDur };
   };
@@ -739,10 +795,11 @@ window.__timelines["main"] = tl;`);
         }),
       });
       if (ok && data) {
-        setValidationResult(data);
         if (data.valid) {
+          setValidationResult({ valid: true, errors: [], parsedErrors: [] });
           toast.success("Code auto-repaired and verified clean!", { id: "autofix" });
         } else {
+          setValidationResult(data);
           toast.success("Code repaired with minor advisory notices", { id: "autofix" });
         }
       } else {
@@ -811,16 +868,18 @@ window.__timelines["main"] = tl;`);
       }
 
       // Non-blocking background sync to Convex (never blocks the render pipeline)
-      createProject({
-        workspaceId: targetWs,
-        name: effectiveTitle,
-        prompt: "DIRECT_CODE_RENDER",
-        duration: effectiveDuration,
-        width,
-        height,
-        fps: directFps,
-        mode: "direct_code",
-      }).catch((e) => console.log("Direct code background sync notice:", e));
+      if (targetWs) {
+        createProject({
+          workspaceId: targetWs,
+          name: effectiveTitle,
+          prompt: "DIRECT_CODE_RENDER",
+          duration: effectiveDuration,
+          width,
+          height,
+          fps: directFps,
+          mode: "direct_code",
+        }).catch((e) => console.log("Direct code background sync notice:", e));
+      }
 
       const { ok, data, error } = await safeJsonFetch("/api/direct-code", {
         method: "POST",
@@ -1862,6 +1921,10 @@ window.__timelines["main"] = tl;`);
           );
         }
 
+        if (!targetWs) {
+          throw new Error("No active workspace found. Please select a workspace.");
+        }
+
         const newAssetId = await createAsset({
           workspaceId: targetWs,
           name: file.name,
@@ -2096,27 +2159,31 @@ window.__timelines["main"] = tl;`);
             const validAssetIds = effectiveSelectedAssetIds.filter(
               (id) => typeof id === "string" && !id.includes("_") && id.length > 20,
             );
-            const res: any = await createProject({
-              workspaceId: targetWs,
-              name: projectName,
-              prompt: promptValue,
-              duration: effectiveDuration,
-              width,
-              height,
-              fps,
-              assetIds: validAssetIds.length > 0 ? (validAssetIds as Id<"assets">[]) : undefined,
-              model: selectedModel,
-              avatarId: effectiveAvatarId,
-              avatarName: effectiveAvatarName,
-              voiceId: effectiveVoiceId,
-              voiceName: effectiveVoiceName,
-              generationMode: effectiveGenerationMode,
-              isAvatarVideo,
-              mode: "plan",
-              productionPlan: generatedPlan,
-              planStatus: "ready",
-            });
-            projectId = res.projectId;
+            if (targetWs) {
+              const res: any = await createProject({
+                workspaceId: targetWs,
+                name: projectName,
+                prompt: promptValue,
+                duration: effectiveDuration,
+                width,
+                height,
+                fps,
+                assetIds: validAssetIds.length > 0 ? (validAssetIds as Id<"assets">[]) : undefined,
+                model: selectedModel,
+                avatarId: effectiveAvatarId,
+                avatarName: effectiveAvatarName,
+                voiceId: effectiveVoiceId,
+                voiceName: effectiveVoiceName,
+                generationMode: effectiveGenerationMode,
+                isAvatarVideo,
+                mode: "plan",
+                productionPlan: generatedPlan,
+                planStatus: "ready",
+              });
+              projectId = res?.projectId || `plan_${Date.now()}`;
+            } else {
+              projectId = `plan_${Date.now()}`;
+            }
           } catch (convexErr) {
             projectId = `plan_${Date.now()}`;
           }
@@ -2142,41 +2209,51 @@ window.__timelines["main"] = tl;`);
       // =========================================================================
       // MODE B: AUTOPILOT MODE (Autonomous end-to-end plan & render)
       // =========================================================================
-      try {
-        const timeoutPromise = new Promise((_, reject) =>
+      const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Convex connection timeout")), 2000),
         );
         const validAssetIds = effectiveSelectedAssetIds.filter(
           (id) => typeof id === "string" && !id.includes("_") && id.length > 20,
         );
-        const res: any = await Promise.race([
-          createProject({
-            workspaceId: targetWs,
-            name: projectName,
-            prompt: promptValue,
-            duration: effectiveDuration,
-            width,
-            height,
-            fps,
-            assetIds: validAssetIds.length > 0 ? (validAssetIds as Id<"assets">[]) : undefined,
-            model: selectedModel,
-            avatarId: effectiveAvatarId,
-            avatarName: effectiveAvatarName,
-            voiceId: effectiveVoiceId,
-            voiceName: effectiveVoiceName,
-            generationMode: effectiveGenerationMode,
-            isAvatarVideo,
-            mode: "autopilot",
-          }),
-          timeoutPromise,
-        ]);
-        projectId = res.projectId;
-      } catch (convexErr: any) {
-        console.warn("[Convex Notice] Using direct /api/generate pipeline fallback:", convexErr?.message || convexErr);
+        let res: any = null;
+        if (targetWs) {
+          try {
+            res = await Promise.race([
+              createProject({
+                workspaceId: targetWs,
+                name: projectName,
+                prompt: promptValue,
+                duration: effectiveDuration,
+                width,
+                height,
+                fps,
+                assetIds: validAssetIds.length > 0 ? (validAssetIds as Id<"assets">[]) : undefined,
+                model: selectedModel,
+                avatarId: effectiveAvatarId,
+                avatarName: effectiveAvatarName,
+                voiceId: effectiveVoiceId,
+                voiceName: effectiveVoiceName,
+                generationMode: effectiveGenerationMode,
+                isAvatarVideo,
+                mode: "autopilot",
+              }),
+              timeoutPromise,
+            ]);
+            projectId = res?.projectId || `gen_${Date.now()}`;
+          } catch (cErr: any) {
+            console.warn("[Convex Notice] createProject timeout/fallback:", cErr?.message || cErr);
+            projectId = `gen_${Date.now()}`;
+          }
+        } else {
+          projectId = `gen_${Date.now()}`;
+        }
+
+        // Always dispatch to /api/generate directly to ensure instant background processing
         const { ok, data: directData, error } = await safeJsonFetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            projectId,
             prompt: promptValue,
             duration: effectiveDuration,
             width,
@@ -2223,7 +2300,9 @@ window.__timelines["main"] = tl;`);
         if (!ok || !directData) {
           throw new Error(error || "Generation failed to start");
         }
-        projectId = directData.projectId;
+        if (directData?.projectId) {
+          projectId = directData.projectId;
+        }
         setPolledProject({
           _id: projectId,
           name: projectName,
@@ -2231,10 +2310,9 @@ window.__timelines["main"] = tl;`);
           status: "writing_composition",
           duration: effectiveDuration,
         });
-      }
 
-      setActiveProjectId(projectId);
-      toast.success("Video generation job created in Autopilot Mode!");
+        setActiveProjectId(projectId);
+        toast.success("Video generation started in Autopilot Mode!");
     } catch (err: any) {
       toast.error(err.message || "Failed to start generation");
       setIsSubmitting(false);
@@ -2318,7 +2396,7 @@ window.__timelines["main"] = tl;`);
         duration: dur,
         productionPlan: videoPlan,
       });
-      toast.success("Plan approved! Rendering HyperFrames video...");
+      toast.success("Plan approved! Rendering Ollastar video...");
     } catch (err: any) {
       toast.error(err.message || "Failed to start render");
       setIsSubmitting(false);
@@ -2487,6 +2565,7 @@ window.__timelines["main"] = tl;`);
             plan={videoPlan}
             onApproveAndRender={handleApproveAndRender}
             onRefinePlan={handleRefinePlan}
+            onUpdatePlan={(updated) => setVideoPlan(updated)}
             isRevising={isRevisingPlan}
             isRendering={isSubmitting}
             onDismiss={() => {
@@ -2516,7 +2595,7 @@ window.__timelines["main"] = tl;`);
                       ? "Video Generated Successfully"
                       : activeProject.status === "failed"
                         ? "Video Generation Failed"
-                        : "Generating HyperFrames Composition..."}
+                        : "Generating Ollastar Composition..."}
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-neutral-400">
                     Stage:{" "}
@@ -2725,7 +2804,7 @@ window.__timelines["main"] = tl;`);
                             body: JSON.stringify({ projectId: String(activeProjectId) }),
                           });
                           if (ok && json?.videoUrl) {
-                            toast.success("Layout repaired & video rendered!", { id: "repair" });
+                            toast.success("Layout repaired & video rendered! Saved to Projects.", { id: "repair" });
                             setPolledProject((prev: any) => ({
                               ...prev,
                               status: "completed",
@@ -2733,6 +2812,17 @@ window.__timelines["main"] = tl;`);
                               videoUrl: json.videoUrl,
                               outputUrl: json.videoUrl,
                             }));
+                            try {
+                              await saveCompletedVideo({
+                                projectId: String(activeProjectId),
+                                workspaceId: (current || activeWorkspaceId) as any,
+                                name: name.trim() || "Repaired Video Composition",
+                                outputUrl: json.videoUrl,
+                                thumbnailUrl: json.thumbnailUrl,
+                              });
+                            } catch (sErr) {
+                              console.warn("[SaveCompletedVideo notice]", sErr);
+                            }
                             setIsSubmitting(false);
                             return;
                           }
@@ -3045,7 +3135,7 @@ window.__timelines["main"] = tl;`);
                     Direct Code Mode
                   </h3>
                   <p className="text-[11px] text-slate-500 dark:text-neutral-400">
-                    Bypasses Ollima & AI. Directly compiles to HyperFrames & FFmpeg.
+                    Bypasses Ollima & AI. Directly compiles to Ollastar & FFmpeg.
                   </p>
                 </div>
               </div>
@@ -3101,7 +3191,7 @@ window.__timelines["main"] = tl;`);
                     {codeTab === "html" ? "index.html" : codeTab === "css" ? "styles.css" : "script.js"}
                   </span>
                   <span className="text-[10px] text-slate-500 font-sans">
-                    {codeTab === "html" ? "(HyperFrames Composition Layout)" : codeTab === "css" ? "(Visual Styles)" : "(Timeline & Motion Choreography)"}
+                    {codeTab === "html" ? "(Ollastar Composition Layout)" : codeTab === "css" ? "(Visual Styles)" : "(Timeline & Motion Choreography)"}
                   </span>
                 </span>
                 <span className="text-[10px] text-slate-500">
@@ -3112,7 +3202,7 @@ window.__timelines["main"] = tl;`);
               {codeTab === "html" && (
                 <textarea
                   value={directHtml}
-                  onChange={(e) => setDirectHtml(e.target.value)}
+                  onChange={(e) => handleDirectHtmlChange(e.target.value)}
                   rows={12}
                   className="w-full max-h-[360px] resize-y overflow-y-auto bg-transparent font-mono text-xs leading-relaxed text-slate-200 placeholder:text-slate-600 focus:outline-none"
                   placeholder="<!-- Enter HTML here -->"
@@ -3163,7 +3253,7 @@ window.__timelines["main"] = tl;`);
                     <span>Auto-Fix & Clean Code</span>
                   </button>
                 </div>
-                {((validationResult.errors && validationResult.errors.length > 0) || ((validationResult as any).warnings && (validationResult as any).warnings.length > 0)) && (
+                {!validationResult.valid && ((validationResult.errors && validationResult.errors.length > 0) || ((validationResult as any).warnings && (validationResult as any).warnings.length > 0)) && (
                   <ul className="mt-2 list-inside list-disc space-y-1 text-[11px] opacity-90 border-t border-amber-200/60 dark:border-amber-800/60 pt-2">
                     {(validationResult.errors?.length ? validationResult.errors : (validationResult as any).warnings || []).map((err: string, i: number) => (
                       <li key={i}>{err}</li>

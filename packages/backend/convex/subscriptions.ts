@@ -5,7 +5,7 @@ import type { Id } from "./_generated/dataModel";
 export const polar = new Polar(components.polar, {
   // Provide a function the component can use to get the current user's ID and email
   getUserInfo: async (ctx): Promise<{ userId: Id<"users">; email: string }> => {
-    const user = await ctx.runQuery(api.users.getUser);
+    const user = await ctx.runQuery(api.users.getUserBasic);
     if (!user) {
       throw new Error("User not found");
     }

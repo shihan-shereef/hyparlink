@@ -4,10 +4,12 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { LeftProjectPanel } from "./left-project-panel";
 import { InteractiveCanvas } from "./interactive-canvas";
 import { RightPropertyPanel } from "./right-property-panel";
-import { MultitrackTimeline } from "./multitrack-timeline";
-import { SelectedElement, CompositionScene, RenderJob, CompositionLayer, ExportSettings, AssetItem } from "./types";
+import { FreeCutTimeline } from "./freecut-timeline";
+import { SelectedElement, CompositionScene, RenderJob, CompositionLayer, ExportSettings, AssetItem, TimelineClip } from "./types";
 import { toast } from "sonner";
+import Link from "next/link";
 import { 
+  ArrowLeft,
   Save, 
   Download, 
   Play, 
@@ -26,14 +28,15 @@ interface NativeHyperlinkEditorProps {
   projectId: string;
   projectTitle: string;
   duration: number;
+  onUpdateDuration?: (newDuration: number) => void;
   fps: number;
-  resolution: string;
-  scenes: { id: string; file: string; start: number; duration: number }[];
-  onUpdateScenes?: (updater: (prev: { id: string; file: string; start: number; duration: number }[]) => { id: string; file: string; start: number; duration: number }[]) => void;
+  resolution?: string;
+  scenes: (CompositionScene | { id: string; file: string; start: number; duration: number; [key: string]: any })[];
+  onUpdateScenes?: (updater: (prev: any[]) => any[]) => void;
   files: Record<string, string>;
   selectedFile: string;
   onSelectFile: (file: string) => void;
-  onCodeChange: (code: string) => void;
+  onCodeChange: (code: string, targetFile?: string) => void;
   onSaveProject: () => Promise<void>;
   onSyncAndRender: (settings?: Partial<ExportSettings>) => Promise<void>;
   isRendering: boolean;
@@ -44,12 +47,17 @@ interface NativeHyperlinkEditorProps {
   isSaving?: boolean;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  hideHeader?: boolean;
+  editorMode?: "native" | "studio";
+  onEditorModeChange?: (mode: "native" | "studio") => void;
+  studioPort?: number;
 }
 
 export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
   projectId,
   projectTitle,
   duration,
+  onUpdateDuration,
   fps,
   resolution,
   scenes,
@@ -68,6 +76,10 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
   isSaving = false,
   isFullscreen = false,
   onToggleFullscreen,
+  hideHeader = false,
+  editorMode = "native",
+  onEditorModeChange,
+  studioPort,
 }) => {
   const [activeSceneId, setActiveSceneId] = useState<string>(scenes[0]?.id || "scene-01");
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
@@ -83,6 +95,7 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
   });
   const [isLeftCollapsed, setIsLeftCollapsed] = useState<boolean>(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState<boolean>(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const animationFrameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(Date.now());
 
@@ -101,7 +114,7 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
           progress: 100,
           createdAt: "Latest Production Output",
           duration,
-          resolution,
+          resolution: resolution || "1080p",
           fps,
           format: "mp4",
           outputUrl: renderedVideoUrl,
@@ -113,40 +126,159 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
     }
   }, [renders, renderedVideoUrl, projectId, duration, resolution, fps]);
 
-  // Composition scenes adapter with robust fallback
-  const compScenes: CompositionScene[] = scenes.length > 0
-    ? scenes.map((s, idx) => ({
-        id: s.id,
-        name: `Scene ${idx + 1}`,
-        file: s.file,
-        start: s.start,
-        duration: s.duration,
-      }))
-    : [
-        {
-          id: "scene_01",
-          name: "Scene 1 (Main)",
-          file: selectedFile || "index.html",
-          start: 0,
-          duration: duration || 40,
-        },
-      ];
+  const [propertyPanelTab, setPropertyPanelTab] = useState<"design" | "layers" | "renders" | "variables">("design");
+  const handleOpenPropertiesTab = useCallback((tab: "design" | "layers" | "renders" | "variables") => {
+    setPropertyPanelTab(tab);
+  }, []);
 
-  // Playback timer loop
+  const [visualClips, setVisualClips] = useState<TimelineClip[]>([]);
+
+  // Composition scenes adapter with robust media offset preservation
+  const compScenes: CompositionScene[] = (scenes || []).map((s: any, idx) => ({
+    ...s,
+    name: s.name || `Scene ${idx + 1}`,
+    mediaOffset: s.mediaOffset !== undefined ? s.mediaOffset : (idx === 0 ? 0 : s.start),
+  }));
+
+  // Synthesize complete composition layer hierarchy (Scenes, Headlines, Subtitles, Visual Overlays, Audio)
+  useEffect(() => {
+    const generatedLayers: CompositionLayer[] = [];
+    compScenes.forEach((s, idx) => {
+      generatedLayers.push({
+        id: `layer-scene-${s.id}`,
+        name: `${s.name || `Scene ${idx + 1}`} (${s.duration.toFixed(1)}s)`,
+        tag: "div",
+        type: "container",
+        visible: true,
+        locked: false,
+      });
+
+      let parsedHead = "";
+      let parsedSub = "";
+      const fileContent = (s.file && files[s.file]) || files["index.html"] || "";
+      if (fileContent) {
+        const h1Match = fileContent.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+        if (h1Match && h1Match[1]) parsedHead = h1Match[1].replace(/<[^>]+>/g, "").trim();
+        const pMatch = fileContent.match(/<p\b[^>]*class=["'][^"']*sub[^"']*["'][^>]*>([\s\S]*?)<\/p>/i) ||
+          fileContent.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i) ||
+          fileContent.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i);
+        if (pMatch && pMatch[1]) parsedSub = pMatch[1].replace(/<[^>]+>/g, "").trim();
+      }
+
+      const headText = s.headline || parsedHead || "";
+      if (headText) {
+        generatedLayers.push({
+          id: `layer-text-head-${s.id}`,
+          name: `Headline: ${headText.length > 30 ? headText.slice(0, 30) + "..." : headText}`,
+          tag: "h1",
+          type: "heading",
+          visible: true,
+          locked: false,
+          text: headText,
+          rect: { top: 180, left: 60, width: 600, height: 60 },
+          styles: {
+            color: "#FFFFFF",
+            fontFamily: "'Playfair Display', serif",
+            fontSize: "38px",
+            fontWeight: "800",
+            textAlign: "left",
+          },
+        });
+      }
+
+      const subText = s.subtitle || parsedSub || "";
+      if (subText) {
+        generatedLayers.push({
+          id: `layer-text-sub-${s.id}`,
+          name: `Subtitle: ${subText.length > 30 ? subText.slice(0, 30) + "..." : subText}`,
+          tag: "p",
+          type: "text",
+          visible: true,
+          locked: false,
+          text: subText,
+          rect: { top: 250, left: 60, width: 500, height: 40 },
+          styles: {
+            color: "rgba(255, 255, 255, 0.85)",
+            fontFamily: "Inter, sans-serif",
+            fontSize: "14px",
+            fontWeight: "400",
+            textAlign: "left",
+          },
+        });
+      }
+    });
+
+    visualClips.forEach((c) => {
+      if (c.sourceUrl || (c as any).assetUrl) {
+        generatedLayers.push({
+          id: c.id,
+          name: `${c.name} (${(c.type || "media").toUpperCase()})`,
+          tag: c.type === "video" ? "video" : "img",
+          type: c.type === "video" ? "video" : "image",
+          visible: true,
+          locked: false,
+          rect: { top: 120, left: 180, width: 480, height: 270 },
+          styles: { opacity: "1", borderRadius: "12px" },
+        });
+      }
+    });
+
+    generatedLayers.push({
+      id: "layer-audio-main",
+      name: "Video Composition (Stereo Audio Bed)",
+      tag: "audio",
+      type: "audio" as any,
+      visible: true,
+      locked: false,
+    });
+
+    setLayers(generatedLayers);
+  }, [compScenes, visualClips]);
+
+  // Playback timer loop across all composition content with strict NLE scene sync & cut gap handling
   useEffect(() => {
     if (isPlaying) {
       lastTimeRef.current = Date.now();
       const tick = () => {
         const now = Date.now();
-        const delta = (now - lastTimeRef.current) / 1000;
+        const delta = ((now - lastTimeRef.current) / 1000) * playbackSpeed;
         lastTimeRef.current = now;
+
+        const maxSceneEnd = compScenes.length > 0
+          ? compScenes.reduce((m, s) => Math.max(m, s.start + s.duration), 0)
+          : 0;
+        const maxClipEnd = visualClips.length > 0
+          ? visualClips.reduce((m, c) => Math.max(m, c.start + c.duration), 0)
+          : 0;
+        const maxContentEnd = Math.max(maxSceneEnd, maxClipEnd);
+
+        if (maxContentEnd <= 0) {
+          setIsPlaying(false);
+          setCurrentTime(0);
+          return;
+        }
 
         setCurrentTime((prev) => {
           const next = prev + delta;
-          if (next >= duration) {
+          if (next >= maxContentEnd) {
             setIsPlaying(false);
             return 0;
           }
+
+          // If next is in a cut gap between scenes, immediately jump over the gap to the next scene's start
+          if (compScenes.length > 0) {
+            const inScene = compScenes.some((s) => next >= s.start && next < (s.start + s.duration));
+            if (!inScene) {
+              const upcoming = compScenes.filter((s) => s.start > next).sort((a, b) => a.start - b.start);
+              if (upcoming.length > 0 && upcoming[0]) {
+                return upcoming[0].start;
+              } else {
+                setIsPlaying(false);
+                return 0;
+              }
+            }
+          }
+
           return next;
         });
 
@@ -165,11 +297,95 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isPlaying, duration]);
+  }, [isPlaying, playbackSpeed, compScenes, visualClips]);
 
   const handlePlayPause = useCallback(() => {
     setIsPlaying((prev) => !prev);
   }, []);
+
+  // Add new scene sequence to composition
+  const handleAddScene = useCallback(() => {
+    if (!onUpdateScenes) return;
+    setLocalUnsaved(true);
+    let targetFileName = "index.html";
+    let newSceneId = "";
+    onUpdateScenes((prev) => {
+      let totalStart = 0;
+      prev.forEach((s) => {
+        totalStart = Math.max(totalStart, s.start + s.duration);
+      });
+      const newSceneNum = prev.length + 1;
+      newSceneId = `scene_${String(newSceneNum).padStart(2, "0")}`;
+      const usesCompositionsFolder = Object.keys(files).some((f) => f.startsWith("compositions/"));
+      targetFileName = usesCompositionsFolder
+        ? `compositions/scene_${String(newSceneNum).padStart(2, "0")}.html`
+        : "index.html";
+
+      const newScene = {
+        id: newSceneId,
+        name: `Scene ${newSceneNum}`,
+        file: targetFileName,
+        start: totalStart,
+        duration: 5,
+        mediaOffset: totalStart,
+      };
+
+      if (!files[targetFileName] && targetFileName !== "index.html") {
+        const starterTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 100vw;
+      height: 100vh;
+      background: #071426;
+      color: #ffffff;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      text-align: center;
+      padding: 40px;
+    }
+    h1 {
+      font-size: 52px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      color: #ffffff;
+    }
+    p {
+      font-size: 22px;
+      color: rgba(255, 255, 255, 0.75);
+      max-width: 600px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div id="scene-${newSceneNum}">
+    <h1 class="headline">Scene ${newSceneNum}</h1>
+    <p class="sub">Add your title, visuals, and animations</p>
+  </div>
+</body>
+</html>`;
+        onCodeChange(starterTemplate, targetFileName);
+      }
+
+      toast.success(`Added Scene ${newSceneNum} (5s) at ${totalStart}s`);
+      return [...prev, newScene];
+    });
+
+    if (newSceneId) {
+      setActiveSceneId(newSceneId);
+      if (targetFileName) onSelectFile(targetFileName);
+    }
+  }, [onUpdateScenes, files, onCodeChange, onSelectFile]);
 
   // Global editor shortcuts (e.g., F for fullscreen)
   useEffect(() => {
@@ -205,6 +421,13 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
           },
         };
       });
+    }
+
+    if (elementId.startsWith("layer-text-head-") || elementId.startsWith("layer-text-sub-")) {
+      const sId = elementId.replace(/layer-text-(?:head|sub)-/, "");
+      if (onUpdateScenes) {
+        onUpdateScenes((prev) => prev.map((s) => s.id === sId ? { ...s, fontFamily: value } : s));
+      }
     }
 
     // Broadcast postMessage directly to preview canvas iframe
@@ -340,6 +563,18 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
       });
     }
 
+    if (elementId.startsWith("layer-text-head-")) {
+      const sId = elementId.replace("layer-text-head-", "");
+      if (onUpdateScenes) {
+        onUpdateScenes((prev) => prev.map((s) => s.id === sId ? { ...s, headline: text } : s));
+      }
+    } else if (elementId.startsWith("layer-text-sub-")) {
+      const sId = elementId.replace("layer-text-sub-", "");
+      if (onUpdateScenes) {
+        onUpdateScenes((prev) => prev.map((s) => s.id === sId ? { ...s, subtitle: text } : s));
+      }
+    }
+
     // Broadcast postMessage to preview canvas iframe
     const iframes = document.querySelectorAll("iframe");
     iframes.forEach((iframe) => {
@@ -395,8 +630,11 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
       );
 
       let updated = currentCode;
+      let matched = false;
+
       if (specificRegex.test(updated)) {
         updated = updated.replace(specificRegex, `$1${text}$3`);
+        matched = true;
       } else if (selectedElement.tag) {
         const fallbackRegex = new RegExp(
           `(<${selectedElement.tag}[^>]*>)([\\s\\S]*?)(<\\/${selectedElement.tag}>)`,
@@ -404,14 +642,32 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
         );
         if (fallbackRegex.test(updated)) {
           updated = updated.replace(fallbackRegex, `$1${text}$3`);
+          matched = true;
+        }
+      }
+
+      // If no tag match was made, or for JavaScript data literals (e.g. title: 'Buckingham Palace')
+      const oldText = (selectedElement.text || "").trim();
+      if (!matched && oldText && oldText !== text.trim()) {
+        if (updated.includes(oldText)) {
+          updated = updated.split(oldText).join(text);
+          matched = true;
+        } else {
+          // Check other files, e.g. index.html if selectedFile is something else
+          Object.keys(files).forEach((fName) => {
+            if (fName !== selectedFile && files[fName]?.includes(oldText)) {
+              const fileUpdated = files[fName].split(oldText).join(text);
+              onCodeChange(fileUpdated, fName);
+            }
+          });
         }
       }
 
       if (updated !== currentCode) {
-        onCodeChange(updated);
+        onCodeChange(updated, selectedFile);
       }
     }
-  }, [selectedElement, files, selectedFile, onCodeChange]);
+  }, [selectedElement, files, selectedFile, onCodeChange, onUpdateScenes]);
 
   // Toggle layer visibility or lock
   const handleToggleLayer = useCallback((layerId: string, action: "visibility" | "lock") => {
@@ -505,6 +761,33 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
     });
   }, [onUpdateScenes]);
 
+  // Adjust clip/scene speed multiplier (e.g. 1.5x, 2x, 0.5x)
+  const handleSetSceneSpeed = useCallback((sceneId: string, speedMultiplier: number) => {
+    setLocalUnsaved(true);
+    if (!onUpdateScenes) return;
+    onUpdateScenes((prev) => {
+      let cumulativeStart = 0;
+      return prev.map((s) => {
+        let newDuration = s.duration;
+        if (s.id === sceneId) {
+          const baseDuration = (s as any).originalDuration || s.duration;
+          newDuration = Math.max(0.5, Math.round((baseDuration / speedMultiplier) * 100) / 100);
+          return {
+            ...s,
+            speed: speedMultiplier,
+            originalDuration: baseDuration,
+            start: cumulativeStart,
+            duration: newDuration,
+          };
+        }
+        const updated = { ...s, start: cumulativeStart };
+        cumulativeStart += updated.duration;
+        return updated;
+      });
+    });
+    toast.success(`Set scene speed to ${speedMultiplier}x`);
+  }, [onUpdateScenes]);
+
   // Drop media asset from left panel or file picker directly into timeline or active canvas
   const handleDropAssetToTimeline = useCallback(
     (asset: AssetItem, targetTime?: number, trackType: "visual" | "audio" | "scene" = "visual") => {
@@ -547,6 +830,21 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
       }
 
       onCodeChange(updatedCode);
+
+      const newVisualClip: TimelineClip = {
+        id: `clip-vis-${Date.now().toString(36)}`,
+        trackId: trackType === "audio" ? "track-audio" : "track-visuals",
+        trackType: trackType === "audio" ? "audio" : "visual",
+        name: asset.name,
+        start: timeVal,
+        duration: clipDuration,
+        color: asset.type === "video" ? "purple" : "blue",
+        type: asset.type,
+        sourceUrl: asset.url,
+      };
+      (newVisualClip as any).assetUrl = asset.url;
+      setVisualClips((prev) => [...prev, newVisualClip]);
+
       toast.success(`Added ${asset.name} to ${trackType} track at ${timeVal}s!`);
     },
     [selectedFile, files, currentTime, onCodeChange]
@@ -564,232 +862,290 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
   return (
     <div className="flex-1 min-w-0 min-h-0 flex flex-col w-full h-full bg-[#f8fafc] overflow-hidden select-none text-gray-900">
       {/* Top Native Editor Sub-Header Toolbar (HyperFrames Light Theme) */}
-      <div className="h-10 px-4 bg-white border-b border-gray-200 flex items-center justify-between text-xs z-10 shrink-0 text-gray-800 shadow-xs">
-        <div className="flex items-center gap-2.5">
-          <img
-            src="/ollastar-logo.png"
-            alt="Ollastar"
-            className="h-6 w-6 rounded-full border border-gray-200 object-contain shadow-xs shrink-0 bg-white"
-          />
-          <span className="font-bold text-gray-900 tracking-tight flex items-center gap-1.5">
-            {projectTitle}
-          </span>
-          <span className="text-[10px] px-2 py-0.5 rounded bg-gray-100 border border-gray-200 text-gray-600 font-mono hidden sm:inline font-medium">
-            {duration}s &bull; {resolution} &bull; {fps}fps
-          </span>
-        </div>
-
-        {/* Center: Save Status Indicator */}
-        <div className="flex items-center gap-2">
-          {hasUnsavedChanges || localUnsaved ? (
-            <span className="flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 font-semibold shadow-xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Unsaved Changes
+      {!hideHeader && (
+        <div className="h-10 px-4 bg-white border-b border-gray-200 flex items-center justify-between text-xs z-10 shrink-0 text-gray-800 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/projects"
+              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition font-medium mr-0.5"
+              title="Back to Projects"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Projects</span>
+            </Link>
+            <div className="h-3.5 w-px bg-gray-200" />
+            <img
+              src="/ollastar-logo.png"
+              alt="Ollastar"
+              className="h-6 w-6 rounded-full border border-gray-200 object-contain shadow-xs shrink-0 bg-white"
+            />
+            <span className="font-bold text-gray-900 tracking-tight flex items-center gap-1.5">
+              {projectTitle}
             </span>
-          ) : (
-            <span className="flex items-center gap-1.5 text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 font-semibold shadow-xs">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> All edits saved
+            <span className="text-[10px] px-2 py-0.5 rounded bg-gray-100 border border-gray-200 text-gray-600 font-mono hidden sm:inline font-medium">
+              {duration}s &bull; {resolution} &bull; {fps}fps
             </span>
-          )}
-        </div>
+          </div>
 
-        {/* Right: Quick Actions */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium transition shadow-xs disabled:opacity-50"
-            title="Save composition edits to backend disk"
-          >
-            {isSaving ? (
-              <RefreshCw className="w-3 h-3 animate-spin text-purple-600" />
-            ) : (
-              <Save className="w-3 h-3 text-purple-600" />
+          {/* Center: Editor Mode Switch & Save Status Indicator */}
+          <div className="flex items-center gap-3">
+            {onEditorModeChange && (
+              <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => onEditorModeChange("native")}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition ${
+                    editorMode === "native"
+                      ? "bg-white text-gray-900 shadow-xs"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  Native Editor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onEditorModeChange("studio")}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1.5 ${
+                    editorMode === "studio"
+                      ? "bg-purple-600 text-white shadow-xs"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  <span>HyperFrames Studio</span>
+                  {studioPort && (
+                    <span className="text-[10px] bg-purple-700 text-white px-1 py-0.2 rounded font-mono">
+                      {studioPort}
+                    </span>
+                  )}
+                </button>
+              </div>
             )}
-            Save Changes
-          </button>
 
-          {renderedVideoUrl && (
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 border border-purple-200/80 text-purple-900 text-xs font-bold shadow-2xs">
+              <Film className="w-3.5 h-3.5 text-purple-600" />
+              <span>Composition View</span>
+            </div>
+
+            {hasUnsavedChanges || localUnsaved ? (
+              <span className="flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 font-semibold shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Unsaved Changes
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 font-semibold shadow-xs">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> All edits saved
+              </span>
+            )}
+          </div>
+
+          {/* Right: Quick Actions */}
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setPreviewingVideoUrl(renderedVideoUrl)}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-semibold transition shadow-xs"
-              title="Watch latest rendered production video"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium transition shadow-xs disabled:opacity-50"
+              title="Save composition edits to backend disk"
             >
-              <Play className="w-3 h-3 fill-current" /> Watch Video
-            </button>
-          )}
-
-          {renderedVideoUrl && (
-            <a
-              href={renderedVideoUrl}
-              download={`${projectId}-final.mp4`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium transition shadow-xs hidden md:flex"
-              title="Download rendered MP4 video"
-            >
-              <Download className="w-3 h-3 text-gray-500" /> Download MP4
-            </a>
-          )}
-
-          {onToggleFullscreen && (
-            <button
-              type="button"
-              onClick={onToggleFullscreen}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition shadow-xs ${
-                isFullscreen
-                  ? "bg-purple-600 hover:bg-purple-700 border-purple-500 text-white shadow-purple-900/30"
-                  : "bg-white hover:bg-gray-50 border-gray-200 text-gray-700"
-              }`}
-              title={isFullscreen ? "Exit Full Screen (Esc / F)" : "Full Screen (F)"}
-            >
-              {isFullscreen ? (
-                <>
-                  <Minimize2 className="w-3.5 h-3.5 text-white" />
-                  <span>Exit Full Screen</span>
-                </>
+              {isSaving ? (
+                <RefreshCw className="w-3 h-3 animate-spin text-purple-600" />
               ) : (
-                <>
-                  <Maximize2 className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Full Screen</span>
-                </>
+                <Save className="w-3 h-3 text-purple-600" />
               )}
+              Save Changes
             </button>
-          )}
+
+            {renderedVideoUrl && (
+              <button
+                type="button"
+                onClick={() => setPreviewingVideoUrl(renderedVideoUrl)}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-semibold transition shadow-xs"
+                title="Watch latest rendered production video"
+              >
+                <Play className="w-3 h-3 fill-current" /> Watch Video
+              </button>
+            )}
+
+            {renderedVideoUrl && (
+              <a
+                href={renderedVideoUrl}
+                download={`${projectId}-final.mp4`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium transition shadow-xs hidden md:flex"
+                title="Download rendered MP4 video"
+              >
+                <Download className="w-3 h-3 text-gray-500" /> Download MP4
+              </a>
+            )}
+
+            {onToggleFullscreen && (
+              <button
+                type="button"
+                onClick={onToggleFullscreen}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-medium transition shadow-xs ${
+                  isFullscreen
+                    ? "bg-purple-600 hover:bg-purple-700 border-purple-500 text-white shadow-purple-900/30"
+                    : "bg-white hover:bg-gray-50 border-gray-200 text-gray-700"
+                }`}
+                title={isFullscreen ? "Exit Full Screen (Esc / F)" : "Full Screen (F)"}
+              >
+                {isFullscreen ? (
+                  <>
+                    <Minimize2 className="w-3.5 h-3.5 text-white" />
+                    <span>Exit Full Screen</span>
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Full Screen</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 3-Column Studio Workspace Area */}
-      <div className="flex-1 min-w-0 min-h-0 flex overflow-hidden relative">
-        {/* Column 1: Left Project & Media Navigation */}
-        <LeftProjectPanel
-          scenes={compScenes}
-          activeSceneId={activeSceneId}
-          onSelectScene={(id) => {
-            setActiveSceneId(id);
-            const found = compScenes.find((s) => s.id === id);
-            if (found) onSelectFile(found.file);
-          }}
-          onAddScene={() => toast.info("Creating new scene sequence...")}
-          files={files}
-          selectedFile={selectedFile}
-          onSelectFile={onSelectFile}
-          onCodeChange={(code) => {
-            setLocalUnsaved(true);
-            onCodeChange(code);
-          }}
-          onSaveCode={handleSave}
-          isCollapsed={isLeftCollapsed}
-          onToggleCollapse={() => setIsLeftCollapsed((prev) => !prev)}
-          currentTime={currentTime}
-          layers={layers}
-          selectedElement={selectedElement}
-          onClearSelectedElement={() => setSelectedElement(null)}
-          projectId={projectId}
-          onDropAssetToTimeline={handleDropAssetToTimeline}
-        />
+          <div className="flex-1 min-w-0 min-h-0 flex overflow-hidden relative">
+            {/* Column 1: Left Project & Media Navigation */}
+            <LeftProjectPanel
+              scenes={compScenes}
+              activeSceneId={activeSceneId}
+              onSelectScene={(id) => {
+                setActiveSceneId(id);
+                const found = compScenes.find((s) => s.id === id);
+                if (found) onSelectFile(found.file);
+              }}
+              onAddScene={handleAddScene}
+              files={files}
+              selectedFile={selectedFile}
+              onSelectFile={onSelectFile}
+              onCodeChange={(code) => {
+                setLocalUnsaved(true);
+                onCodeChange(code);
+              }}
+              onSaveCode={handleSave}
+              isCollapsed={isLeftCollapsed}
+              onToggleCollapse={() => setIsLeftCollapsed((prev) => !prev)}
+              currentTime={currentTime}
+              layers={layers}
+              selectedElement={selectedElement}
+              onClearSelectedElement={() => setSelectedElement(null)}
+              projectId={projectId}
+              onDropAssetToTimeline={handleDropAssetToTimeline}
+            />
 
-        {/* Column 2: Center Interactive Canvas */}
-        <InteractiveCanvas
-          previewSrc={previewSrc}
-          currentTime={currentTime}
-          duration={duration}
-          isPlaying={isPlaying}
-          onTimeUpdate={(t) => setCurrentTime(t)}
-          onPlayPauseToggle={handlePlayPause}
-          selectedElement={selectedElement}
-          onSelectElement={(el) => setSelectedElement(el)}
-          onUpdateElementStyle={(id, prop, val) => {
-            setLocalUnsaved(true);
-            handleUpdateStyle(id, prop, val);
-          }}
-          onLayersLoaded={(loaded) => setLayers(loaded)}
-          onDropAsset={handleDropAssetToTimeline}
-        />
+            {/* Column 2: Center Interactive Canvas */}
+            <InteractiveCanvas
+              previewSrc={previewSrc}
+              renderedVideoUrl={previewingVideoUrl || renderedVideoUrl}
+              currentTime={currentTime}
+              duration={duration}
+              isPlaying={isPlaying}
+              onTimeUpdate={(t) => setCurrentTime(t)}
+              onPlayPauseToggle={handlePlayPause}
+              selectedElement={selectedElement}
+              onSelectElement={(el) => setSelectedElement(el)}
+              onUpdateElementStyle={(id, prop, val) => {
+                setLocalUnsaved(true);
+                handleUpdateStyle(id, prop, val);
+              }}
+              onLayersLoaded={(loaded) => setLayers(loaded)}
+              onDropAsset={handleDropAssetToTimeline}
+              scenes={compScenes}
+              visualClips={visualClips}
+              projectTitle={projectTitle}
+              onOpenPropertiesTab={handleOpenPropertiesTab}
+              playbackSpeed={playbackSpeed}
+              onSpeedChange={(spd) => setPlaybackSpeed(spd)}
+            />
 
-        {/* Column 3: Right Visual Property Inspector */}
-        <RightPropertyPanel
-          selectedElement={selectedElement}
-          onUpdateStyle={(id, prop, val) => {
-            setLocalUnsaved(true);
-            handleUpdateStyle(id, prop, val);
-          }}
-          onUpdateText={(id, txt) => {
-            setLocalUnsaved(true);
-            handleUpdateText(id, txt);
-          }}
-          layers={layers}
-          onToggleLayer={(id, act) => {
-            setLocalUnsaved(true);
-            handleToggleLayer(id, act);
-          }}
-          onSelectLayer={handleSelectLayer}
-          variables={variables}
-          onUpdateVariable={(k, v) => {
-            setLocalUnsaved(true);
-            handleUpdateVariable(k, v);
-          }}
-          renders={renderJobs}
-          onTriggerRender={onSyncAndRender}
-          isRendering={isRendering}
-          onSelectPreviewVideo={(url) => setPreviewingVideoUrl(url)}
-          isCollapsed={isRightCollapsed}
-          onToggleCollapse={() => setIsRightCollapsed((prev) => !prev)}
-        />
-      </div>
+            {/* Column 3: Right Visual Property Inspector */}
+            <RightPropertyPanel
+              activeTab={propertyPanelTab}
+              onTabChange={setPropertyPanelTab}
+              selectedElement={selectedElement}
+              onUpdateStyle={(id, prop, val) => {
+                setLocalUnsaved(true);
+                handleUpdateStyle(id, prop, val);
+              }}
+              onUpdateText={(id, txt) => {
+                setLocalUnsaved(true);
+                handleUpdateText(id, txt);
+              }}
+              layers={layers}
+              onToggleLayer={(id, act) => {
+                setLocalUnsaved(true);
+                handleToggleLayer(id, act);
+              }}
+              onSelectLayer={handleSelectLayer}
+              variables={variables}
+              onUpdateVariable={(k, v) => {
+                setLocalUnsaved(true);
+                handleUpdateVariable(k, v);
+              }}
+              renders={renderJobs}
+              onTriggerRender={onSyncAndRender}
+              isRendering={isRendering}
+              onSelectPreviewVideo={(url) => setPreviewingVideoUrl(url)}
+              isCollapsed={isRightCollapsed}
+              onToggleCollapse={() => setIsRightCollapsed((prev) => !prev)}
+              playbackSpeed={playbackSpeed}
+              onSpeedChange={(spd) => setPlaybackSpeed(spd)}
+              activeScene={compScenes.find((s) => s.id === activeSceneId) || compScenes[0]}
+              onSetSceneSpeed={handleSetSceneSpeed}
+            />
+          </div>
 
-      {/* Bottom Area: Multitrack Timeline */}
-      <MultitrackTimeline
-        projectId={projectId}
-        projectTitle={projectTitle}
-        duration={duration}
-        currentTime={currentTime}
-        isPlaying={isPlaying}
-        onTimeChange={(t) => setCurrentTime(t)}
-        onPlayPauseToggle={handlePlayPause}
-        scenes={compScenes}
-        activeSceneId={activeSceneId}
-        onSelectScene={(id) => {
-          setActiveSceneId(id);
-          const found = compScenes.find((s) => s.id === id);
-          if (found) onSelectFile(found.file);
-        }}
-        onUpdateSceneDuration={handleUpdateSceneDuration}
-        onUpdateScenes={(timelineUpdater) => {
-          setLocalUnsaved(true);
-          if (onUpdateScenes) {
-            onUpdateScenes((prev) => {
-              const compPrev: CompositionScene[] = prev.map((s, idx) => ({
-                id: s.id,
-                name: `Scene ${idx + 1}`,
-                file: s.file,
-                start: s.start,
-                duration: s.duration,
-              }));
-              const updatedComp = timelineUpdater(compPrev);
-              return updatedComp.map((s) => ({
-                id: s.id,
-                file: s.file,
-                start: s.start,
-                duration: s.duration,
-              }));
-            });
-          }
-        }}
-        selectedElementId={selectedElement?.id}
-        onSelectElementId={(id) => {
-          if (!id) {
-            setSelectedElement(null);
-          } else {
-            handleSelectLayer(id);
-          }
-        }}
-        onOpenPropertiesTab={() => {
-          setIsRightCollapsed(false);
-        }}
-        onDropAsset={handleDropAssetToTimeline}
-      />
+          {/* Bottom Area: FreeCut Professional Multitrack Timeline */}
+          <FreeCutTimeline
+            projectId={projectId}
+            projectTitle={projectTitle}
+            duration={duration}
+            onUpdateDuration={onUpdateDuration}
+            currentTime={currentTime}
+            isPlaying={isPlaying}
+            playbackSpeed={playbackSpeed}
+            onSpeedChange={(spd) => setPlaybackSpeed(spd)}
+            onTimeChange={(t) => setCurrentTime(t)}
+            onPlayPauseToggle={handlePlayPause}
+            scenes={compScenes}
+            activeSceneId={activeSceneId}
+            onSelectScene={(id) => {
+              setActiveSceneId(id);
+              const found = compScenes.find((s) => s.id === id);
+              if (found) onSelectFile(found.file);
+            }}
+            onAddScene={handleAddScene}
+            onUpdateSceneDuration={handleUpdateSceneDuration}
+            onSetSceneSpeed={handleSetSceneSpeed}
+            onUpdateScenes={(timelineUpdater) => {
+              setLocalUnsaved(true);
+              if (onUpdateScenes) {
+                onUpdateScenes((prev) => {
+                  const compPrev: CompositionScene[] = prev.map((s, idx) => ({
+                    ...s,
+                    name: s.name || `Scene ${idx + 1}`,
+                    mediaOffset: s.mediaOffset !== undefined ? s.mediaOffset : (idx === 0 ? 0 : s.start),
+                  }));
+                  return timelineUpdater(compPrev);
+                });
+              }
+            }}
+            selectedElementId={selectedElement?.id}
+            onSelectElementId={(id) => {
+              if (!id) {
+                setSelectedElement(null);
+              } else {
+                handleSelectLayer(id);
+              }
+            }}
+            onOpenPropertiesTab={() => {
+              setIsRightCollapsed(false);
+            }}
+            onDropAsset={handleDropAssetToTimeline}
+          />
 
       {/* Video Preview Modal */}
       {previewingVideoUrl && (

@@ -1,5 +1,5 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { audit } from "./auditLog";
 import { bump } from "./counters";
@@ -19,9 +19,10 @@ export const list = query({
   },
   handler: async (ctx, { workspaceId, type, search }) => {
     const userId = await getAuthUserId(ctx);
-    if (userId) {
-      await requireMember(ctx, userId, workspaceId);
+    if (!userId) {
+      throw new ConvexError("Unauthenticated");
     }
+    await requireMember(ctx, userId, workspaceId);
 
     let rows: any[] = [];
     if (type && type !== "all") {
@@ -71,11 +72,12 @@ export const get = query({
   args: { assetId: v.id("assets") },
   handler: async (ctx, { assetId }) => {
     const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new ConvexError("Unauthenticated");
+    }
     const asset = await ctx.db.get(assetId);
     if (!asset) return null;
-    if (userId) {
-      await requireMember(ctx, userId, asset.workspaceId);
-    }
+    await requireMember(ctx, userId, asset.workspaceId);
     let storageUrl = asset.storageUrl;
     if (storageUrl && storageUrl.includes("localhost:4000")) {
       storageUrl = storageUrl.replace(/^https?:\/\/[^/]+/, "");
@@ -199,31 +201,15 @@ export const createInternal = mutation({
 export const remove = mutation({
   args: { assetId: v.id("assets") },
   handler: async (ctx, { assetId }) => {
-    let userId = await getAuthUserId(ctx);
+    const userId = await getAuthUserId(ctx);
     if (!userId) {
-      let defaultUser = await ctx.db.query("users").first();
-      if (!defaultUser) {
-        const uId = await ctx.db.insert("users", {
-          name: "Admin",
-          username: "admin",
-          email: "admin@hyparlink.com",
-          emailVerificationTime: Date.now(),
-        });
-        defaultUser = await ctx.db.get(uId);
-      }
-      userId = defaultUser!._id;
+      throw new ConvexError("Unauthenticated");
     }
 
     const asset = await ctx.db.get(assetId);
     if (!asset) throw new Error("Asset not found");
 
-    if (userId) {
-      try {
-        await requireMember(ctx, userId, asset.workspaceId);
-      } catch (err) {
-        // In local/dev setups, allow deleting if user is valid
-      }
-    }
+    await requireMember(ctx, userId, asset.workspaceId);
 
     await ctx.db.delete(assetId);
     if (userId) {

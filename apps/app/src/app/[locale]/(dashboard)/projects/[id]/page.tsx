@@ -52,7 +52,7 @@ function computeDownloadFilename(project: any, selectedResolution: string): stri
         "",
       )
       .trim();
-    topic = cleaned.length > 2 ? cleaned.slice(0, 30) : "hyperframes-video";
+    topic = cleaned.length > 2 ? cleaned.slice(0, 30) : "ollastar-video";
   }
 
   const cleanSlug = topic
@@ -155,7 +155,7 @@ export default function ProjectDetailPage() {
 
   // Multi-resolution resolution selector
   const renders = project.renders || [];
-  const activeRender = renders.find((r) => r.resolution === selectedResolution);
+  const activeRender = renders.find((r: any) => r.resolution === selectedResolution);
   const activeVideoUrl =
     activeRender?.cdnUrl || activeRender?.storageUrl || project.videoUrl;
 
@@ -165,14 +165,14 @@ export default function ProjectDetailPage() {
       id: "720p",
       label: "720p",
       available: renders.some(
-        (r) => r.resolution === "720p" && r.status === "completed",
+        (r: any) => r.resolution === "720p" && r.status === "completed",
       ),
     },
     {
       id: "480p",
       label: "480p",
       available: renders.some(
-        (r) => r.resolution === "480p" && r.status === "completed",
+        (r: any) => r.resolution === "480p" && r.status === "completed",
       ),
     },
   ];
@@ -356,7 +356,7 @@ export default function ProjectDetailPage() {
               </h3>
               <p className="mt-1 text-sm text-primary/60 max-w-md">
                 {project.error ||
-                  "The HyperFrames validation or render process encountered an issue."}
+                  "The Ollastar validation or render process encountered an issue."}
               </p>
               <Button onClick={handleRetry} className="mt-4 gap-2">
                 <RotateCw className="h-4 w-4" /> Retry Generation
@@ -419,7 +419,7 @@ export default function ProjectDetailPage() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-xs text-primary/50">HyperFrames</span>
+                <span className="text-xs text-primary/50">Ollastar</span>
                 <span className="font-mono font-medium text-primary">
                   v{project.hyperframesVersion}
                 </span>

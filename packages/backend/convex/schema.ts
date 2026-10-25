@@ -241,4 +241,11 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_workspace_status", ["workspaceId", "status"])
     .index("by_workspace_deletedAt", ["workspaceId", "deletedAt"]),
+
+  otpCodes: defineTable({
+    email: v.string(),
+    code: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  }).index("by_email", ["email"]),
 });

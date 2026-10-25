@@ -28,7 +28,7 @@ async function doCall(
   method: string,
   body: unknown,
 ) {
-  const base = process.env.BACKEND_BASE_URL;
+  const base = process.env.BACKEND_BASE_URL || "http://127.0.0.1:4000";
   if (!base)
     throw new Error("BACKEND_BASE_URL not set on the Convex deployment");
   const res = await fetch(`${base}${path}`, {

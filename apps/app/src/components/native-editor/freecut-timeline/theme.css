@@ -1,0 +1,52 @@
+/**
+ * FreeCut Timeline Theme & Cursors
+ * Adapted from FreeCut repository (MIT License)
+ */
+
+.freecut-timeline-root {
+  --fc-track-bg: #141720;
+  --fc-track-border: #222736;
+  --fc-track-hover: #1c2130;
+  --fc-playhead: #f97316;
+  --fc-snap-guide: #38bdf8;
+  --fc-clip-scene: #3b82f6;
+  --fc-clip-video: #8b5cf6;
+  --fc-clip-audio: #10b981;
+  --fc-clip-text: #ec4899;
+  --fc-clip-image: #06b6d4;
+  --fc-clip-selected-border: #fb923c;
+  --fc-ruler-tick: #475569;
+  --fc-ruler-text: #94a3b8;
+}
+
+/* Scissors cursor for razor/cut tool */
+.fc-cursor-scissors {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cg transform='rotate(-90 12 12)'%3E%3Ccircle cx='6' cy='6' r='3'/%3E%3Cpath d='M8.12 8.12 12 12'/%3E%3Cpath d='M20 4 8.12 15.88'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Cpath d='M14.8 14.8 20 20'/%3E%3C/g%3E%3C/svg%3E")
+      12 12,
+    crosshair !important;
+}
+
+/* Trim left cursor */
+.fc-cursor-trim-left {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 4v16'/%3E%3Cpath d='m13 7-6 5 6 5z' fill='%23ffffff' stroke='none'/%3E%3C/svg%3E")
+      18 12,
+    ew-resize !important;
+}
+
+/* Trim right cursor */
+.fc-cursor-trim-right {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 4v16'/%3E%3Cpath d='m11 7 6 5-6 5z' fill='%23ffffff' stroke='none'/%3E%3C/svg%3E")
+      6 12,
+    ew-resize !important;
+}
+
+/* Hand / Pan cursor */
+.fc-cursor-grab {
+  cursor: grab;
+}
+.fc-cursor-grabbing {
+  cursor: grabbing;
+}

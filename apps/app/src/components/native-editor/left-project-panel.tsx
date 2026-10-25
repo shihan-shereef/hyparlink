@@ -39,6 +39,7 @@ import {
 import { CompositionScene, CompositionLayer, SelectedElement, AssetItem } from "./types";
 import { AIAgentPanel } from "./ai-agent-panel";
 import { CATALOG_ITEMS, CATALOG_CATEGORIES, CatalogItem } from "./catalog-data";
+import { AnimationLibraryPanel, LottieItem, AnimationPresetItem } from "./animation-library-panel";
 import { toast } from "sonner";
 
 interface LeftProjectPanelProps {
@@ -59,6 +60,8 @@ interface LeftProjectPanelProps {
   onClearSelectedElement?: () => void;
   projectId?: string;
   onDropAssetToTimeline?: (asset: AssetItem, targetTime?: number, trackType?: "visual" | "audio" | "scene") => void;
+  onInsertLottie?: (animation: LottieItem) => void;
+  onApplyPreset?: (preset: AnimationPresetItem) => void;
 }
 
 export const LeftProjectPanel: React.FC<LeftProjectPanelProps> = ({
@@ -79,12 +82,52 @@ export const LeftProjectPanel: React.FC<LeftProjectPanelProps> = ({
   onClearSelectedElement,
   projectId,
   onDropAssetToTimeline,
+  onInsertLottie,
+  onApplyPreset,
 }) => {
-  const [activeTab, setActiveTab] = useState<"compositions" | "assets" | "agent" | "code" | "catalog">("compositions");
+  const [activeTab, setActiveTab] = useState<"compositions" | "assets" | "agent" | "code" | "catalog" | "animations">("compositions");
   const [searchQuery, setSearchQuery] = useState("");
   const [catalogCategory, setCatalogCategory] = useState<string>("All");
   const [assetFilter, setAssetFilter] = useState<"all" | "image" | "audio" | "video">("all");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Default Lottie Insertion Handler (embeds dotlottie into active composition)
+  const handleDefaultInsertLottie = (anim: LottieItem) => {
+    const lottieScript = `<script type="module" src="https://unpkg.com/@dotlottie/player-component@latest/dist/dotlottie-player.mjs"></script>`;
+    const lottieTag = `<!-- FreeCut Lottie: ${anim.name} -->
+<dotlottie-player src="${anim.lottieUrl}" class="clip lottie-animation" data-start="${Math.round(currentTime)}" data-duration="5" background="transparent" speed="1" style="position: absolute; width: 320px; height: 320px; top: 25%; left: 35%; z-index: 1000;" loop autoplay></dotlottie-player>`;
+
+    const currentCode = files[selectedFile] || files["index.html"] || "";
+    let updatedCode = currentCode;
+    if (!updatedCode.includes("@dotlottie/player-component") && updatedCode.includes("</head>")) {
+      updatedCode = updatedCode.replace("</head>", `  ${lottieScript}\n</head>`);
+    }
+    if (updatedCode.includes("</body>")) {
+      updatedCode = updatedCode.replace("</body>", `  ${lottieTag}\n</body>`);
+    } else {
+      updatedCode = updatedCode + "\n\n" + lottieTag;
+    }
+    onCodeChange(updatedCode);
+    toast.success(`Inserted "${anim.name}" Lottie animation into composition!`);
+  };
+
+  // Default Motion Preset Handler (applies keyframes to active element/scene)
+  const handleDefaultApplyPreset = (preset: AnimationPresetItem) => {
+    const targetSelector = selectedElement ? `#${selectedElement.id}` : ".scene-root";
+    const cssRule = `\n/* FreeCut Motion Preset: ${preset.name} */\n${preset.cssKeyframes}\n${targetSelector} {\n  animation: ${preset.cssAnimation};\n}\n`;
+
+    const currentCode = files[selectedFile] || files["index.html"] || "";
+    let updatedCode = currentCode;
+    if (updatedCode.includes("</style>")) {
+      updatedCode = updatedCode.replace("</style>", `${cssRule}</style>`);
+    } else if (updatedCode.includes("</head>")) {
+      updatedCode = updatedCode.replace("</head>", `  <style>${cssRule}</style>\n</head>`);
+    } else {
+      updatedCode = updatedCode + `\n<style>${cssRule}</style>`;
+    }
+    onCodeChange(updatedCode);
+    toast.success(`Applied "${preset.name}" motion preset to ${selectedElement ? selectedElement.id : "scene"}!`);
+  };
 
   const [assets, setAssets] = useState<AssetItem[]>([
     { id: "asset-1", name: "karnataka-intro.jpg", type: "image", url: "assets/karnataka-intro.jpg", size: "680 KB" },
@@ -430,6 +473,22 @@ export const LeftProjectPanel: React.FC<LeftProjectPanelProps> = ({
           >
             <Sparkles className="w-4 h-4" />
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("animations");
+              if (onToggleCollapse) onToggleCollapse();
+            }}
+            className={`w-full aspect-square rounded-md flex items-center justify-center transition ${
+              activeTab === "animations"
+                ? "bg-purple-50 text-purple-700 border border-purple-200 font-bold"
+                : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+            }`}
+            title="FreeCut Animations & Lottie"
+          >
+            <Zap className="w-4 h-4" />
+          </button>
         </div>
       </aside>
     );
@@ -440,20 +499,20 @@ export const LeftProjectPanel: React.FC<LeftProjectPanelProps> = ({
       className={`${
         activeTab === "code"
           ? "w-[580px] xl:w-[680px]"
-          : activeTab === "catalog"
+          : activeTab === "catalog" || activeTab === "animations"
           ? "w-80 md:w-[420px]"
           : activeTab === "agent"
           ? "w-80 md:w-[380px]"
           : "w-64 md:w-72"
       } shrink-0 bg-white border-r border-gray-200 flex flex-col text-gray-800 select-none min-h-0 z-10 transition-all duration-200 shadow-xs`}
     >
-      {/* 5 Navigation Tabs Header with Collapse & Window Controls */}
+      {/* Navigation Tabs Header with Collapse & Window Controls */}
       <div className="h-10 bg-[#f9fafb] border-b border-gray-200 flex items-center px-2.5 gap-1 shrink-0 justify-between">
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveTab("compositions")}
-            className={`px-2.5 py-1 text-[11px] rounded transition flex items-center gap-1.5 ${
+            className={`px-2 py-1 text-[11px] rounded transition flex items-center gap-1.5 ${
               activeTab === "compositions"
                 ? "bg-white text-gray-900 border border-gray-300 font-bold shadow-xs"
                 : "text-gray-500 hover:text-gray-900 hover:bg-gray-100 font-medium"
@@ -465,7 +524,7 @@ export const LeftProjectPanel: React.FC<LeftProjectPanelProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab("assets")}
-            className={`px-2.5 py-1 text-[11px] rounded transition flex items-center gap-1.5 ${
+            className={`px-2 py-1 text-[11px] rounded transition flex items-center gap-1.5 ${
               activeTab === "assets"
                 ? "bg-white text-gray-900 border border-gray-300 font-bold shadow-xs"
                 : "text-gray-500 hover:text-gray-900 hover:bg-gray-100 font-medium"
@@ -476,8 +535,21 @@ export const LeftProjectPanel: React.FC<LeftProjectPanelProps> = ({
 
           <button
             type="button"
+            onClick={() => setActiveTab("animations")}
+            className={`px-2 py-1 text-[11px] rounded transition flex items-center gap-1.5 ${
+              activeTab === "animations"
+                ? "bg-white text-purple-900 border border-purple-300 font-bold shadow-xs"
+                : "text-purple-700 hover:text-purple-900 hover:bg-purple-50 font-semibold"
+            }`}
+            title="FreeCut Animation Assets & Lottie Library"
+          >
+            <Zap className="w-3.5 h-3.5 text-purple-600" /> Animations
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab("agent")}
-            className={`px-2.5 py-1 text-[11px] rounded transition flex items-center gap-1.5 ${
+            className={`px-2 py-1 text-[11px] rounded transition flex items-center gap-1.5 ${
               activeTab === "agent"
                 ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold shadow-xs"
                 : "text-purple-700 hover:text-purple-900 hover:bg-purple-50 font-semibold"
@@ -491,7 +563,7 @@ export const LeftProjectPanel: React.FC<LeftProjectPanelProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab("code")}
-            className={`px-2.5 py-1 text-[11px] rounded transition flex items-center gap-1.5 ${
+            className={`px-2 py-1 text-[11px] rounded transition flex items-center gap-1.5 ${
               activeTab === "code"
                 ? "bg-white text-gray-900 border border-gray-300 font-bold shadow-xs"
                 : "text-gray-500 hover:text-gray-900 hover:bg-gray-100 font-medium"
@@ -503,7 +575,7 @@ export const LeftProjectPanel: React.FC<LeftProjectPanelProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab("catalog")}
-            className={`px-2.5 py-1 text-[11px] rounded transition flex items-center gap-1.5 ${
+            className={`px-2 py-1 text-[11px] rounded transition flex items-center gap-1.5 ${
               activeTab === "catalog"
                 ? "bg-white text-gray-900 border border-gray-300 font-bold shadow-xs"
                 : "text-gray-500 hover:text-gray-900 hover:bg-gray-100 font-medium"
@@ -1180,6 +1252,16 @@ export const LeftProjectPanel: React.FC<LeftProjectPanelProps> = ({
           scenes={scenes}
           activeSceneId={activeSceneId}
           projectId={projectId}
+        />
+      )}
+
+      {/* TAB: ANIMATION ASSETS & LOTTIE LIBRARY PANEL (FREECUT INTEGRATION) */}
+      {activeTab === "animations" && (
+        <AnimationLibraryPanel
+          onInsertLottie={onInsertLottie || handleDefaultInsertLottie}
+          onApplyPreset={onApplyPreset || handleDefaultApplyPreset}
+          selectedElement={selectedElement}
+          currentTime={currentTime}
         />
       )}
     </aside>

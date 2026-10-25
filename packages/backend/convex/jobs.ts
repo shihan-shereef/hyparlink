@@ -131,7 +131,7 @@ export const processJob = internalAction({
     });
     const job = await ctx.runQuery(internal.jobs.get, { jobId });
     if (!job) return;
-    const base = process.env.BACKEND_BASE_URL;
+    const base = process.env.BACKEND_BASE_URL || "http://127.0.0.1:4000";
     if (!base) {
       await ctx.runMutation(internal.jobs.complete, {
         jobId,

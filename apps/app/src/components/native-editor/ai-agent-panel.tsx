@@ -21,6 +21,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useWorkspace } from "@/lib/useWorkspace";
 import type { SelectedElement, CompositionScene } from "./types";
 
 interface AgentEditHistoryItem {
@@ -121,15 +122,22 @@ export const AIAgentPanel: React.FC<AIAgentPanelProps> = ({
     }
   };
 
+  const { current: workspaceId } = useWorkspace();
+
   const handleExecuteEdit = async () => {
     if (!instruction.trim()) {
       toast.error("Please enter instructions for the agent.");
       return;
     }
 
-    const currentFileCode = files[selectedFile] || files["index.html"] || "";
+    const targetScene = scenes?.find((s) => s.id === activeSceneId);
+    const fileToEdit = (selectedFile && selectedFile !== "index.html")
+      ? selectedFile
+      : (targetScene?.file || selectedFile || "index.html");
+
+    const currentFileCode = files[fileToEdit] || files[selectedFile] || files["index.html"] || "";
     if (!currentFileCode) {
-      toast.error(`Cannot find source code for ${selectedFile}`);
+      toast.error(`Cannot find source code for ${fileToEdit}`);
       return;
     }
 
@@ -139,9 +147,13 @@ export const AIAgentPanel: React.FC<AIAgentPanelProps> = ({
     try {
       const response = await fetch("/api/agent/edit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(workspaceId ? { "x-workspace-id": workspaceId } : {}),
+        },
         body: JSON.stringify({
           projectId,
+          workspaceId: workspaceId || undefined,
           instruction: instruction.trim(),
           selectedElement: selectedElement
             ? {
@@ -154,7 +166,7 @@ export const AIAgentPanel: React.FC<AIAgentPanelProps> = ({
               }
             : null,
           currentCode: currentFileCode,
-          selectedFile: selectedFile || "index.html",
+          selectedFile: fileToEdit,
           model: customModel || modelName || "gemini-3-flash",
           endpoint: customEndpoint || undefined,
         }),
@@ -164,6 +176,10 @@ export const AIAgentPanel: React.FC<AIAgentPanelProps> = ({
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || "Ollama agent failed to process the request.");
+      }
+
+      if (projectId && data.savedToFile === false) {
+        throw new Error(data.error || `Edit generated, but failed to write to ${fileToEdit}`);
       }
 
       const updatedCode = data.updatedCode;
@@ -181,18 +197,18 @@ export const AIAgentPanel: React.FC<AIAgentPanelProps> = ({
         diffSummary: data.diffSummary || "Modified styles & markup",
         previousCode: currentFileCode,
         appliedCode: updatedCode,
-        file: selectedFile || "index.html",
+        file: fileToEdit,
       };
 
       setEditHistory((prev) => [historyItem, ...prev]);
 
-      // Apply updated code directly to project state
+      // Apply updated code directly to project state and save
       onCodeChange(updatedCode);
       if (onSaveCode) {
-        setTimeout(() => onSaveCode(), 400);
+        onSaveCode();
       }
 
-      toast.success(data.summary || "Agent edit applied successfully!");
+      toast.success(data.summary || "Agent edit applied and saved successfully!");
       setInstruction("");
     } catch (err: any) {
       console.error("[AIAgentPanel] Edit failed:", err);

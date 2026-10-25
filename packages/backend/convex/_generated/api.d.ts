@@ -28,6 +28,7 @@ import type * as init from "../init.js";
 import type * as jobs from "../jobs.js";
 import type * as notifications from "../notifications.js";
 import type * as orgs from "../orgs.js";
+import type * as otp from "../otp.js";
 import type * as passwordProviders from "../passwordProviders.js";
 import type * as projects from "../projects.js";
 import type * as seed from "../seed.js";
@@ -72,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   jobs: typeof jobs;
   notifications: typeof notifications;
   orgs: typeof orgs;
+  otp: typeof otp;
   passwordProviders: typeof passwordProviders;
   projects: typeof projects;
   seed: typeof seed;

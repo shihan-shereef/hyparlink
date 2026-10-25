@@ -280,7 +280,7 @@ export default function HeyGenStudioPage() {
 
   // Script & Parameters
   const [script, setScript] = useState<string>(
-    "Welcome to our platform! Today we are introducing our new AI avatar studio, powered by HyperFrames and HeyGen. You can generate studio-quality talking presenter videos in just a few clicks."
+    "Welcome to our platform! Today we are introducing our new AI avatar studio, powered by Ollastar Motion. You can generate studio-quality talking presenter videos in just a few clicks."
   );
   const [speed, setSpeed] = useState<number>(1.0);
   const [pitch, setPitch] = useState<number>(0);
@@ -300,7 +300,7 @@ export default function HeyGenStudioPage() {
   }>({
     valid: false,
     mode: "sandbox",
-    message: "Sandbox Mode: Free Local FFmpeg & HyperFrames Studio Engine Active.",
+    message: "Sandbox Mode: Free Local FFmpeg & Ollastar Engine Active.",
   });
   const [showGuide, setShowGuide] = useState<boolean>(false);
 
@@ -414,7 +414,7 @@ export default function HeyGenStudioPage() {
     setConnectionStatus({
       valid: false,
       mode: "sandbox",
-      message: "Sandbox Mode: Free Local FFmpeg & HyperFrames Studio Engine Active.",
+      message: "Sandbox Mode: Free Local FFmpeg & Ollastar Engine Active.",
     });
   };
 

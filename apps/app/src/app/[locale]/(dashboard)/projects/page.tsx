@@ -57,15 +57,13 @@ const statusBadges: Record<string, { label: string; className: string }> = {
   },
 };
 
-const PRIMARY_WS = "mh7eadmg10g11yqwbjtyc41yjs8fxx17" as Id<"workspaces">;
-
 export default function ProjectsPage() {
   const router = useRouter();
   const { current, workspaces, select } = useWorkspace();
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [activeTab, setActiveTab] = useState<"active" | "trash">("active");
 
-  const effectiveWs = current || PRIMARY_WS;
+  const effectiveWs = current || (workspaces && workspaces[0]?._id) || undefined;
 
   const projects = useQuery(
     api.projects.list,
@@ -137,8 +135,10 @@ export default function ProjectsPage() {
       return;
     }
     try {
-      await emptyTrash({ workspaceId: effectiveWs });
-      toast.success("Trash emptied successfully");
+      if (effectiveWs) {
+        await emptyTrash({ workspaceId: effectiveWs });
+        toast.success("Trash emptied successfully");
+      }
     } catch {
       toast.error("Failed to empty trash");
     }
@@ -281,17 +281,26 @@ export default function ProjectsPage() {
                       Create Video
                     </Button>
                   </Link>
-                  {effectiveWs !== PRIMARY_WS && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => select(PRIMARY_WS)}
-                      className="gap-2 border-primary/30 text-primary"
-                    >
-                      <Film className="h-4 w-4 text-purple-500" />
-                      Switch to Primary Workspace
-                    </Button>
-                  )}
+                  {(() => {
+                    const primaryTarget =
+                      workspaces?.find((w) => w._id === "mh76mnv9k6dbe50rbwc0jsqpzd8grsqj") ||
+                      workspaces?.find((w) => w._id !== effectiveWs);
+                    if (!primaryTarget || effectiveWs === primaryTarget._id) return null;
+                    return (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          select(primaryTarget._id);
+                          toast.success(`Switched to ${primaryTarget.name || "Primary Workspace"}`);
+                        }}
+                        className="gap-2 border-primary/30 text-primary"
+                      >
+                        <Film className="h-4 w-4 text-purple-500" />
+                        Switch to {primaryTarget.name || "Primary Workspace"}
+                      </Button>
+                    );
+                  })()}
                 </div>
               </div>
             ) : viewMode === "grid" ? (

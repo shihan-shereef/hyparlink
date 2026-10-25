@@ -72,11 +72,15 @@ export function splitClip(
     return null;
   }
 
+  const currentOffset = (clip as any).mediaOffset !== undefined ? (clip as any).mediaOffset : ((clip as any).sourceIn || 0);
+  const speed = (clip as any).speed || 1;
+
   const leftClip: TimelineClip = {
     ...clip,
     id: `${clip.id}_part1`,
     duration: leftDuration,
     name: `${clip.name} (Part 1)`,
+    mediaOffset: currentOffset,
   };
 
   const rightClip: TimelineClip = {
@@ -85,6 +89,7 @@ export function splitClip(
     start: Math.round(splitTime * 100) / 100,
     duration: rightDuration,
     name: `${clip.name} (Part 2)`,
+    mediaOffset: Math.round((currentOffset + leftDuration * speed) * 100) / 100,
   };
 
   return [leftClip, rightClip];
@@ -112,19 +117,24 @@ export function splitScene(
     return null;
   }
 
+  const currentOffset = scene.mediaOffset !== undefined ? scene.mediaOffset : sceneStart;
+  const speed = (scene as any).speed || 1;
+
   const leftScene: CompositionScene = {
     ...scene,
     id: `${scene.id}_a`,
-    name: `${scene.name} (A)`,
+    name: `${scene.name || "Scene"} (Part 1)`,
     duration: leftDuration,
+    mediaOffset: currentOffset,
   };
 
   const rightScene: CompositionScene = {
     ...scene,
     id: `${scene.id}_b_${Date.now().toString(36).slice(-4)}`,
-    name: `${scene.name} (B)`,
+    name: `${scene.name || "Scene"} (Part 2)`,
     start: Math.round(splitTime * 100) / 100,
     duration: rightDuration,
+    mediaOffset: Math.round((currentOffset + leftDuration * speed) * 100) / 100,
   };
 
   return [leftScene, rightScene];
@@ -200,7 +210,7 @@ export function resizeClipWithSnapping(
   minDuration: number = 0.5,
   isSnappingEnabled: boolean = true,
   snappingThreshold: number = 0.2
-): { start: number; duration: number; snappedGuide: number | null } {
+): { start: number; duration: number; mediaOffset: number; snappedGuide: number | null } {
   let candidateTime = Math.max(0, newEdgeTime);
   let activeGuide: number | null = null;
 
@@ -225,25 +235,30 @@ export function resizeClipWithSnapping(
   }
 
   candidateTime = Math.round(candidateTime * 100) / 100;
+  const currentOffset = (clip as any).mediaOffset !== undefined ? (clip as any).mediaOffset : (clip.trackType === "scene" ? clip.start : 0);
+  const speed = (clip as any).speed || 1;
 
   if (edge === "right") {
-    // Adjust duration while keeping start fixed
+    // Adjust duration while keeping start and in-point fixed
     const newDuration = Math.max(minDuration, Math.round((candidateTime - clip.start) * 100) / 100);
     return {
       start: clip.start,
       duration: newDuration,
+      mediaOffset: currentOffset,
       snappedGuide: activeGuide,
     };
   } else {
-    // Adjust start and duration while keeping end fixed
+    // Adjust start and in-point while keeping end fixed
     const originalEnd = clip.start + clip.duration;
     const maxAllowedStart = originalEnd - minDuration;
     const newStart = Math.min(maxAllowedStart, Math.max(0, candidateTime));
     const newDuration = Math.max(minDuration, Math.round((originalEnd - newStart) * 100) / 100);
+    const newOffset = Math.max(0, Math.round((currentOffset + (newStart - clip.start) * speed) * 100) / 100);
 
     return {
       start: newStart,
       duration: newDuration,
+      mediaOffset: newOffset,
       snappedGuide: activeGuide,
     };
   }

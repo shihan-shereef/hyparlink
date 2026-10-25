@@ -9,52 +9,22 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
-  Clock,
-  Code2,
-  Copy,
   Download,
-  ExternalLink,
   Film,
-  Layers,
   Maximize2,
   Minimize2,
-  Monitor,
-  Palette,
-  Play,
   RefreshCw,
   RotateCw,
   Save,
   SlidersHorizontal,
-  Sparkles,
   Tv,
-  Type,
-  Video,
-  Wifi,
-  WifiOff,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { NativeHyperlinkEditor } from "@/components/native-editor/native-editor-view";
-import type { RenderJob } from "@/components/native-editor/types";
-
-interface EditorScene {
-  id: string;
-  file: string;
-  start: number;
-  duration: number;
-}
-
-interface EditableProperties {
-  title: string;
-  subtitle: string;
-  accentColor: string;
-  backgroundColor: string;
-  duration: number;
-  fps: number;
-  resolution: string;
-}
+import type { CompositionScene, RenderJob } from "@/components/native-editor/types";
 
 interface StudioSession {
   sessionId: string;
@@ -65,7 +35,7 @@ interface StudioSession {
   reused?: boolean;
 }
 
-export default function ProjectLiveEditorPage() {
+export default function ProjectEditorPage() {
   const params = useParams();
   const projectId = params.projectId as Id<"projects">;
   const { current } = useWorkspace();
@@ -77,27 +47,26 @@ export default function ProjectLiveEditorPage() {
 
   const effectiveWs = (convexProject as any)?.workspaceId || current || "";
 
-  // View mode: companion Inspector, official Studio, Native Hyperlink Editor, or Rendered Video
-  const [activeView, setActiveView] = useState<
-    "native" | "studio" | "inspector" | "video"
-  >("native");
-  const [activeInspectorTab, setActiveInspectorTab] = useState<
-    "visual" | "code"
-  >("visual");
+  // -------------------------------------------------------------
+  // Editor Mode State: Native Editor vs HyperFrames Studio
+  // -------------------------------------------------------------
+  const [editorMode, setEditorMode] = useState<"native" | "hyperframes">("native");
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [pendingModeSwitch, setPendingModeSwitch] = useState<"native" | "hyperframes" | null>(null);
 
   // Fullscreen toggle state & container ref
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const studioContainerRef = useRef<HTMLDivElement>(null);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
 
   const toggleFullscreen = useCallback(() => {
     setIsFullscreen((prev) => {
       const next = !prev;
       if (next) {
-        const target = studioContainerRef.current || document.documentElement;
+        const target = editorContainerRef.current || document.documentElement;
         if (target && target.requestFullscreen && !document.fullscreenElement) {
           target.requestFullscreen().catch(() => {});
         }
-        toast.info("Entered Fullscreen mode (Tap again or press Esc to exit)");
+        toast.info("Entered Fullscreen mode (Press Esc or tap again to exit)");
       } else {
         if (document.fullscreenElement && document.exitFullscreen) {
           document.exitFullscreen().catch(() => {});
@@ -127,49 +96,85 @@ export default function ProjectLiveEditorPage() {
     };
   }, [isFullscreen, toggleFullscreen]);
 
-  // Studio Session State
+  // Backend API URL
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+
+  // -------------------------------------------------------------
+  // Native Editor Project State
+  // -------------------------------------------------------------
+  const [scenes, setScenes] = useState<CompositionScene[]>([]);
+  const [files, setFiles] = useState<Record<string, string>>({});
+  const [selectedFile, setSelectedFile] = useState<string>("index.html");
+  const [properties, setProperties] = useState({
+    title: "",
+    subtitle: "",
+    accentColor: "#00a8ff",
+    backgroundColor: "#0A0A0D",
+    duration: 30,
+    fps: 30,
+    resolution: "1080p",
+  });
+  const [previewSrc, setPreviewSrc] = useState<string>("");
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  // -------------------------------------------------------------
+  // HyperFrames Studio Session State
+  // -------------------------------------------------------------
   const [session, setSession] = useState<StudioSession | null>(null);
   const [sessionStatus, setSessionStatus] = useState<
     "initializing" | "ready" | "error"
   >("initializing");
   const [sessionError, setSessionError] = useState<string | null>(null);
-  const [iframeLoaded, setIframeLoaded] = useState(false);
-
-  // Companion Inspector State
-  const [projectLoading, setProjectLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [rendering, setRendering] = useState(false);
-  const [files, setFiles] = useState<Record<string, string>>({});
-  const [scenes, setScenes] = useState<EditorScene[]>([]);
-  const [activeSceneId, setActiveSceneId] = useState<string>("scene-01");
-  const [selectedFile, setSelectedFile] = useState<string>(
-    "compositions/scene_01.html",
-  );
-  const [properties, setProperties] = useState<EditableProperties>({
-    title: "",
-    subtitle: "",
-    accentColor: "#00a8ff",
-    backgroundColor: "#050811",
-    duration: 15,
-    fps: 30,
-    resolution: "1080p",
-  });
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [previewKey, setPreviewKey] = useState<number>(Date.now());
   const [renderedVideoUrl, setRenderedVideoUrl] = useState<string | null>(null);
-  const [renders, setRenders] = useState<RenderJob[]>([]);
 
-  // Backend API URL
-  const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL || "";
+  // Load project files and metadata for Native Editor
+  const loadProjectData = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const res = await fetch(`${backendUrl}/editor/project/${projectId}`, {
+        headers: {
+          "x-workspace-id": effectiveWs,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.scenes && Array.isArray(data.scenes)) {
+          setScenes(data.scenes);
+        }
+        if (data.files && typeof data.files === "object") {
+          setFiles(data.files);
+        }
+        if (data.editableProperties) {
+          setProperties((prev) => ({
+            ...prev,
+            ...data.editableProperties,
+            duration: Number(data.editableProperties.duration) || prev.duration,
+            fps: Number(data.editableProperties.fps) || prev.fps,
+            resolution: data.editableProperties.resolution || prev.resolution,
+          }));
+        }
+        if (data.previewUrl) {
+          setPreviewSrc(`${backendUrl}${data.previewUrl}`);
+        } else {
+          setPreviewSrc(`${backendUrl}/editor/project/${projectId}/raw/index.html`);
+        }
+        if (data.renderedVideoUrl) {
+          setRenderedVideoUrl(data.renderedVideoUrl);
+        }
+      }
+    } catch (err: any) {
+      console.warn("[Editor] Failed to load project session data:", err.message);
+    }
+  }, [projectId, effectiveWs, backendUrl]);
 
-  // 1. Initialize or Reuse Official HyperFrames Studio Session
+  // Initialize HyperFrames Studio session on backend
   const initStudioSession = useCallback(async () => {
     if (!projectId) return;
     try {
       setSessionStatus("initializing");
       setSessionError(null);
-      setIframeLoaded(false);
 
       const res = await fetch(`${backendUrl}/editor/session/${projectId}`, {
         method: "POST",
@@ -182,136 +187,99 @@ export default function ProjectLiveEditorPage() {
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(
-          data.error || `HTTP ${res.status}: Failed to start Studio session`,
+          data.error || `HTTP ${res.status}: Failed to start HyperFrames Studio session`,
         );
       }
 
-      let finalStudioUrl = data.studioUrl;
-      const isHttps =
-        typeof window !== "undefined" && window.location.protocol === "https:";
-      const isLocalhost =
-        typeof window !== "undefined" &&
-        (window.location.hostname === "localhost" ||
-          window.location.hostname === "127.0.0.1");
-
-      if (
-        isHttps &&
-        !isLocalhost &&
-        (data.tunnelStudioUrl || process.env.NEXT_PUBLIC_STUDIO_URL)
-      ) {
-        const tunnelBase =
-          data.tunnelStudioUrl ||
-          `${process.env.NEXT_PUBLIC_STUDIO_URL}/#project/${data.projectName || data.sessionId}`;
-        finalStudioUrl = tunnelBase;
-      } else if (isLocalhost) {
-        finalStudioUrl = finalStudioUrl.replace("127.0.0.1", "localhost");
-      }
+      const projectName = data.projectName || projectId;
+      // Integrated Studio frontend is hosted directly on Ollastar (port 3000)
+      const integratedStudioUrl = `/studio/index.html#project/${projectName}`;
 
       setSession({
         sessionId: data.sessionId,
         port: data.port,
-        studioUrl: finalStudioUrl,
-        projectName: data.projectName,
+        studioUrl: integratedStudioUrl,
+        projectName,
         ready: data.ready,
         reused: data.reused,
       });
       setSessionStatus("ready");
-
-      if (data.reused) {
-        toast.success(
-          `Connected to active Studio instance on port ${data.port}`,
-        );
-      } else {
-        toast.success(`Studio launched on port ${data.port}`);
-      }
     } catch (err: any) {
-      console.error("[StudioSession] Init error:", err);
+      console.error("[HyperFramesStudio] Init error:", err);
       setSessionStatus("error");
       setSessionError(
-        err.message || "Failed to initialize Studio service",
+        err.message || "Failed to initialize HyperFrames Studio service",
       );
-      toast.error(`Studio startup error: ${err.message}`);
-    }
-  }, [projectId, effectiveWs, backendUrl]);
-
-  // 2. Load Project Structure & Companion Files
-  const loadProjectData = useCallback(async () => {
-    if (!projectId) return;
-    try {
-      setProjectLoading(true);
-      const res = await fetch(
-        `${backendUrl}/editor/project/${projectId}?workspaceId=${effectiveWs}`,
-        {
-          headers: {
-            "x-workspace-id": effectiveWs,
-          },
-        },
-      );
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(
-          err.error || `Failed to load project: ${res.statusText}`,
-        );
-      }
-
-      const data = await res.json();
-      setFiles(data.files || {});
-      const loadedScenes =
-        data.scenes && data.scenes.length > 0
-          ? data.scenes
-          : [
-              {
-                id: "scene_01",
-                file: "index.html",
-                start: 0,
-                duration: data.editableProperties?.duration || 40,
-              },
-            ];
-      setScenes(loadedScenes);
-      if (data.editableProperties) {
-        setProperties(data.editableProperties);
-      }
-      if (data.renders && Array.isArray(data.renders)) {
-        setRenders(data.renders);
-      }
-      if (data.renderedVideoUrl) {
-        setRenderedVideoUrl(data.renderedVideoUrl);
-      }
-      setActiveSceneId(loadedScenes[0].id);
-      setSelectedFile(loadedScenes[0].file);
-      setHasUnsavedChanges(false);
-    } catch (err: any) {
-      console.error("[LiveEditor] Load error:", err);
-    } finally {
-      setProjectLoading(false);
     }
   }, [projectId, effectiveWs, backendUrl]);
 
   useEffect(() => {
     if (projectId) {
-      initStudioSession();
       loadProjectData();
+      initStudioSession();
     }
-  }, [projectId, initStudioSession, loadProjectData]);
+  }, [projectId, loadProjectData, initStudioSession]);
 
   useEffect(() => {
     if (convexProject) {
       const vid =
         convexProject.cdnUrl ||
         convexProject.storageUrl ||
-        convexProject.videoUrl;
+        convexProject.videoUrl ||
+        (convexProject as any).outputUrl;
       if (vid) setRenderedVideoUrl(vid);
     }
   }, [convexProject]);
 
-  // Handle Sync & Re-Render with optional export settings
-  const handleSyncAndRender = async (options?: any) => {
+  // Handle Save in Native Editor
+  const handleSaveNative = async () => {
+    try {
+      setIsSaving(true);
+      const res = await fetch(`${backendUrl}/editor/project/${projectId}/save`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-workspace-id": effectiveWs,
+        },
+        body: JSON.stringify({
+          files,
+          properties,
+          scenes,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to save project");
+      }
+
+      setHasUnsavedChanges(false);
+      toast.success("Project saved successfully!");
+      setPreviewSrc(`${backendUrl}/editor/project/${projectId}/raw/index.html?t=${Date.now()}`);
+    } catch (err: any) {
+      toast.error(`Save failed: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle Mode Switching with Unsaved Changes Protection
+  const handleSwitchMode = (targetMode: "native" | "hyperframes") => {
+    if (targetMode === editorMode) return;
+    if (hasUnsavedChanges && editorMode === "native") {
+      setPendingModeSwitch(targetMode);
+      setShowUnsavedModal(true);
+      return;
+    }
+    setEditorMode(targetMode);
+    toast.info(`Switched to ${targetMode === "native" ? "Native Editor" : "HyperFrames Studio"}`);
+  };
+
+  // Handle Sync & Re-Render with GPU Pipeline
+  const handleSyncAndRender = async () => {
     try {
       setRendering(true);
-      toast.info(
-        "Validating composition and rendering production video...",
-      );
+      toast.info("Validating composition and rendering production video...");
 
       const res = await fetch(
         `${backendUrl}/editor/project/${projectId}/render`,
@@ -322,13 +290,11 @@ export default function ProjectLiveEditorPage() {
             "x-workspace-id": effectiveWs,
           },
           body: JSON.stringify({
-            files,
-            properties,
-            resolution: options?.resolution || properties.resolution,
-            fps: options?.fps || properties.fps,
-            format: options?.format || "mp4",
-            filename: options?.filename,
-            includeAudio: options?.includeAudio,
+            resolution: convexProject?.width
+              ? `${convexProject.width}x${convexProject.height}`
+              : properties.resolution || "1080p",
+            fps: convexProject?.fps || properties.fps || 30,
+            format: "mp4",
           }),
         },
       );
@@ -340,18 +306,10 @@ export default function ProjectLiveEditorPage() {
         throw new Error(errorDetail);
       }
 
-      toast.success("Composition rendered and synchronized with Convex!");
+      toast.success("Composition rendered successfully!");
       if (data.videoUrl) {
         setRenderedVideoUrl(data.videoUrl);
       }
-      if (data.renders && Array.isArray(data.renders)) {
-        setRenders(data.renders);
-      } else if (data.job) {
-        setRenders((prev) => [data.job, ...prev.filter((j) => j.id !== data.job.id)]);
-      }
-      setHasUnsavedChanges(false);
-      // Reload project files
-      loadProjectData();
     } catch (err: any) {
       toast.error(`Render failed: ${err.message}`);
     } finally {
@@ -359,111 +317,7 @@ export default function ProjectLiveEditorPage() {
     }
   };
 
-  // Companion Save Action
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      const res = await fetch(
-        `${backendUrl}/editor/project/${projectId}/save`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-workspace-id": effectiveWs,
-          },
-          body: JSON.stringify({
-            files,
-            properties,
-          }),
-        },
-      );
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to save project");
-      }
-
-      toast.success("Composition saved (timestamped backup created)");
-      setHasUnsavedChanges(false);
-      setPreviewKey(Date.now());
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save composition");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Property Changes for Visual Inspector
-  const handlePropertyChange = (key: keyof EditableProperties, value: any) => {
-    setProperties((prev) => ({ ...prev, [key]: value }));
-    setHasUnsavedChanges(true);
-
-    const currentFileContent = files[selectedFile] || "";
-    if (currentFileContent) {
-      let updatedContent = currentFileContent;
-
-      if (key === "title") {
-        updatedContent = updatedContent.replace(
-          /(<h1[^>]*>)[^<]*(<\/h1>)/i,
-          `$1${value}$2`,
-        );
-      } else if (key === "subtitle") {
-        updatedContent = updatedContent.replace(
-          /(<p[^>]*class="[^"]*sub[^"]*"[^>]*>)[^<]*(<\/p>)/i,
-          `$1${value}$2`,
-        );
-      } else if (key === "accentColor") {
-        updatedContent = updatedContent.replace(
-          /(#00a8ff|#00d4ff|#ffd700)/gi,
-          value,
-        );
-      } else if (key === "backgroundColor") {
-        updatedContent = updatedContent.replace(
-          /background(?:-color)?:\s*(#[a-fA-F0-9]{3,8}|rgba?\([^)]+\))/i,
-          `background: ${value}`,
-        );
-      }
-
-      setFiles((prev) => ({
-        ...prev,
-        [selectedFile]: updatedContent,
-      }));
-    }
-  };
-
-  // Direct Code Changes
-  const handleCodeChange = (newCode: string) => {
-    setFiles((prev) => ({
-      ...prev,
-      [selectedFile]: newCode,
-    }));
-    setHasUnsavedChanges(true);
-  };
-
-  // Open native Desktop App
-  const handleOpenDesktop = async () => {
-    try {
-      const res = await fetch(
-        `${backendUrl}/editor/project/${projectId}/desktop-open`,
-        {
-          method: "POST",
-          headers: { "x-workspace-id": effectiveWs },
-        },
-      );
-      const data = await res.json();
-      if (data.success) {
-        toast.success("Opened project in macOS App");
-      } else {
-        toast.error(
-          data.error || "Failed to open in desktop application",
-        );
-      }
-    } catch (err: any) {
-      toast.error("Could not communicate with desktop application");
-    }
-  };
-
-  // Export ZIP
+  // Export full project directory as ZIP archive
   const handleExportZip = () => {
     window.open(
       `${backendUrl}/editor/project/${projectId}/export?workspaceId=${effectiveWs}`,
@@ -472,21 +326,21 @@ export default function ProjectLiveEditorPage() {
   };
 
   const projectTitle =
-    properties.title || convexProject?.name || "Video Composition";
-  const previewSrc = `${backendUrl}/editor/project/${projectId}/raw/index.html?t=${previewKey}`;
+    convexProject?.name || properties.title || session?.projectName || "Video Composition";
 
   return (
-    <div className="flex h-screen w-full flex-col bg-[#f8fafc] text-foreground overflow-hidden">
-      {/* TOP HEADER */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-white px-4 z-20 text-gray-900 shadow-xs">
-        <div className="flex items-center gap-3">
+    <div className="flex h-screen w-full flex-col bg-[#f8fafc] text-foreground overflow-hidden select-none">
+      {/* Top Universal Header Toolbar */}
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-white px-3 sm:px-4 z-20 text-gray-900 shadow-xs">
+        {/* Left: Navigation, Ollastar Logo, Project Details */}
+        <div className="flex items-center gap-2.5">
           <Link
             href="/projects"
-            className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-primary/70 hover:bg-primary/10 hover:text-primary transition"
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition font-medium mr-0.5"
             title="Back to Projects"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="font-medium">Projects</span>
+            <span className="hidden sm:inline">Projects</span>
           </Link>
 
           <div className="h-4 w-px bg-border" />
@@ -496,221 +350,241 @@ export default function ProjectLiveEditorPage() {
             <img
               src="/ollastar-logo.png"
               alt="Ollastar"
-              className="h-7 w-7 rounded-full border border-gray-200 object-contain shadow-xs shrink-0 bg-white"
+              className="h-6 w-6 rounded-full border border-gray-200 object-contain shadow-xs shrink-0 bg-white"
             />
-            <span className="font-bold text-sm text-gray-900 max-w-xs truncate">
+            <span className="font-bold text-sm text-gray-900 max-w-[160px] sm:max-w-xs truncate">
               {projectTitle}
             </span>
-            <span className="rounded bg-gray-100 border border-gray-200 px-1.5 py-0.5 text-[10px] font-mono text-gray-700 font-semibold">
-              {properties.resolution}
-            </span>
-            <span className="rounded bg-gray-100 border border-gray-200 px-1.5 py-0.5 text-[10px] font-mono text-gray-600">
-              {properties.duration}s @ {properties.fps}fps
-            </span>
+
+            {/* Save Status / Badge */}
+            {editorMode === "native" && (
+              hasUnsavedChanges ? (
+                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Unsaved Edits
+                </span>
+              ) : (
+                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                  <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                  All Saved
+                </span>
+              )
+            )}
+
+            {editorMode === "hyperframes" && sessionStatus === "ready" && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700 shadow-2xs">
+                <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                HyperFrames Studio (Integrated)
+              </span>
+            )}
           </div>
         </div>
 
-        {/* View Switcher Tabs (Center / Header) */}
-        <div className="flex items-center rounded-lg border border-border/80 bg-background/60 p-0.5">
+        {/* Center: Editor Mode Switcher */}
+        <div className="flex items-center rounded-lg bg-gray-100 p-0.5 border border-gray-200 shadow-2xs">
           <button
             type="button"
-            onClick={() => setActiveView("native")}
+            onClick={() => handleSwitchMode("native")}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition ${
-              activeView === "native"
-                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/40 shadow-xs"
-                : "text-primary/60 hover:text-primary"
+              editorMode === "native"
+                ? "bg-white text-gray-900 shadow-xs"
+                : "text-gray-500 hover:text-gray-900"
             }`}
+            title="Switch to Native Editor mode"
           >
-            <Sparkles className="h-3.5 w-3.5 text-emerald-400" /> Native Editor
+            <SlidersHorizontal className="h-3.5 w-3.5 text-purple-600" />
+            <span>Native Editor</span>
           </button>
-
           <button
             type="button"
-            onClick={() => setActiveView("video")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition ${
-              activeView === "video"
-                ? "bg-primary/15 text-primary border border-primary/30 shadow-xs"
-                : "text-primary/60 hover:text-primary"
+            onClick={() => handleSwitchMode("hyperframes")}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition ${
+              editorMode === "hyperframes"
+                ? "bg-white text-gray-900 shadow-xs"
+                : "text-gray-500 hover:text-gray-900"
             }`}
+            title="Switch to official HyperFrames Studio mode"
           >
-            <Film className="h-3.5 w-3.5" /> Video Output
+            <Tv className="h-3.5 w-3.5 text-indigo-600" />
+            <span>HyperFrames Studio</span>
           </button>
         </div>
 
-        {/* Action Controls */}
+        {/* Right Action Controls */}
         <div className="flex items-center gap-2">
+          {/* Save Button (in Native Mode) */}
+          {editorMode === "native" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleSaveNative}
+              disabled={isSaving || !hasUnsavedChanges}
+              className="h-7 gap-1 text-xs text-primary border-border"
+              title="Save project changes"
+            >
+              {isSaving ? (
+                <RotateCw className="h-3 w-3 animate-spin text-purple-600" />
+              ) : (
+                <Save className="h-3 w-3 text-purple-600" />
+              )}
+              <span>Save</span>
+            </Button>
+          )}
+
           {/* Fullscreen Button */}
           <Button
             variant={isFullscreen ? "default" : "outline"}
             size="sm"
             onClick={toggleFullscreen}
-            className={`h-8 gap-1.5 text-xs transition font-medium ${
+            className={`h-7 gap-1.5 text-xs transition font-medium ${
               isFullscreen
                 ? "bg-purple-600 hover:bg-purple-700 text-white shadow-md border-purple-500"
                 : "border-border hover:bg-primary/10 text-primary"
             }`}
             title={
               isFullscreen
-                ? "Exit Full Screen (Esc)"
-                : "Make Studio Full Screen"
+                ? "Exit Full Screen (Esc / F)"
+                : "Make Editor Full Screen (F)"
             }
           >
             {isFullscreen ? (
               <>
                 <Minimize2 className="h-3.5 w-3.5" />
-                <span>Exit Full Screen</span>
+                <span className="hidden sm:inline">Exit</span>
               </>
             ) : (
               <>
-                <Maximize2 className="h-3.5 w-3.5 text-purple-400" />
-                <span>Full Screen</span>
+                <Maximize2 className="h-3.5 w-3.5 text-purple-500" />
+                <span className="hidden sm:inline">Full</span>
               </>
             )}
           </Button>
 
-          <div className="h-4 w-px bg-border" />
+          <div className="h-4 w-px bg-border hidden sm:block" />
 
           {/* Sync & Re-Render Button */}
           <Button
             size="sm"
             onClick={handleSyncAndRender}
             disabled={rendering}
-            className="h-8 gap-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
-            title="Validate changes, render updated MP4, and update Convex"
+            className="h-7 gap-1.5 text-xs bg-purple-600 hover:bg-purple-500 text-white shadow-sm font-medium"
+            title="Compile updated composition to production MP4 video"
           >
             {rendering ? (
               <RotateCw className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <Film className="h-3.5 w-3.5" />
             )}
-            Sync &amp; Re-Render
+            Render Video
           </Button>
 
-          <div className="h-4 w-px bg-border" />
-
-          {/* Desktop App */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleOpenDesktop}
-            className="h-8 gap-1 text-xs hidden sm:flex"
-            title="Open in macOS desktop application"
-          >
-            <Monitor className="h-3.5 w-3.5 text-blue-400" />
-            App
-          </Button>
+          {renderedVideoUrl && (
+            <a
+              href={renderedVideoUrl}
+              download={`${projectId}-final.mp4`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex"
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 text-xs text-primary"
+                title="Download rendered MP4 video"
+              >
+                <Download className="h-3.5 w-3.5" />
+                MP4
+              </Button>
+            </a>
+          )}
 
           {/* Export ZIP */}
           <Button
             variant="outline"
             size="sm"
             onClick={handleExportZip}
-            className="h-8 gap-1 text-xs"
+            className="h-7 gap-1 text-xs hidden md:flex"
             title="Download full project directory as .zip"
           >
             <Download className="h-3.5 w-3.5" />
-            Export
+            Export ZIP
           </Button>
         </div>
       </header>
 
-      {/* MAIN CONTENT AREA */}
-      <div className="flex flex-1 min-w-0 min-h-0 overflow-hidden relative">
-        {/* VIEW 0: NATIVE HYPERLINK VIDEO EDITOR (INDEPENDENT) */}
-        {activeView === "native" && (
-          <div
-            className={`transition-all duration-300 ease-in-out ${
-              isFullscreen
-                ? "fixed inset-0 z-[100] w-screen h-screen bg-[#f8fafc] flex flex-col"
-                : "flex-1 flex flex-col w-full h-full bg-[#f8fafc] relative overflow-hidden"
-            }`}
-          >
-            <NativeHyperlinkEditor
-              projectId={projectId}
-              projectTitle={projectTitle}
-              duration={properties.duration}
-              fps={properties.fps}
-              resolution={properties.resolution}
-              scenes={scenes}
-              onUpdateScenes={setScenes}
-              files={files}
-              selectedFile={selectedFile}
-              onSelectFile={setSelectedFile}
-              onCodeChange={handleCodeChange}
-              onSaveProject={handleSave}
-              onSyncAndRender={handleSyncAndRender}
-              isRendering={rendering}
-              previewSrc={previewSrc}
-              renderedVideoUrl={renderedVideoUrl}
-              renders={renders}
-              hasUnsavedChanges={hasUnsavedChanges}
-              isSaving={saving}
-              isFullscreen={isFullscreen}
-              onToggleFullscreen={toggleFullscreen}
-            />
-          </div>
+      {/* Main Workspace Area (Avoids rendering both simultaneously) */}
+      <div
+        ref={editorContainerRef}
+        className={`transition-all duration-300 ease-in-out ${
+          isFullscreen
+            ? "fixed inset-0 z-[100] w-screen h-screen bg-neutral-950 flex flex-col"
+            : "flex-1 flex flex-col w-full h-full bg-neutral-950 relative overflow-hidden"
+        }`}
+      >
+        {/* MODE 1: NATIVE VIDEO EDITOR */}
+        {editorMode === "native" && (
+          <NativeHyperlinkEditor
+            projectId={projectId}
+            projectTitle={projectTitle}
+            duration={properties.duration}
+            onUpdateDuration={(d) => {
+              setProperties((prev) => ({ ...prev, duration: d }));
+              setHasUnsavedChanges(true);
+            }}
+            fps={properties.fps}
+            resolution={properties.resolution}
+            scenes={scenes}
+            onUpdateScenes={(updater) => {
+              setScenes(updater);
+              setHasUnsavedChanges(true);
+            }}
+            files={files}
+            selectedFile={selectedFile}
+            onSelectFile={setSelectedFile}
+            onCodeChange={(code, targetFile) => {
+              const file = targetFile || selectedFile;
+              setFiles((prev) => ({ ...prev, [file]: code }));
+              setHasUnsavedChanges(true);
+            }}
+            onSaveProject={handleSaveNative}
+            onSyncAndRender={handleSyncAndRender}
+            isRendering={rendering}
+            previewSrc={previewSrc}
+            renderedVideoUrl={renderedVideoUrl}
+            renders={[]}
+            hasUnsavedChanges={hasUnsavedChanges}
+            isSaving={isSaving}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={toggleFullscreen}
+            hideHeader={true}
+            editorMode="native"
+            onEditorModeChange={(m) => handleSwitchMode(m === "studio" ? "hyperframes" : "native")}
+            studioPort={session?.port}
+          />
         )}
 
-        {/* VIEW 1: OFFICIAL HYPERFRAMES STUDIO (PRIMARY) */}
-        {activeView === "studio" && (
-          <div
-            ref={studioContainerRef}
-            className={`transition-all duration-300 ease-in-out ${
-              isFullscreen
-                ? "fixed inset-0 z-[100] w-screen h-screen bg-neutral-950 flex flex-col"
-                : "flex-1 flex flex-col w-full h-full bg-neutral-950 relative overflow-hidden"
-            }`}
-          >
-            {/* Floating Fullscreen / Minimize Toggle Button */}
-            <div className="absolute top-3 right-3 z-40 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleFullscreen}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium shadow-lg backdrop-blur-md transition active:scale-95 ${
-                  isFullscreen
-                    ? "bg-purple-600/90 text-white border-purple-400 hover:bg-purple-600 ring-2 ring-purple-400/30"
-                    : "bg-black/80 text-white/90 border-white/20 hover:bg-black hover:border-white/40 hover:text-white"
-                }`}
-                title={
-                  isFullscreen
-                    ? "Exit Full Screen (Esc)"
-                    : "Tap to make Studio Full Screen"
-                }
-              >
-                {isFullscreen ? (
-                  <>
-                    <Minimize2 className="h-3.5 w-3.5" />
-                    <span>Exit Full Screen</span>
-                  </>
-                ) : (
-                  <>
-                    <Maximize2 className="h-3.5 w-3.5 text-purple-400" />
-                    <span>Full Screen</span>
-                  </>
-                )}
-              </button>
-            </div>
-
+        {/* MODE 2: HYPERFRAMES STUDIO (INTEGRATED) */}
+        {editorMode === "hyperframes" && (
+          <div className="flex-1 flex flex-col w-full h-full bg-neutral-950 relative overflow-hidden">
             {/* Loading Overlay */}
             {sessionStatus === "initializing" && (
               <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm p-6 text-center">
-                <div className="relative mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-500/10 border border-purple-500/20 shadow-lg">
-                  <Tv className="h-7 w-7 text-purple-400" />
+                <div className="relative mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10 border border-indigo-500/20 shadow-lg">
+                  <Tv className="h-7 w-7 text-indigo-400" />
                   <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-4 w-4 bg-purple-500" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-indigo-500" />
                   </span>
                 </div>
                 <h3 className="text-base font-semibold text-primary">
-                  Initializing Official Studio
+                  Connecting to HyperFrames Studio
                 </h3>
                 <p className="mt-1.5 max-w-md text-xs text-primary/60">
-                  Starting the background Studio server on an
-                  isolated local port and mounting the composition workspace...
+                  Launching the integrated HyperFrames Studio engine and mounting project workspace...
                 </p>
                 <div className="mt-5 flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-primary/50 font-mono">
-                  <RotateCw className="h-3.5 w-3.5 animate-spin text-purple-400" />
-                  <span>studio preview --port=3055..3075</span>
+                  <RotateCw className="h-3.5 w-3.5 animate-spin text-indigo-400" />
+                  <span>hyperframes studio --integrated</span>
                 </div>
               </div>
             )}
@@ -722,572 +596,103 @@ export default function ProjectLiveEditorPage() {
                   <AlertCircle className="h-7 w-7" />
                 </div>
                 <h3 className="text-base font-semibold text-primary">
-                  Studio Server Unavailable
+                  HyperFrames Studio Unavailable
                 </h3>
                 <p className="mt-1.5 max-w-lg text-xs text-destructive/80 font-mono bg-destructive/5 border border-destructive/10 rounded-lg p-3">
                   {sessionError ||
-                    "The Studio session manager encountered an error starting the service."}
+                    "The HyperFrames Studio session manager encountered an error starting the service."}
                 </p>
                 <div className="mt-6 flex items-center gap-3">
                   <Button
                     onClick={initStudioSession}
                     size="sm"
-                    className="gap-1.5 text-xs bg-primary text-primary-foreground"
+                    className="gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
-                    Retry Studio Session
+                    Retry Connection
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setActiveView("inspector")}
-                    className="gap-1.5 text-xs"
+                    className="text-xs"
+                    onClick={() => setEditorMode("native")}
                   >
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                    Switch to Scene Inspector
+                    Switch to Native Editor
                   </Button>
-                  <Link href="/projects">
-                    <Button variant="ghost" size="sm" className="text-xs">
-                      Back to Projects
-                    </Button>
-                  </Link>
                 </div>
               </div>
             )}
 
-            {/* Embedded Official Studio iframe */}
+            {/* Integrated HyperFrames Studio Frame */}
             {session && session.studioUrl && (
-              <div className="relative w-full h-full flex flex-col">
-                <div className="flex h-7 shrink-0 items-center justify-between border-b border-border/60 bg-card/70 px-3 text-[11px] text-primary/70">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
-                    <span className="font-medium text-primary">Official Studio Canvas</span>
-                    <span className="text-primary/50 font-mono">
-                      ({session.studioUrl.includes("trycloudflare") ? "Secure Tunnel" : `:${session.port}`})
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2.5">
-                    <a
-                      href={session.studioUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-purple-400 hover:text-purple-300 font-medium hover:underline"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      <span>Open Studio in New Window</span>
-                    </a>
-                    <span className="text-border">&bull;</span>
-                    <button
-                      type="button"
-                      onClick={() => setActiveView("inspector")}
-                      className="text-primary/70 hover:text-primary transition"
-                    >
-                      Switch to Scene Inspector
-                    </button>
-                  </div>
-                </div>
-                <iframe
-                  src={session.studioUrl}
-                  title={`Studio - ${projectTitle}`}
-                  className="flex-1 w-full border-0 bg-neutral-950"
-                  allow="clipboard-read; clipboard-write; fullscreen"
-                  allowFullScreen
-                  onLoad={() => setIframeLoaded(true)}
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* VIEW 2: COMPANION SCENE & CODE INSPECTOR */}
-        {activeView === "inspector" && (
-          <div className="flex flex-1 w-full h-full overflow-hidden">
-            {/* LEFT PANEL: SCENE NAVIGATOR */}
-            <aside className="w-56 shrink-0 border-r border-border bg-card/60 flex flex-col">
-              <div className="flex items-center justify-between border-b border-border p-3">
-                <span className="text-xs font-semibold uppercase tracking-wider text-primary/60">
-                  Scenes ({scenes.length})
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    toast.info("Duplicating scene template...");
-                    const newId = `scene-0${scenes.length + 1}`;
-                    const newFile = `compositions/${newId}.html`;
-                    const srcContent = files[selectedFile] || "";
-                    setFiles((prev) => ({ ...prev, [newFile]: srcContent }));
-                    setScenes((prev) => [
-                      ...prev,
-                      {
-                        id: newId,
-                        file: newFile,
-                        start: properties.duration,
-                        duration: 5,
-                      },
-                    ]);
-                    setHasUnsavedChanges(true);
-                  }}
-                  className="rounded p-1 text-primary/60 hover:bg-primary/10 hover:text-primary transition"
-                  title="Add / Duplicate Scene"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                {scenes.map((s, idx) => {
-                  const isSelected = s.id === activeSceneId;
-                  return (
-                    <div
-                      key={s.id}
-                      onClick={() => {
-                        setActiveSceneId(s.id);
-                        setSelectedFile(s.file);
-                      }}
-                      className={`flex flex-col rounded-lg border p-2.5 cursor-pointer transition ${
-                        isSelected
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border/60 bg-card hover:border-border text-primary/70"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium uppercase font-mono">
-                          Scene {idx + 1}
-                        </span>
-                        <span className="text-[10px] font-mono text-primary/50">
-                          {s.duration}s
-                        </span>
-                      </div>
-                      <span className="mt-1 text-[11px] truncate text-primary/60 font-mono">
-                        {s.file}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Engine Info */}
-              <div className="border-t border-border p-3 text-[11px] text-primary/50 space-y-1">
-                <div className="flex justify-between">
-                  <span>Engine:</span>
-                  <span className="font-mono text-primary/70">
-                    Studio Engine v1.0
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Renderer:</span>
-                  <span className="font-mono text-primary/70">
-                    GSAP Timelines
-                  </span>
-                </div>
-              </div>
-            </aside>
-
-            {/* CENTER: LIVE COMPOSITION PREVIEW */}
-            <main
-              className={`flex flex-col bg-black/95 overflow-hidden transition-all duration-300 ${
-                isFullscreen
-                  ? "fixed inset-0 z-[100] w-screen h-screen bg-neutral-950"
-                  : "flex-1"
-              }`}
-            >
-              <div className="flex h-10 items-center justify-between border-b border-border/60 bg-card/40 px-4">
-                <span className="text-xs text-primary/70 font-mono">
-                  {selectedFile}
-                </span>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={toggleFullscreen}
-                    className="flex items-center gap-1.5 text-[11px] text-primary/80 hover:text-primary transition font-medium"
-                    title={
-                      isFullscreen
-                        ? "Exit Full Screen"
-                        : "Make Studio Full Screen"
-                    }
-                  >
-                    {isFullscreen ? (
-                      <>
-                        <Minimize2 className="h-3 w-3 text-purple-400" />
-                        <span>Exit Full Screen</span>
-                      </>
-                    ) : (
-                      <>
-                        <Maximize2 className="h-3 w-3 text-purple-400" />
-                        <span>Full Screen</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewKey(Date.now())}
-                    className="flex items-center gap-1 text-[11px] text-primary/60 hover:text-primary transition"
-                    title="Reload and replay animations"
-                  >
-                    <RefreshCw className="h-3 w-3" /> Replay Timeline
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex-1 flex items-center justify-center p-6 relative">
-                {isFullscreen && (
-                  <div className="absolute top-4 right-4 z-40">
-                    <button
-                      type="button"
-                      onClick={toggleFullscreen}
-                      className="flex items-center gap-1.5 rounded-lg border border-purple-400 bg-purple-600/90 px-3 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur-md hover:bg-purple-600 active:scale-95 transition"
-                      title="Exit Full Screen (Esc)"
-                    >
-                      <Minimize2 className="h-3.5 w-3.5" />
-                      <span>Exit Full Screen</span>
-                    </button>
-                  </div>
-                )}
-                <div
-                  className={`relative aspect-video rounded-lg border border-border/80 bg-black overflow-hidden shadow-2xl transition-all ${
-                    isFullscreen
-                      ? "w-full h-full max-w-none max-h-none border-0 rounded-none"
-                      : "w-full max-w-4xl max-h-[75vh]"
-                  }`}
-                >
-                  <iframe
-                    key={previewKey}
-                    src={previewSrc}
-                    title="Live Composition Preview"
-                    sandbox="allow-scripts allow-same-origin"
-                    className="w-full h-full border-0"
-                  />
-                </div>
-              </div>
-
-              {/* TIMELINE BAR */}
-              <div className="h-14 shrink-0 border-t border-border bg-card/60 px-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPreviewKey(Date.now())}
-                    className="rounded-full bg-primary/20 p-2 text-primary hover:bg-primary/30 transition"
-                    title="Restart composition playback"
-                  >
-                    <Play className="h-4 w-4 fill-primary" />
-                  </button>
-
-                  <div className="flex flex-col">
-                    <span className="text-[11px] font-mono text-primary/70">
-                      Duration: {properties.duration}s
-                    </span>
-                    <span className="text-[10px] text-primary/40 font-mono">
-                      {scenes.length} scene{scenes.length === 1 ? "" : "s"}{" "}
-                      &bull; {properties.fps} FPS
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex-1 max-w-xl mx-6 flex h-7 items-center rounded-md border border-border/80 bg-background/80 p-0.5 gap-1">
-                  {scenes.map((s, idx) => {
-                    const isSelected = s.id === activeSceneId;
-                    return (
-                      <div
-                        key={s.id}
-                        onClick={() => {
-                          setActiveSceneId(s.id);
-                          setSelectedFile(s.file);
-                        }}
-                        className={`flex-1 h-full rounded flex items-center justify-center text-[10px] font-mono font-medium cursor-pointer transition ${
-                          isSelected
-                            ? "bg-primary text-primary-foreground shadow"
-                            : "bg-primary/10 text-primary/70 hover:bg-primary/20"
-                        }`}
-                      >
-                        S{idx + 1} ({s.duration}s)
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="text-right text-[10px] font-mono text-primary/40">
-                  {properties.resolution}
-                </div>
-              </div>
-            </main>
-
-            {/* RIGHT PANEL: INSPECTOR TABS */}
-            <aside className="w-80 shrink-0 border-l border-border bg-card flex flex-col">
-              <div className="flex h-10 border-b border-border">
-                <button
-                  type="button"
-                  onClick={() => setActiveInspectorTab("visual")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-medium border-b-2 transition ${
-                    activeInspectorTab === "visual"
-                      ? "border-primary text-primary bg-primary/5"
-                      : "border-transparent text-primary/60 hover:text-primary"
-                  }`}
-                >
-                  <Palette className="h-3.5 w-3.5" /> Visual Properties
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveInspectorTab("code")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-medium border-b-2 transition ${
-                    activeInspectorTab === "code"
-                      ? "border-primary text-primary bg-primary/5"
-                      : "border-transparent text-primary/60 hover:text-primary"
-                  }`}
-                >
-                  <Code2 className="h-3.5 w-3.5" /> Source Code
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-5">
-                {activeInspectorTab === "visual" ? (
-                  <>
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold uppercase tracking-wider text-primary/60 flex items-center gap-1">
-                        <Type className="h-3 w-3" /> Headline Text
-                      </label>
-                      <input
-                        type="text"
-                        value={properties.title}
-                        onChange={(e) =>
-                          handlePropertyChange("title", e.target.value)
-                        }
-                        className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs text-primary focus:border-primary/50 focus:outline-none"
-                        placeholder="Enter headline..."
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold uppercase tracking-wider text-primary/60">
-                        Subtitle / Tagline
-                      </label>
-                      <input
-                        type="text"
-                        value={properties.subtitle}
-                        onChange={(e) =>
-                          handlePropertyChange("subtitle", e.target.value)
-                        }
-                        className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs text-primary focus:border-primary/50 focus:outline-none"
-                        placeholder="Enter subtitle..."
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold uppercase tracking-wider text-primary/60 flex items-center gap-1">
-                        <Palette className="h-3 w-3" /> Accent Color
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={
-                            properties.accentColor.startsWith("#")
-                              ? properties.accentColor
-                              : "#00a8ff"
-                          }
-                          onChange={(e) =>
-                            handlePropertyChange("accentColor", e.target.value)
-                          }
-                          className="h-8 w-10 cursor-pointer rounded border border-border bg-background p-0.5"
-                        />
-                        <input
-                          type="text"
-                          value={properties.accentColor}
-                          onChange={(e) =>
-                            handlePropertyChange("accentColor", e.target.value)
-                          }
-                          className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-mono text-primary focus:border-primary/50 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold uppercase tracking-wider text-primary/60">
-                        Background Color
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={
-                            properties.backgroundColor.startsWith("#")
-                              ? properties.backgroundColor
-                              : "#050811"
-                          }
-                          onChange={(e) =>
-                            handlePropertyChange(
-                              "backgroundColor",
-                              e.target.value,
-                            )
-                          }
-                          className="h-8 w-10 cursor-pointer rounded border border-border bg-background p-0.5"
-                        />
-                        <input
-                          type="text"
-                          value={properties.backgroundColor}
-                          onChange={(e) =>
-                            handlePropertyChange(
-                              "backgroundColor",
-                              e.target.value,
-                            )
-                          }
-                          className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-mono text-primary focus:border-primary/50 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-semibold uppercase tracking-wider text-primary/60 flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> Total Duration (seconds)
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={120}
-                        value={properties.duration}
-                        onChange={(e) =>
-                          handlePropertyChange(
-                            "duration",
-                            Number(e.target.value),
-                          )
-                        }
-                        className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs font-mono text-primary focus:border-primary/50 focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="pt-2">
-                      <Button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="w-full h-8 text-xs gap-1.5"
-                      >
-                        {saving ? (
-                          <RotateCw className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Save className="h-3.5 w-3.5" />
-                        )}
-                        Save Inspector Changes
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="space-y-3 flex-1 flex flex-col">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold uppercase tracking-wider text-primary/60">
-                        Target File
-                      </label>
-                      <select
-                        value={selectedFile}
-                        onChange={(e) => setSelectedFile(e.target.value)}
-                        className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-primary font-mono focus:border-primary/50 focus:outline-none"
-                      >
-                        {Object.keys(files).map((f) => (
-                          <option key={f} value={f}>
-                            {f}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="flex-1 flex flex-col space-y-1">
-                      <label className="text-[11px] font-semibold uppercase tracking-wider text-primary/60">
-                        Source Code
-                      </label>
-                      <textarea
-                        value={files[selectedFile] || ""}
-                        onChange={(e) => handleCodeChange(e.target.value)}
-                        rows={20}
-                        className="w-full flex-1 rounded-md border border-border bg-black/90 p-3 text-[11px] font-mono text-primary/90 focus:border-primary/50 focus:outline-none resize-none leading-relaxed"
-                        spellCheck={false}
-                      />
-                    </div>
-
-                    <Button
-                      onClick={handleSave}
-                      disabled={saving}
-                      className="w-full h-8 text-xs gap-1.5"
-                    >
-                      {saving ? (
-                        <RotateCw className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Save className="h-3.5 w-3.5" />
-                      )}
-                      Save Code Changes
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </aside>
-          </div>
-        )}
-
-        {/* VIEW 3: RENDERED VIDEO OUTPUT */}
-        {activeView === "video" && (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 bg-black/95">
-            <div className="relative aspect-video w-full max-w-5xl rounded-xl border border-border/80 bg-black overflow-hidden shadow-2xl flex items-center justify-center">
-              {renderedVideoUrl ? (
-                <video
-                  src={renderedVideoUrl}
-                  controls
-                  autoPlay
-                  loop
-                  className="w-full h-full object-contain"
-                />
-              ) : (
-                <div className="text-center p-8 text-primary/40">
-                  <Film className="h-12 w-12 mx-auto mb-3 text-primary/20" />
-                  <h4 className="text-sm font-medium text-primary/80">
-                    No Rendered MP4 Found
-                  </h4>
-                  <p className="text-xs mt-1 text-primary/50 max-w-sm">
-                    Click &quot;Sync &amp; Re-Render&quot; above to render the
-                    current composition into high-definition MP4.
-                  </p>
-                  <Button
-                    onClick={handleSyncAndRender}
-                    disabled={rendering}
-                    size="sm"
-                    className="mt-4 gap-1.5 text-xs"
-                  >
-                    {rendering ? (
-                      <RotateCw className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Film className="h-3.5 w-3.5" />
-                    )}
-                    Render Now
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {renderedVideoUrl && (
-              <div className="mt-4 flex items-center gap-3">
-                <a
-                  href={renderedVideoUrl}
-                  download="rendered-composition.mp4"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex"
-                >
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 text-xs"
-                  >
-                    <Download className="h-3.5 w-3.5" /> Download MP4
-                  </Button>
-                </a>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setActiveView("studio")}
-                  className="gap-1.5 text-xs text-purple-400 border-purple-500/30"
-                >
-                  <Tv className="h-3.5 w-3.5" /> Continue in Studio
-                </Button>
-              </div>
+              <iframe
+                src={session.studioUrl}
+                title={`HyperFrames Studio - ${projectTitle}`}
+                className="flex-1 w-full h-full border-0 bg-neutral-950"
+                allow="accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                allowFullScreen
+              />
             )}
           </div>
         )}
       </div>
+
+      {/* Unsaved Changes Confirmation Modal */}
+      {showUnsavedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl border border-gray-200 text-gray-900">
+            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-600" />
+              Unsaved Changes
+            </h3>
+            <p className="mt-2 text-xs text-gray-600 leading-relaxed">
+              You have unsaved changes in Native Editor. Would you like to save them to the project before switching to HyperFrames Studio?
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => {
+                  setShowUnsavedModal(false);
+                  setPendingModeSwitch(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="text-xs"
+                onClick={() => {
+                  setHasUnsavedChanges(false);
+                  setShowUnsavedModal(false);
+                  if (pendingModeSwitch) {
+                    setEditorMode(pendingModeSwitch);
+                    setPendingModeSwitch(null);
+                  }
+                }}
+              >
+                Discard &amp; Switch
+              </Button>
+              <Button
+                size="sm"
+                className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                onClick={async () => {
+                  await handleSaveNative();
+                  setShowUnsavedModal(false);
+                  if (pendingModeSwitch) {
+                    setEditorMode(pendingModeSwitch);
+                    setPendingModeSwitch(null);
+                  }
+                }}
+              >
+                Save &amp; Switch
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

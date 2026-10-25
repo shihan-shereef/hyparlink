@@ -6,6 +6,16 @@ import { action, internalMutation, mutation, query } from "./_generated/server";
 import { polar } from "./subscriptions";
 import { username } from "./utils/validators";
 
+export const getUserBasic = query({
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return null;
+    }
+    return await ctx.db.get(userId);
+  },
+});
+
 export const getUser = query({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
@@ -14,18 +24,29 @@ export const getUser = query({
     }
     const user = await ctx.db.get(userId);
     if (!user) {
-      return;
+      return null;
     }
-    const subscription = await polar.getCurrentSubscription(ctx, {
-      userId: user._id,
-    });
+    let subscription = null;
+    try {
+      subscription = await polar.getCurrentSubscription(ctx, {
+        userId: user._id,
+      });
+    } catch {
+      // Ignore polar subscription failures or timeouts to protect core user session
+    }
+    let avatarUrl: string | undefined = undefined;
+    if (user.imageId) {
+      try {
+        avatarUrl = (await ctx.storage.getUrl(user.imageId)) || undefined;
+      } catch {
+        // Fallback gracefully if storage url lookup encounters an issue
+      }
+    }
     return {
       ...user,
       name: user.username || user.name,
       subscription,
-      avatarUrl: user.imageId
-        ? await ctx.storage.getUrl(user.imageId)
-        : undefined,
+      avatarUrl,
     };
   },
 });
