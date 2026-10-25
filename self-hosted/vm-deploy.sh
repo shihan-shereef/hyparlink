@@ -9,7 +9,17 @@ echo "============================================================"
 echo "  Ollastar Production Deploy — $(date)"
 echo "============================================================"
 
-REPO_DIR="${REPO_DIR:-/home/ubuntu/hyparlink}"
+if [ -z "$REPO_DIR" ]; then
+  if [ -d "$HOME/hyparlink" ]; then
+    REPO_DIR="$HOME/hyparlink"
+  elif [ -d "/home/shihan/hyparlink" ]; then
+    REPO_DIR="/home/shihan/hyparlink"
+  elif [ -d "/home/ubuntu/hyparlink" ]; then
+    REPO_DIR="/home/ubuntu/hyparlink"
+  else
+    REPO_DIR="$(pwd)"
+  fi
+fi
 BRANCH="${BRANCH:-main}"
 
 # 1. Pull latest code from GitHub
@@ -30,11 +40,7 @@ echo "✓ Dependencies installed"
 
 # 3. Build the Next.js app
 echo "[3/5] Building Next.js app..."
-if command -v bun &> /dev/null; then
-  bun run build --filter=@v1/app 2>&1 | tail -20
-else
-  npx turbo build --filter=@v1/app 2>&1 | tail -20
-fi
+(cd apps/app && (bun run build 2>&1 || npm run build 2>&1 || npx turbo build --filter=@v1/app 2>&1)) | tail -20
 echo "✓ Build complete"
 
 # 4. Restart PM2 services (if using PM2)
@@ -45,10 +51,11 @@ if command -v pm2 &> /dev/null; then
     pm2 start backend-echo/server.mjs --name backend-echo --env production 2>/dev/null || \
     echo "  (backend-echo not in PM2, start manually)"
 
-  # Restart Next.js app
-  pm2 restart ollastar-app 2>/dev/null || \
-    pm2 start "bun run --filter @v1/app start -p 3000" --name ollastar-app 2>/dev/null || \
-    echo "  (ollastar-app not in PM2, start manually)"
+  # Restart Next.js app (supports nextjs-app, ollastar-app, or all)
+  pm2 restart nextjs-app 2>/dev/null || \
+    pm2 restart ollastar-app 2>/dev/null || \
+    pm2 restart all 2>/dev/null || \
+    echo "  (app not in PM2, start manually)"
 
   pm2 save
   echo "✓ PM2 services restarted"

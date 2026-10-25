@@ -674,11 +674,15 @@ function getStudioTunnelUrl(projectBasename = "") {
   const logPath = path.join(WORKSPACE_ROOT, "logs/tunnel-studio.log");
   if (fs.existsSync(logPath)) {
     try {
-      const content = fs.readFileSync(logPath, "utf-8");
-      const matches = content.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/g);
-      if (matches && matches.length > 0) {
-        const tunnelHost = matches[matches.length - 1];
-        return projectBasename ? `${tunnelHost}/#project/${projectBasename}` : tunnelHost;
+      const stats = fs.statSync(logPath);
+      // Only trust the log if it was modified in the last 30 minutes
+      if (Date.now() - stats.mtimeMs < 30 * 60 * 1000) {
+        const content = fs.readFileSync(logPath, "utf-8");
+        const matches = content.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/g);
+        if (matches && matches.length > 0) {
+          const tunnelHost = matches[matches.length - 1];
+          return projectBasename ? `${tunnelHost}/#project/${projectBasename}` : tunnelHost;
+        }
       }
     } catch {}
   }
@@ -967,7 +971,7 @@ async function startStudioServerSession(projectDir) {
 
   // Pre-inspect and auto-repair design syntax, font fallbacks, and root-relative asset paths
   try {
-    const report = await DesignValidator.inspect(projectDir);
+    const report = await (DesignValidator?.inspectAndRepair ? DesignValidator.inspectAndRepair(projectDir) : null);
     if (report && report.repairedCount > 0) {
       console.log(
         `[Studio Session] Auto-repaired ${report.repairedCount} notice(s) for ${projectBasename} prior to Studio preview.`,
@@ -6684,6 +6688,11 @@ Return only the JSON object containing the updated code and summary.`;
         if (isHtml) {
           let html = await proxyFetch.text();
           const baseHref = `/studio-proxy/${studioPort}/`;
+
+          // Rewrite root-relative asset URLs so they route through the proxy
+          html = html.replace(/src="\/assets\//g, `src="/studio-proxy/${studioPort}/assets/`);
+          html = html.replace(/href="\/assets\//g, `href="/studio-proxy/${studioPort}/assets/`);
+          html = html.replace(/href="\/favicon/g, `href="/studio-proxy/${studioPort}/favicon`);
 
           // Inject <base href> so relative URLs resolve correctly
           if (!html.includes("<base ")) {
