@@ -1,0 +1,113 @@
+================================================================================
+                    HYPARLINK DASHBOARD - DAILY PROGRESS REPORT
+                                Date: October 22, 2026
+================================================================================
+
+PROJECT OVERVIEW:
+Hyparlink / Ollastar Video Generation & Multi-Track Studio Dashboard
+Local Workspace: /Users/apple/Desktop/hyparlink dashbord
+Remote Server:   shihan@10.70.70.43 (Ubuntu VM)
+Public Domain:   https://burke-parallel-nearest-condo.trycloudflare.com
+
+--------------------------------------------------------------------------------
+SUMMARY OF KEY PROBLEMS RESOLVED & DELIVERABLES
+--------------------------------------------------------------------------------
+
+1. AUTHENTICATION REDIRECT RUNTIME ERROR (FIXED)
+   - Issue:
+     Users encountered a fatal crash: "null is not an object (evaluating 'i.redirect')" 
+     immediately after entering or pasting OTP codes during authentication.
+   - Root Cause:
+     The Next.js / next-intl middleware compiled output attempted property lookup 
+     on null or undefined response objects during specific redirect flows.
+   - Resolution:
+     Created an automated post-build patcher (scripts/patch-compiled-middleware.mjs) 
+     integrated into the build pipeline ("npm run build"). It guarantees that 
+     all middleware and client chunks perform null-safe redirect checks 
+     (e?.redirect / i?.redirect).
+   - Cleaned Auth Interface:
+     Removed debug "ACTIVE CODE (LIVE)" UI elements from the login form 
+     (apps/app/src/components/auth-form.tsx) for a clean, secure production view.
+
+2. VIDEO GENERATION "BACKEND_BASE_URL NOT SET" (FIXED)
+   - Issue:
+     Submitting a generation prompt caused an immediate failure alert:
+     "Generation Notice: BACKEND_BASE_URL not set", requiring users to run 
+     manual auto-repair workflows.
+   - Resolution:
+     - Configured BACKEND_BASE_URL=http://127.0.0.1:4000 and 
+       BACKEND_WEBHOOK_SECRET=whsec_hyperframes_secret_2026 in self-hosted 
+       Convex environment variables on the remote VM.
+     - Verified end-to-end communication: backend health checks and webhooks 
+       return HTTP 200 OK.
+
+3. PERSISTENCE OF RENDERED VIDEOS IN PROJECTS SECTION (FIXED)
+   - Issue:
+     Completed and repaired videos were not saving into the user's project library.
+   - Resolution:
+     - Implemented public Convex mutation "projects:saveCompletedVideo" in 
+       packages/backend/convex/projects.ts with full schema support (title, 
+       playback URL, aspect ratio, duration, resolution, status).
+     - Connected webhook triggers in backend-echo/server.mjs to notify Convex 
+       automatically upon render and layout-repair completions.
+     - Wired the frontend Create Video view (create-video/page.tsx) to persist 
+       jobs directly to the database upon completion.
+
+4. DEFAULT REFERENCE VIDEO FOR EVERY USER (IMPLEMENTED)
+   - Requirement:
+     Make /ai-composition-generator/outputs/repaired_job-job_code_1792219404621_iizjt_1792381910438.mp4 
+     the default video in the Projects section for all users and workspaces.
+   - Resolution:
+     - Generated a high-resolution poster frame thumbnail using FFmpeg:
+       outputs/repaired_job-job_code_1792219404621_iizjt_1792381910438_thumb.jpg.
+     - Updated Convex "projects:list", "projects:get", and "projects:getVideoPlaybackUrl" 
+       queries to automatically inject and prioritize the default reference video 
+       for every user account and workspace.
+     - Created and executed "seedDefaultVideoProject" mutation in Convex.
+
+5. MULTI-TRACK TIMELINE: AUDIO & VOICEOVER DELETION (FIXED)
+   - Issue:
+     Users could not delete audio or voiceover clips from the multi-track timeline 
+     via keyboard shortcuts (Delete / Backspace) or context menus.
+   - Resolution:
+     Updated "handleDeleteSelected" in apps/app/src/components/native-editor/multitrack-timeline.tsx 
+     to inspect and filter "audioClips", enabling instant deletion via keyboard 
+     or mouse actions.
+
+6. TIMELINE: EXTERNAL ASSET DRAG-AND-DROP (FIXED)
+   - Issue:
+     Dragging files (images, audio, video) from Finder/Desktop displayed a toast notification 
+     (e.g., "Added karnataka-coorg.jpg to visual track at 0.4s!") but did not add 
+     any clip to the timeline.
+   - Resolution:
+     Implemented native file handling for e.dataTransfer.files inside "handleLaneDrop":
+     - Parses dropped local media files and generates immediate object URLs.
+     - Calculates timeline placement based on drop coordinate and scale.
+     - Instantly creates and mounts a TimelineClip to visualClips or audioClips.
+     - Preserves user timeline edits across project sync cycles using "prevProjectIdRef".
+
+7. VISUAL TIMELINE FILMSTRIP & THUMBNAIL BADGES (IMPLEMENTED)
+   - Requirement:
+     Display visual previews on the timeline clips to make cutting and editing intuitive.
+   - Resolution:
+     - Added filmstrip frame styling with sprocket perforation borders across scene blocks.
+     - Added embedded image preview badges and background thumbnail styling 
+       directly on visual clips in the multi-track timeline editor.
+
+--------------------------------------------------------------------------------
+DEPLOYMENT & VERIFICATION STATUS
+--------------------------------------------------------------------------------
+- Remote Server (VM 10.70.70.43):
+  * Convex backend schema and functions pushed and seeded.
+  * Next.js production build succeeded with zero TypeScript errors.
+  * PM2 services running healthy:
+      - backend-echo (Port 4000)
+      - nextjs-app (Port 3000)
+      - tunnel-app & tunnel-convex (Cloudflare Tunnels)
+- Local Environment:
+  * TypeScript typecheck passed with zero errors across all workspaces.
+  * Local Next.js production server rebuilt and running on port 3000.
+
+================================================================================
+Generated automatically by Antigravity AI Assistant
+================================================================================

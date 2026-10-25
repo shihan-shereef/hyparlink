@@ -614,34 +614,6 @@ function backupProjectDir(projectDir) {
 // OFFICIAL HYPERFRAMES STUDIO SESSION MANAGER
 // ==========================================
 
-function proxyStudioRequest(req, res, targetPort) {
-  const options = {
-    hostname: "127.0.0.1",
-    port: targetPort,
-    path: req.url,
-    method: req.method,
-    headers: {
-      ...req.headers,
-      host: `127.0.0.1:${targetPort}`,
-    },
-  };
-
-  const proxyReq = http.request(options, (proxyRes) => {
-    res.writeHead(proxyRes.statusCode, proxyRes.headers);
-    proxyRes.pipe(res);
-  });
-
-  proxyReq.on("error", (err) => {
-    console.warn(`[Studio Proxy Error] Failed to forward ${req.url} to port ${targetPort}:`, err.message);
-    if (!res.headersSent) {
-      res.writeHead(502, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Studio background daemon unavailable" }));
-    }
-  });
-
-  req.pipe(proxyReq);
-}
-
 async function isPortOpen(port) {
   try {
     const res = await fetch(`http://127.0.0.1:${port}/`, {
@@ -3440,43 +3412,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // 4b. Studio API Proxy (/api/projects, /api/environment/ffmpeg, etc.)
-    if (
-      req.url.startsWith("/api/projects") ||
-      req.url.startsWith("/api/environment")
-    ) {
-      let activePort = null;
-      const pMatch = req.url.match(/^\/api\/projects\/([^/?]+)/);
-      if (pMatch && pMatch[1]) {
-        const pId = decodeURIComponent(pMatch[1]);
-        try {
-          const resolved = await resolveProjectDir(pId);
-          if (resolved) {
-            const session = await ensureStudioSession(pId);
-            if (session && session.port) {
-              activePort = session.port;
-            }
-          }
-        } catch (e) {
-          console.warn(`[Studio Proxy] ensureStudioSession failed for ${pId}:`, e.message);
-        }
-      }
-
-      if (!activePort) {
-        for (let p = 3055; p <= 3080; p++) {
-          if (await isPortOpen(p)) {
-            activePort = p;
-            break;
-          }
-        }
-      }
-
-      if (activePort) {
-        return proxyStudioRequest(req, res, activePort);
-      }
-    }
-
-    // 4c. GET /api/projects/:jobId/preview/assets/* or /projects/:jobId/assets/* — Fallback asset routing
+    // 4b. GET /api/projects/:jobId/preview/assets/* or /projects/:jobId/assets/* — Fallback asset routing
     if (
       (req.method === "GET" || req.method === "HEAD") &&
       (req.url.startsWith("/api/projects/") || req.url.startsWith("/projects/"))

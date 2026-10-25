@@ -73,6 +73,8 @@ export function AuthForm() {
   const [info, setInfo] = useState<string | null>(null);
   const [otpSent, setOtpSent] = useState(false);
 
+
+
   const go = (fn: () => Promise<void>) => async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -338,7 +340,12 @@ export function AuthForm() {
             <Shell onSubmit={submitOtpVerify} cta="Verify & Sign In" {...shellProps}>
               <div className="text-xs text-slate-600 dark:text-neutral-300 text-center mb-1">
                 Code sent to <span className="font-semibold text-indigo-600 dark:text-indigo-400">{email}</span>
+                <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                  Tip: Check your <strong>Spam / Junk</strong> folder or search &quot;Ollastar&quot; in Gmail.
+                </p>
               </div>
+
+
               <input
                 className={input}
                 inputMode="numeric"
@@ -363,6 +370,9 @@ export function AuthForm() {
                 <button
                   type="button"
                   onClick={() => {
+                    setCode("");
+                    setError(null);
+                    setInfo("Generating and sending fresh code...");
                     void signIn("resend-otp", { email }).then(() => {
                       setInfo("New 8-digit code sent via Ollastack.");
                     });

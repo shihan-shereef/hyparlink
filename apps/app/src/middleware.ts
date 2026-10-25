@@ -27,7 +27,6 @@ const isPublicRoute = createRouteMatcher([
   "/convex(.*)",
   "/freecut(.*)",
   "/monitoring(.*)",
-  "/studio(.*)",
 ]);
 
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {

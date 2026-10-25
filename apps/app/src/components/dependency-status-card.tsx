@@ -317,7 +317,7 @@ export function DependencyStatusCard({ className }: { className?: string }) {
                     <Cpu className="h-4 w-4" />
                   </div>
                   <div>
-                    <div className="text-sm font-medium">HyperFrames CLI</div>
+                    <div className="text-sm font-medium">Ollastar CLI</div>
                     <div className="text-xs text-muted-foreground">
                       v{data.dependencies.hyperframes.version || "0.8.139"}
                     </div>

@@ -8,23 +8,18 @@ import { useQuery } from "convex/react";
 import {
   AlertCircle,
   ArrowLeft,
-  CheckCircle2,
   Download,
   Film,
   Maximize2,
   Minimize2,
   RefreshCw,
   RotateCw,
-  Save,
-  SlidersHorizontal,
   Tv,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { NativeHyperlinkEditor } from "@/components/native-editor/native-editor-view";
-import type { CompositionScene, RenderJob } from "@/components/native-editor/types";
 
 interface StudioSession {
   sessionId: string;
@@ -35,7 +30,7 @@ interface StudioSession {
   reused?: boolean;
 }
 
-export default function ProjectEditorPage() {
+export default function ProjectOllaEditorPage() {
   const params = useParams();
   const projectId = params.projectId as Id<"projects">;
   const { current } = useWorkspace();
@@ -46,13 +41,6 @@ export default function ProjectEditorPage() {
   );
 
   const effectiveWs = (convexProject as any)?.workspaceId || current || "";
-
-  // -------------------------------------------------------------
-  // Editor Mode State: Native Editor vs HyperFrames Studio
-  // -------------------------------------------------------------
-  const [editorMode, setEditorMode] = useState<"native" | "hyperframes">("native");
-  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
-  const [pendingModeSwitch, setPendingModeSwitch] = useState<"native" | "hyperframes" | null>(null);
 
   // Fullscreen toggle state & container ref
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -100,26 +88,7 @@ export default function ProjectEditorPage() {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
   // -------------------------------------------------------------
-  // Native Editor Project State
-  // -------------------------------------------------------------
-  const [scenes, setScenes] = useState<CompositionScene[]>([]);
-  const [files, setFiles] = useState<Record<string, string>>({});
-  const [selectedFile, setSelectedFile] = useState<string>("index.html");
-  const [properties, setProperties] = useState({
-    title: "",
-    subtitle: "",
-    accentColor: "#00a8ff",
-    backgroundColor: "#0A0A0D",
-    duration: 30,
-    fps: 30,
-    resolution: "1080p",
-  });
-  const [previewSrc, setPreviewSrc] = useState<string>("");
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-
-  // -------------------------------------------------------------
-  // HyperFrames Studio Session State
+  // Olla Editor Session State & Connection Management
   // -------------------------------------------------------------
   const [session, setSession] = useState<StudioSession | null>(null);
   const [sessionStatus, setSessionStatus] = useState<
@@ -129,48 +98,7 @@ export default function ProjectEditorPage() {
   const [rendering, setRendering] = useState(false);
   const [renderedVideoUrl, setRenderedVideoUrl] = useState<string | null>(null);
 
-  // Load project files and metadata for Native Editor
-  const loadProjectData = useCallback(async () => {
-    if (!projectId) return;
-    try {
-      const res = await fetch(`${backendUrl}/editor/project/${projectId}`, {
-        headers: {
-          "x-workspace-id": effectiveWs,
-        },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.scenes && Array.isArray(data.scenes)) {
-          setScenes(data.scenes);
-        }
-        if (data.files && typeof data.files === "object") {
-          setFiles(data.files);
-        }
-        if (data.editableProperties) {
-          setProperties((prev) => ({
-            ...prev,
-            ...data.editableProperties,
-            duration: Number(data.editableProperties.duration) || prev.duration,
-            fps: Number(data.editableProperties.fps) || prev.fps,
-            resolution: data.editableProperties.resolution || prev.resolution,
-          }));
-        }
-        if (data.previewUrl) {
-          setPreviewSrc(`${backendUrl}${data.previewUrl}`);
-        } else {
-          setPreviewSrc(`${backendUrl}/editor/project/${projectId}/raw/index.html`);
-        }
-        if (data.renderedVideoUrl) {
-          setRenderedVideoUrl(data.renderedVideoUrl);
-        }
-      }
-    } catch (err: any) {
-      console.warn("[Editor] Failed to load project session data:", err.message);
-    }
-  }, [projectId, effectiveWs, backendUrl]);
-
-  // Initialize HyperFrames Studio session on backend
-  const initStudioSession = useCallback(async () => {
+  const initEditorSession = useCallback(async () => {
     if (!projectId) return;
     try {
       setSessionStatus("initializing");
@@ -184,41 +112,75 @@ export default function ProjectEditorPage() {
         },
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
         throw new Error(
-          data.error || `HTTP ${res.status}: Failed to start HyperFrames Studio session`,
+          `Olla Editor service is starting up (HTTP ${res.status}). Please click "Retry Connection".`,
         );
       }
 
-      const projectName = data.projectName || projectId;
-      // Integrated Studio frontend is hosted directly on Ollastar (port 3000)
-      const integratedStudioUrl = `/studio/index.html#project/${projectName}`;
+      if (!res.ok || !data?.success) {
+        throw new Error(
+          data?.error || `HTTP ${res.status}: Failed to start Olla Editor session`,
+        );
+      }
+
+      let finalStudioUrl = data.studioUrl || "";
+      const isHttps =
+        typeof window !== "undefined" && window.location.protocol === "https:";
+      const isLocalhost =
+        typeof window !== "undefined" &&
+        (window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1");
+
+      if (
+        isHttps &&
+        !isLocalhost &&
+        (data.tunnelStudioUrl || process.env.NEXT_PUBLIC_STUDIO_URL)
+      ) {
+        const tunnelBase =
+          data.tunnelStudioUrl ||
+          `${process.env.NEXT_PUBLIC_STUDIO_URL}/#project/${data.projectName || data.sessionId}`;
+        finalStudioUrl = tunnelBase;
+      } else if (isLocalhost && finalStudioUrl) {
+        finalStudioUrl = finalStudioUrl.replace("127.0.0.1", "localhost");
+      }
 
       setSession({
         sessionId: data.sessionId,
         port: data.port,
-        studioUrl: integratedStudioUrl,
-        projectName,
+        studioUrl: finalStudioUrl,
+        projectName: data.projectName,
         ready: data.ready,
         reused: data.reused,
       });
       setSessionStatus("ready");
     } catch (err: any) {
-      console.error("[HyperFramesStudio] Init error:", err);
+      console.error("[OllaEditor] Init error:", err);
       setSessionStatus("error");
-      setSessionError(
-        err.message || "Failed to initialize HyperFrames Studio service",
-      );
+      const msg = err?.message || "";
+      if (
+        msg.includes("expected pattern") ||
+        msg.includes("Failed to fetch") ||
+        msg.includes("NetworkError") ||
+        msg.includes("Load failed")
+      ) {
+        setSessionError(
+          "Connection to Olla Editor engine was interrupted while launching. Please click 'Retry Connection'.",
+        );
+      } else {
+        setSessionError(msg || "Failed to initialize Olla Editor service");
+      }
     }
   }, [projectId, effectiveWs, backendUrl]);
 
   useEffect(() => {
     if (projectId) {
-      loadProjectData();
-      initStudioSession();
+      initEditorSession();
     }
-  }, [projectId, loadProjectData, initStudioSession]);
+  }, [projectId, initEditorSession]);
 
   useEffect(() => {
     if (convexProject) {
@@ -231,55 +193,11 @@ export default function ProjectEditorPage() {
     }
   }, [convexProject]);
 
-  // Handle Save in Native Editor
-  const handleSaveNative = async () => {
-    try {
-      setIsSaving(true);
-      const res = await fetch(`${backendUrl}/editor/project/${projectId}/save`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-workspace-id": effectiveWs,
-        },
-        body: JSON.stringify({
-          files,
-          properties,
-          scenes,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to save project");
-      }
-
-      setHasUnsavedChanges(false);
-      toast.success("Project saved successfully!");
-      setPreviewSrc(`${backendUrl}/editor/project/${projectId}/raw/index.html?t=${Date.now()}`);
-    } catch (err: any) {
-      toast.error(`Save failed: ${err.message}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Handle Mode Switching with Unsaved Changes Protection
-  const handleSwitchMode = (targetMode: "native" | "hyperframes") => {
-    if (targetMode === editorMode) return;
-    if (hasUnsavedChanges && editorMode === "native") {
-      setPendingModeSwitch(targetMode);
-      setShowUnsavedModal(true);
-      return;
-    }
-    setEditorMode(targetMode);
-    toast.info(`Switched to ${targetMode === "native" ? "Native Editor" : "HyperFrames Studio"}`);
-  };
-
-  // Handle Sync & Re-Render with GPU Pipeline
+  // Handle Sync & Re-Render with Ollastar GPU Pipeline
   const handleSyncAndRender = async () => {
     try {
       setRendering(true);
-      toast.info("Validating composition and rendering production video...");
+      toast.info("Validating composition and rendering Ollastar production video...");
 
       const res = await fetch(
         `${backendUrl}/editor/project/${projectId}/render`,
@@ -292,8 +210,8 @@ export default function ProjectEditorPage() {
           body: JSON.stringify({
             resolution: convexProject?.width
               ? `${convexProject.width}x${convexProject.height}`
-              : properties.resolution || "1080p",
-            fps: convexProject?.fps || properties.fps || 30,
+              : "1080p",
+            fps: convexProject?.fps || 30,
             format: "mp4",
           }),
         },
@@ -306,7 +224,7 @@ export default function ProjectEditorPage() {
         throw new Error(errorDetail);
       }
 
-      toast.success("Composition rendered successfully!");
+      toast.success("Composition rendered and synchronized with Ollastar!");
       if (data.videoUrl) {
         setRenderedVideoUrl(data.videoUrl);
       }
@@ -326,11 +244,11 @@ export default function ProjectEditorPage() {
   };
 
   const projectTitle =
-    convexProject?.name || properties.title || session?.projectName || "Video Composition";
+    convexProject?.name || session?.projectName || "Video Composition";
 
   return (
     <div className="flex h-screen w-full flex-col bg-[#f8fafc] text-foreground overflow-hidden select-none">
-      {/* Top Universal Header Toolbar */}
+      {/* Top Header Toolbar */}
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-white px-3 sm:px-4 z-20 text-gray-900 shadow-xs">
         {/* Left: Navigation, Ollastar Logo, Project Details */}
         <div className="flex items-center gap-2.5">
@@ -356,81 +274,30 @@ export default function ProjectEditorPage() {
               {projectTitle}
             </span>
 
-            {/* Save Status / Badge */}
-            {editorMode === "native" && (
-              hasUnsavedChanges ? (
-                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  Unsaved Edits
-                </span>
-              ) : (
-                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                  <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                  All Saved
-                </span>
-              )
+            {/* Olla Editor Status Badge */}
+            {sessionStatus === "ready" && session && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 border border-purple-200 px-2.5 py-0.5 text-[11px] font-semibold text-purple-700 shadow-2xs">
+                <span className="h-1.5 w-1.5 rounded-full bg-purple-500 animate-pulse" />
+                Olla Editor {session.port ? `(Port ${session.port})` : ""}
+              </span>
             )}
-
-            {editorMode === "hyperframes" && sessionStatus === "ready" && (
-              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700 shadow-2xs">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                HyperFrames Studio (Integrated)
+            {sessionStatus === "initializing" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                <RotateCw className="h-2.5 w-2.5 animate-spin" />
+                Starting Olla Editor...
+              </span>
+            )}
+            {sessionStatus === "error" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
+                <AlertCircle className="h-2.5 w-2.5" />
+                Olla Editor Offline
               </span>
             )}
           </div>
         </div>
 
-        {/* Center: Editor Mode Switcher */}
-        <div className="flex items-center rounded-lg bg-gray-100 p-0.5 border border-gray-200 shadow-2xs">
-          <button
-            type="button"
-            onClick={() => handleSwitchMode("native")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition ${
-              editorMode === "native"
-                ? "bg-white text-gray-900 shadow-xs"
-                : "text-gray-500 hover:text-gray-900"
-            }`}
-            title="Switch to Native Editor mode"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5 text-purple-600" />
-            <span>Native Editor</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSwitchMode("hyperframes")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition ${
-              editorMode === "hyperframes"
-                ? "bg-white text-gray-900 shadow-xs"
-                : "text-gray-500 hover:text-gray-900"
-            }`}
-            title="Switch to official HyperFrames Studio mode"
-          >
-            <Tv className="h-3.5 w-3.5 text-indigo-600" />
-            <span>HyperFrames Studio</span>
-          </button>
-        </div>
-
         {/* Right Action Controls */}
         <div className="flex items-center gap-2">
-          {/* Save Button (in Native Mode) */}
-          {editorMode === "native" && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleSaveNative}
-              disabled={isSaving || !hasUnsavedChanges}
-              className="h-7 gap-1 text-xs text-primary border-border"
-              title="Save project changes"
-            >
-              {isSaving ? (
-                <RotateCw className="h-3 w-3 animate-spin text-purple-600" />
-              ) : (
-                <Save className="h-3 w-3 text-purple-600" />
-              )}
-              <span>Save</span>
-            </Button>
-          )}
-
           {/* Fullscreen Button */}
           <Button
             variant={isFullscreen ? "default" : "outline"}
@@ -450,12 +317,12 @@ export default function ProjectEditorPage() {
             {isFullscreen ? (
               <>
                 <Minimize2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Exit</span>
+                <span className="hidden sm:inline">Exit Full Screen</span>
               </>
             ) : (
               <>
                 <Maximize2 className="h-3.5 w-3.5 text-purple-500" />
-                <span className="hidden sm:inline">Full</span>
+                <span className="hidden sm:inline">Full Screen</span>
               </>
             )}
           </Button>
@@ -512,7 +379,7 @@ export default function ProjectEditorPage() {
         </div>
       </header>
 
-      {/* Main Workspace Area (Avoids rendering both simultaneously) */}
+      {/* Main Workspace: Olla Editor */}
       <div
         ref={editorContainerRef}
         className={`transition-all duration-300 ease-in-out ${
@@ -521,178 +388,71 @@ export default function ProjectEditorPage() {
             : "flex-1 flex flex-col w-full h-full bg-neutral-950 relative overflow-hidden"
         }`}
       >
-        {/* MODE 1: NATIVE VIDEO EDITOR */}
-        {editorMode === "native" && (
-          <NativeHyperlinkEditor
-            projectId={projectId}
-            projectTitle={projectTitle}
-            duration={properties.duration}
-            onUpdateDuration={(d) => {
-              setProperties((prev) => ({ ...prev, duration: d }));
-              setHasUnsavedChanges(true);
-            }}
-            fps={properties.fps}
-            resolution={properties.resolution}
-            scenes={scenes}
-            onUpdateScenes={(updater) => {
-              setScenes(updater);
-              setHasUnsavedChanges(true);
-            }}
-            files={files}
-            selectedFile={selectedFile}
-            onSelectFile={setSelectedFile}
-            onCodeChange={(code, targetFile) => {
-              const file = targetFile || selectedFile;
-              setFiles((prev) => ({ ...prev, [file]: code }));
-              setHasUnsavedChanges(true);
-            }}
-            onSaveProject={handleSaveNative}
-            onSyncAndRender={handleSyncAndRender}
-            isRendering={rendering}
-            previewSrc={previewSrc}
-            renderedVideoUrl={renderedVideoUrl}
-            renders={[]}
-            hasUnsavedChanges={hasUnsavedChanges}
-            isSaving={isSaving}
-            isFullscreen={isFullscreen}
-            onToggleFullscreen={toggleFullscreen}
-            hideHeader={true}
-            editorMode="native"
-            onEditorModeChange={(m) => handleSwitchMode(m === "studio" ? "hyperframes" : "native")}
-            studioPort={session?.port}
-          />
-        )}
-
-        {/* MODE 2: HYPERFRAMES STUDIO (INTEGRATED) */}
-        {editorMode === "hyperframes" && (
-          <div className="flex-1 flex flex-col w-full h-full bg-neutral-950 relative overflow-hidden">
-            {/* Loading Overlay */}
-            {sessionStatus === "initializing" && (
-              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm p-6 text-center">
-                <div className="relative mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10 border border-indigo-500/20 shadow-lg">
-                  <Tv className="h-7 w-7 text-indigo-400" />
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-4 w-4 bg-indigo-500" />
-                  </span>
-                </div>
-                <h3 className="text-base font-semibold text-primary">
-                  Connecting to HyperFrames Studio
-                </h3>
-                <p className="mt-1.5 max-w-md text-xs text-primary/60">
-                  Launching the integrated HyperFrames Studio engine and mounting project workspace...
-                </p>
-                <div className="mt-5 flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-primary/50 font-mono">
-                  <RotateCw className="h-3.5 w-3.5 animate-spin text-indigo-400" />
-                  <span>hyperframes studio --integrated</span>
-                </div>
-              </div>
-            )}
-
-            {/* Error Overlay with Retry */}
-            {sessionStatus === "error" && (
-              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background/95 p-6 text-center">
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive shadow-lg">
-                  <AlertCircle className="h-7 w-7" />
-                </div>
-                <h3 className="text-base font-semibold text-primary">
-                  HyperFrames Studio Unavailable
-                </h3>
-                <p className="mt-1.5 max-w-lg text-xs text-destructive/80 font-mono bg-destructive/5 border border-destructive/10 rounded-lg p-3">
-                  {sessionError ||
-                    "The HyperFrames Studio session manager encountered an error starting the service."}
-                </p>
-                <div className="mt-6 flex items-center gap-3">
-                  <Button
-                    onClick={initStudioSession}
-                    size="sm"
-                    className="gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    Retry Connection
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => setEditorMode("native")}
-                  >
-                    Switch to Native Editor
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Integrated HyperFrames Studio Frame */}
-            {session && session.studioUrl && (
-              <iframe
-                src={session.studioUrl}
-                title={`HyperFrames Studio - ${projectTitle}`}
-                className="flex-1 w-full h-full border-0 bg-neutral-950"
-                allow="accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                allowFullScreen
-              />
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Unsaved Changes Confirmation Modal */}
-      {showUnsavedModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl border border-gray-200 text-gray-900">
-            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-amber-600" />
-              Unsaved Changes
+        {/* Loading Overlay */}
+        {sessionStatus === "initializing" && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm p-6 text-center">
+            <div className="relative mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-500/10 border border-purple-500/20 shadow-lg">
+              <Tv className="h-7 w-7 text-purple-400" />
+              <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-4 w-4 bg-purple-500" />
+              </span>
+            </div>
+            <h3 className="text-base font-semibold text-primary">
+              Connecting to Olla Editor
             </h3>
-            <p className="mt-2 text-xs text-gray-600 leading-relaxed">
-              You have unsaved changes in Native Editor. Would you like to save them to the project before switching to HyperFrames Studio?
+            <p className="mt-1.5 max-w-md text-xs text-primary/60">
+              Launching the official Olla Editor engine and mounting project workspace...
             </p>
-            <div className="mt-5 flex items-center justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={() => {
-                  setShowUnsavedModal(false);
-                  setPendingModeSwitch(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                className="text-xs"
-                onClick={() => {
-                  setHasUnsavedChanges(false);
-                  setShowUnsavedModal(false);
-                  if (pendingModeSwitch) {
-                    setEditorMode(pendingModeSwitch);
-                    setPendingModeSwitch(null);
-                  }
-                }}
-              >
-                Discard &amp; Switch
-              </Button>
-              <Button
-                size="sm"
-                className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
-                onClick={async () => {
-                  await handleSaveNative();
-                  setShowUnsavedModal(false);
-                  if (pendingModeSwitch) {
-                    setEditorMode(pendingModeSwitch);
-                    setPendingModeSwitch(null);
-                  }
-                }}
-              >
-                Save &amp; Switch
-              </Button>
+            <div className="mt-5 flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-primary/50 font-mono">
+              <RotateCw className="h-3.5 w-3.5 animate-spin text-purple-400" />
+              <span>olla editor --ready</span>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Error Overlay with Retry */}
+        {sessionStatus === "error" && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background/95 p-6 text-center">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive shadow-lg">
+              <AlertCircle className="h-7 w-7" />
+            </div>
+            <h3 className="text-base font-semibold text-primary">
+              Olla Editor Unavailable
+            </h3>
+            <p className="mt-1.5 max-w-lg text-xs text-destructive/80 font-mono bg-destructive/5 border border-destructive/10 rounded-lg p-3">
+              {sessionError ||
+                "The Olla Editor session manager encountered an error starting the service."}
+            </p>
+            <div className="mt-6 flex items-center gap-3">
+              <Button
+                onClick={initEditorSession}
+                size="sm"
+                className="gap-1.5 text-xs bg-purple-600 hover:bg-purple-500 text-white"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Retry Connection
+              </Button>
+              <Link href="/projects">
+                <Button variant="ghost" size="sm" className="text-xs">
+                  Back to Projects
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Real Olla Editor Instance */}
+        {session && session.studioUrl && (
+          <iframe
+            src={session.studioUrl}
+            title={`Olla Editor - ${projectTitle}`}
+            className="flex-1 w-full h-full border-0 bg-neutral-950"
+            allow="accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+            allowFullScreen
+          />
+        )}
+      </div>
     </div>
   );
 }

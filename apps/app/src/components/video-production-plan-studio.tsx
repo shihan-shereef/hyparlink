@@ -108,6 +108,7 @@ interface VideoProductionPlanStudioProps {
   plan: VideoProductionPlan;
   onApproveAndRender: () => Promise<void>;
   onRefinePlan: (feedback: string) => Promise<void>;
+  onUpdatePlan?: (updated: VideoProductionPlan) => void;
   isRevising: boolean;
   isRendering: boolean;
   onDismiss?: () => void;
@@ -117,6 +118,7 @@ export function VideoProductionPlanStudio({
   plan,
   onApproveAndRender,
   onRefinePlan,
+  onUpdatePlan,
   isRevising,
   isRendering,
   onDismiss,
@@ -135,6 +137,42 @@ export function VideoProductionPlanStudio({
   const typography = brief.typography || {
     displayFont: "Outfit",
     bodyFont: "Inter",
+  };
+
+  const handleUpdateSceneText = (field: "headline" | "subtitle" | "narration", value: string) => {
+    if (!onUpdatePlan) return;
+    const nextScenes = [...scenes];
+    const target = { ...nextScenes[selectedSceneIndex] };
+    if (!target.onScreenText) target.onScreenText = { headline: "", subtitle: "" };
+    else target.onScreenText = { ...target.onScreenText };
+
+    if (field === "headline") {
+      target.onScreenText.headline = value;
+    } else if (field === "subtitle") {
+      target.onScreenText.subtitle = value;
+    } else if (field === "narration") {
+      target.narration = value;
+    }
+    nextScenes[selectedSceneIndex] = target as PlanScene;
+    onUpdatePlan({
+      ...plan,
+      scenes: nextScenes,
+    });
+  };
+
+  const handleUpdateFont = (fontFamily: string) => {
+    if (!onUpdatePlan) return;
+    onUpdatePlan({
+      ...plan,
+      creativeBrief: {
+        ...brief,
+        typography: {
+          ...typography,
+          displayFont: fontFamily,
+          bodyFont: fontFamily,
+        },
+      },
+    });
   };
 
   const handleSendFeedback = (text?: string) => {
@@ -367,30 +405,76 @@ export function VideoProductionPlanStudio({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                   {/* Left Column: Copy & Narration */}
-                  <div className="space-y-3">
-                    <div className="rounded-lg bg-white p-3 border border-slate-200 shadow-2xs dark:bg-black/40 dark:border-white/5">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                        On-Screen Headline & Copy
-                      </span>
-                      <p className="text-base font-extrabold text-slate-900 dark:text-white mt-1">
-                        &ldquo;{scenes[selectedSceneIndex].onScreenText?.headline || "Untitled"}&rdquo;
-                      </p>
-                      {scenes[selectedSceneIndex].onScreenText?.subtitle && (
-                        <p className="text-slate-600 dark:text-neutral-300 mt-0.5">
-                          {scenes[selectedSceneIndex].onScreenText?.subtitle}
-                        </p>
-                      )}
+                    <div className="rounded-lg bg-white p-3 border border-slate-200 shadow-2xs dark:bg-black/40 dark:border-white/5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                          On-Screen Headline & Copy
+                        </span>
+                        {/* Font Selector */}
+                        <div className="flex items-center gap-1">
+                          <Type className="w-3 h-3 text-indigo-500" />
+                          <select
+                            value={typography.displayFont || "Outfit"}
+                            onChange={(e) => handleUpdateFont(e.target.value)}
+                            className="bg-slate-50 dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 rounded text-[10px] font-semibold text-slate-800 dark:text-slate-200 px-1.5 py-0.5 cursor-pointer focus:outline-none"
+                            title="Change Font Family"
+                          >
+                            <option value="Outfit">Outfit</option>
+                            <option value="Inter">Inter</option>
+                            <option value="Space Grotesk">Space Grotesk</option>
+                            <option value="Playfair Display">Playfair Display</option>
+                            <option value="Cinzel">Cinzel</option>
+                            <option value="Montserrat">Montserrat</option>
+                            <option value="Plus Jakarta Sans">Plus Jakarta Sans</option>
+                            <option value="Poppins">Poppins</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Headline input allowing direct selection and typing */}
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">
+                          Headline (Click to edit sentence)
+                        </label>
+                        <input
+                          type="text"
+                          value={scenes[selectedSceneIndex].onScreenText?.headline || ""}
+                          onChange={(e) => handleUpdateSceneText("headline", e.target.value)}
+                          placeholder="e.g. THE 2026 GLOBAL CAPITAL SHIFT"
+                          className="w-full font-extrabold text-base text-slate-900 dark:text-white bg-slate-50/80 dark:bg-neutral-800/80 border border-slate-200 dark:border-neutral-700 rounded-md px-2.5 py-1.5 focus:border-indigo-500 focus:bg-white dark:focus:bg-black focus:outline-none transition"
+                        />
+                      </div>
+
+                      {/* Subtitle input */}
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-0.5">
+                          Subtitle / Sub-headline
+                        </label>
+                        <input
+                          type="text"
+                          value={scenes[selectedSceneIndex].onScreenText?.subtitle || ""}
+                          onChange={(e) => handleUpdateSceneText("subtitle", e.target.value)}
+                          placeholder="e.g. DAKTILO DISPATCH SPECIAL REPORT"
+                          className="w-full text-xs text-slate-700 dark:text-neutral-300 bg-slate-50/80 dark:bg-neutral-800/80 border border-slate-200 dark:border-neutral-700 rounded-md px-2.5 py-1.5 focus:border-indigo-500 focus:bg-white dark:focus:bg-black focus:outline-none transition"
+                        />
+                      </div>
                     </div>
 
-                    <div className="rounded-lg bg-white p-3 border border-slate-200 shadow-2xs dark:bg-black/40 dark:border-white/5">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                        Spoken Narration / Voiceover
-                      </span>
-                      <p className="text-slate-700 dark:text-neutral-200 mt-1 italic">
-                        {scenes[selectedSceneIndex].narration || "Instrumental motion graphics beat (No spoken voiceover)"}
-                      </p>
+                    <div className="rounded-lg bg-white p-3 border border-slate-200 shadow-2xs dark:bg-black/40 dark:border-white/5 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                          Spoken Narration / Voiceover
+                        </span>
+                        <span className="text-[10px] text-slate-400">Click to edit</span>
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={scenes[selectedSceneIndex].narration || ""}
+                        onChange={(e) => handleUpdateSceneText("narration", e.target.value)}
+                        placeholder="Enter spoken narration or leave blank for instrumental..."
+                        className="w-full text-xs text-slate-700 dark:text-neutral-200 bg-slate-50/80 dark:bg-neutral-800/80 border border-slate-200 dark:border-neutral-700 rounded-md px-2.5 py-1.5 focus:border-emerald-500 focus:bg-white dark:focus:bg-black focus:outline-none italic transition resize-none"
+                      />
                     </div>
-                  </div>
 
                   {/* Right Column: Visual Description & Animation */}
                   <div className="space-y-3">

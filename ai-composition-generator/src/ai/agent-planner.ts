@@ -789,18 +789,18 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
       return -1;
     };
 
-    // 1. Quoted text extraction (e.g. 'say "WELCOME TO NEXT GEN"')
+    // 1. Quoted text extraction (supporting double, single, and curly quotes)
     const quotes: string[] = [];
-    const quoteRegex = /["“]([^"”]+)["”]/g;
+    const quoteRegex = /["“'‘]([^"”'’]+)["”'’]/g;
     let qm;
     while ((qm = quoteRegex.exec(feedback)) !== null) {
       if (qm[1].trim()) quotes.push(qm[1].trim());
     }
 
     // 2. Targeted Headline Modification
-    const explicitHeadMatch = feedback.match(/(?:headline|heading|header|title)\s*(?:for|in|of)?\s*(?:scene\s*\d+|first scene|second scene|third scene|last scene|final scene)?\s*(?:to|be|say|is|as|saying)\s*["“]?([^"”,.;\n]+)["”]?/i)
-      || feedback.match(/change\s+(?:scene\s*(\d+)|first scene|second scene|third scene|last scene|final scene)?\s*(?:headline|heading|header)\s*(?:to|be|as)\s*["“]?([^"”,.;\n]+)["”]?/i)
-      || feedback.match(/make\s+(?:scene\s*(\d+)|first scene|second scene|third scene|last scene|final scene)?\s*(?:headline|heading|header)\s*(?:say\s*)?["“]?([^"”,.;\n]+)["”]?/i);
+    const explicitHeadMatch = feedback.match(/(?:(?:change|update|set|make|replace)\s+)?(?:the\s+)?(?:headline|heading|header|title)\s*(?:for|in|of)?\s*(?:scene\s*(\d+)|first scene|second scene|third scene|last scene|final scene)?\s*(?:to|be|say|is|as|saying|into|:)?\s*["“'‘]?([^"”'’\n,;]+)["”'’]?/i)
+      || feedback.match(/(?:change|make|set)\s+(?:scene\s*(\d+)|first scene|second scene|third scene|last scene|final scene)?\s*(?:the\s+)?(?:headline|heading|header|title)\s*(?:to|be|as|say|saying|into|:)?\s*["“'‘]?([^"”'’\n,;]+)["”'’]?/i)
+      || feedback.match(/^["“'‘]?([A-Za-z0-9\s-]{4,60})["”'’]?\s*(?:'|’)?\s*(?:with|featuring|style|and)/i);
 
     if (explicitHeadMatch) {
       const rawText = (explicitHeadMatch[2] || explicitHeadMatch[1] || "").trim();
