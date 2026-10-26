@@ -21,12 +21,14 @@ import Link from "next/link";
 import { useState } from "react";
 
 export default function LiveEditorProjectsPage() {
-  const { current } = useWorkspace();
+  const { current, workspaces } = useWorkspace();
   const [searchQuery, setSearchQuery] = useState("");
+
+  const effectiveWs = current || (workspaces && workspaces[0]?._id) || undefined;
 
   const projects = useQuery(
     api.projects.list,
-    current ? { workspaceId: current } : "skip",
+    effectiveWs ? { workspaceId: effectiveWs } : "skip",
   );
 
   const filteredProjects = (projects || []).filter((p) => {
