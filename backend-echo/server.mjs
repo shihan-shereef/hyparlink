@@ -1351,6 +1351,66 @@ function streamFile(req, res, filePath) {
   }
 }
 
+const REMOTE_FALLBACK_URL = process.env.REMOTE_VM_URL || "http://10.70.70.43:4000";
+
+function proxyRemoteFallback(req, res, targetUrlPath, localSavePath = null) {
+  if (!REMOTE_FALLBACK_URL) return false;
+  try {
+    const remoteUrl = new URL(targetUrlPath, REMOTE_FALLBACK_URL);
+    const headers = { ...req.headers };
+    delete headers["host"];
+    delete headers["connection"];
+
+    const proxyReq = http.request(
+      remoteUrl,
+      {
+        method: req.method,
+        headers,
+        timeout: 20000,
+      },
+      (proxyRes) => {
+        if (proxyRes.statusCode === 404) {
+          return send(res, 404, { error: "File not found" });
+        }
+
+        // Cache 200 OK responses to local disk if localSavePath is provided
+        if (proxyRes.statusCode === 200 && req.method === "GET" && localSavePath) {
+          try {
+            fs.mkdirSync(path.dirname(localSavePath), { recursive: true });
+            const fileStream = fs.createWriteStream(localSavePath);
+            proxyRes.pipe(fileStream);
+            fileStream.on("error", (err) => {
+              console.warn("[ProxyFallback] Cache write error:", err.message);
+            });
+          } catch (e) {
+            console.warn("[ProxyFallback] Could not create local cache stream:", e.message);
+          }
+        }
+
+        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        proxyRes.pipe(res);
+      }
+    );
+
+    proxyReq.on("error", (err) => {
+      console.warn(`[ProxyFallback] Failed to fetch from remote ${remoteUrl}:`, err.message);
+      if (!res.headersSent) {
+        send(res, 404, { error: "File not found locally or on remote fallback" });
+      }
+    });
+
+    if (req.method === "GET" || req.method === "HEAD") {
+      proxyReq.end();
+    } else {
+      req.pipe(proxyReq);
+    }
+    return true;
+  } catch (err) {
+    console.warn("[ProxyFallback] Exception:", err.message);
+    return false;
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === "OPTIONS") return send(res, 204, {});
@@ -2364,6 +2424,9 @@ const server = http.createServer(async (req, res) => {
         return send(res, 403, { error: "Forbidden: Access denied" });
       }
       if (!fs.existsSync(localFilePath)) {
+        if (proxyRemoteFallback(req, res, req.url, localFilePath)) {
+          return;
+        }
         return send(res, 404, { error: "File not found" });
       }
       return streamFile(req, res, localFilePath);
@@ -2415,6 +2478,9 @@ const server = http.createServer(async (req, res) => {
         if (fs.existsSync(altPath)) {
           localFilePath = altPath;
         } else {
+          if (proxyRemoteFallback(req, res, req.url, localFilePath)) {
+            return;
+          }
           // Strictly return 404 — do NOT leak the most recently rendered MP4 from other users
           return send(res, 404, { error: "Output file not found" });
         }
