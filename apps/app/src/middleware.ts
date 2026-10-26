@@ -21,18 +21,33 @@ const isPublicRoute = createRouteMatcher([
   "/api(.*)",
   "/ai(.*)",
   "/assets(.*)",
-  "/editor/project(.*)",
-  "/editor/session(.*)",
+  "/editor(.*)",
+  "/:locale/editor(.*)",
   "/backend-api(.*)",
   "/convex(.*)",
   "/freecut(.*)",
   "/monitoring(.*)",
   "/studio(.*)",
   "/studio-proxy(.*)",
+  "/native-editor(.*)",
 ]);
 
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
   if (isPublicRoute(request)) {
+    const pathname = request.nextUrl.pathname;
+    if (
+      pathname.startsWith("/editor/session") ||
+      pathname.startsWith("/editor/project") ||
+      pathname.startsWith("/studio-proxy")
+    ) {
+      return;
+    }
+    if (
+      pathname.startsWith("/editor") ||
+      /^\/(en|fr|es)\/editor/.test(pathname)
+    ) {
+      return I18nMiddleware(request);
+    }
     return;
   }
 

@@ -34,8 +34,13 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     if (workspaces.length === 0) {
       if (!ensuring) {
         setEnsuring(true);
-        void ensure({}).finally(() => setEnsuring(false));
+        void ensure({})
+          .catch((err) => {
+            console.warn("[WorkspaceProvider] Guest/unauthenticated session, skipping ensureWorkspace:", err?.message || err);
+          })
+          .finally(() => setEnsuring(false));
       }
+      setCurrent((prev) => prev || ("mh76mnv9k6dbe50rbwc0jsqpzd8grsqj" as Id<"workspaces">));
       return;
     }
     setCurrent((prev) => {
@@ -46,7 +51,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           : null;
       const match = workspaces.find((w) => w._id === saved);
       const primaryMatch = workspaces.find((w) => w._id === "mh76mnv9k6dbe50rbwc0jsqpzd8grsqj");
-      return match?._id ?? primaryMatch?._id ?? workspaces[0]?._id ?? null;
+      return match?._id ?? primaryMatch?._id ?? workspaces[0]?._id ?? ("mh76mnv9k6dbe50rbwc0jsqpzd8grsqj" as Id<"workspaces">);
     });
   }, [workspaces, ensure, ensuring]);
 

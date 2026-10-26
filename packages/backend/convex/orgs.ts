@@ -98,7 +98,7 @@ export const ensureWorkspace = mutation({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      throw new ConvexError("Not authenticated");
+      return null;
     }
     const existing = await ctx.db
       .query("members")

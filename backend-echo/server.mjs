@@ -11,6 +11,10 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+
+process.on("unhandledRejection", (err) => {
+  console.warn("[BackendEcho] Handled promise rejection:", err?.message || err);
+});
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { VideoGenerationPipeline } from "../ai-composition-generator/dist/pipeline/generate-video.js";
 import { AIGenerator } from "../ai-composition-generator/dist/ai/generator.js";
@@ -3476,7 +3480,7 @@ const server = http.createServer(async (req, res) => {
             session.tunnelStudioUrl ||
             getStudioTunnelUrl(session.projectName || projectId),
           // Proxy URL: routed through backend-echo → accessible over HTTPS/Cloudflare
-          proxyStudioUrl: `/studio-proxy/${session.port}/#project/${session.projectName || projectId}`,
+          proxyStudioUrl: `/studio-proxy/${session.port}#project/${session.projectName || projectId}`,
           projectName: session.projectName,
           projectDirectory: resolved.dir,
           reused: session.reused,
@@ -6660,7 +6664,7 @@ Return only the JSON object containing the updated code and summary.`;
             h["host"] = `127.0.0.1:${studioPort}`;
             return h;
           })(),
-          signal: AbortSignal.timeout(15000),
+          signal: req.url.includes("/api/events") ? undefined : AbortSignal.timeout(30000),
           // don't follow redirects — pass them through
           redirect: "manual",
         }).catch(() => null);
@@ -6699,35 +6703,109 @@ Return only the JSON object containing the updated code and summary.`;
             html = html.replace(/<head>/i, `<head><base href="${baseHref}">`);
           }
 
-          // Inject fetch + XHR interceptor so absolute-path API calls
-          // are also routed through the proxy
+          // Inject fetch, XHR, EventSource, and iframe interceptors so all Studio calls route through proxy
           const interceptor = `<script>
 (function(){
   var BP='/studio-proxy/${studioPort}';
-  var _fetch=window.fetch;
-  window.fetch=function(input,init){
-    if(typeof input==='string'&&input.startsWith('/')&&!input.startsWith('/studio-proxy/')){input=BP+input;}
-    else if(input instanceof Request&&input.url.startsWith('/')&&!input.url.startsWith('/studio-proxy/')){input=new Request(BP+input.url,input);}
-    return _fetch.apply(this,arguments);
+  function rewriteUrl(u) {
+    if (typeof u !== 'string') return u;
+    if (u.startsWith('/') && !u.startsWith('/studio-proxy/')) return BP + u;
+    if (u.startsWith(window.location.origin) && !u.includes('/studio-proxy/')) {
+      return u.replace(window.location.origin, window.location.origin + BP);
+    }
+    return u;
+  }
+
+  var _fetch = window.fetch;
+  window.fetch = function(input, init) {
+    if (typeof input === 'string') {
+      input = rewriteUrl(input);
+    } else if (input instanceof Request) {
+      var u = rewriteUrl(input.url);
+      if (u !== input.url) {
+        input = new Request(u, input);
+      }
+    }
+    return _fetch.apply(this, arguments);
   };
-  var _open=XMLHttpRequest.prototype.open;
-  XMLHttpRequest.prototype.open=function(m,u){
-    if(typeof u==='string'&&u.startsWith('/')&&!u.startsWith('/studio-proxy/')){u=BP+u;}
-    var args=Array.from(arguments);args[1]=u;
-    return _open.apply(this,args);
+
+  var _open = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(m, u) {
+    if (typeof u === 'string') {
+      u = rewriteUrl(u);
+    }
+    var args = Array.from(arguments);
+    args[1] = u;
+    return _open.apply(this, args);
   };
-  // Fix WebSocket if used
-  var _WS=window.WebSocket;
-  if(_WS){window.WebSocket=function(url,protocols){
-    if(url&&url.startsWith('ws://localhost')||url&&url.startsWith('ws://127.0.0.1')){/* keep local ws as-is */}
-    return protocols?new _WS(url,protocols):new _WS(url);
-  };window.WebSocket.prototype=_WS.prototype;}
+
+  var _ES = window.EventSource;
+  if (_ES) {
+    window.EventSource = function(url, options) {
+      if (typeof url === 'string') {
+        url = rewriteUrl(url);
+      }
+      return new _ES(url, options);
+    };
+    window.EventSource.prototype = _ES.prototype;
+  }
+
+  var _origIframeSrc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
+  if (_origIframeSrc && _origIframeSrc.set) {
+    Object.defineProperty(HTMLIFrameElement.prototype, 'src', {
+      set: function(val) {
+        if (typeof val === 'string') {
+          val = rewriteUrl(val);
+        }
+        return _origIframeSrc.set.call(this, val);
+      },
+      get: _origIframeSrc.get,
+      configurable: true,
+      enumerable: true
+    });
+  }
+
+  var _WS = window.WebSocket;
+  if (_WS) {
+    window.WebSocket = function(url, protocols) {
+      return protocols ? new _WS(url, protocols) : new _WS(url);
+    };
+    window.WebSocket.prototype = _WS.prototype;
+  }
 })();
 </script>`;
           html = html.replace(/<\/head>/i, `${interceptor}</head>`);
 
           res.writeHead(proxyFetch.status);
           res.end(html);
+        } else if (contentType.includes("text/event-stream")) {
+          // Streaming SSE (eventsource): pipe chunks directly without buffering
+          res.writeHead(proxyFetch.status, {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+          });
+          if (proxyFetch.body) {
+            const reader = proxyFetch.body.getReader();
+            const pump = async () => {
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) { res.end(); break; }
+                  res.write(value);
+                }
+              } catch (_) {
+                try { res.end(); } catch (__) {}
+              }
+            };
+            pump();
+            req.on("close", () => {
+              try { reader.cancel(); } catch (_) {}
+            });
+          } else {
+            res.end();
+          }
         } else {
           // Binary / non-HTML: stream bytes through
           res.writeHead(proxyFetch.status);
