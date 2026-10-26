@@ -14,8 +14,6 @@ import {
   Minimize2,
   RefreshCw,
   RotateCw,
-  SlidersHorizontal,
-  Tv,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -36,8 +34,7 @@ export default function ProjectOllaEditorPage() {
   const projectId = params.projectId as Id<"projects">;
   const { current } = useWorkspace();
 
-  // Editor mode toggle: "ollastar" (HyperFrames composition engine) or "native" (Native Timeline Editor)
-  const [editorMode, setEditorMode] = useState<"ollastar" | "native">("ollastar");
+  // Native editor is the only editor mode
 
   const convexProject = useQuery(
     api.projects.get,
@@ -310,54 +307,20 @@ export default function ProjectOllaEditorPage() {
               {projectTitle}
             </span>
 
-            {/* Ollastar Editor Status Badge */}
-            {sessionStatus === "ready" && session && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 border border-purple-200 px-2.5 py-0.5 text-[11px] font-semibold text-purple-700 shadow-2xs">
-                <span className="h-1.5 w-1.5 rounded-full bg-purple-500 animate-pulse" />
-                Ollastar Editor {session.port ? `(Port ${session.port})` : ""}
-              </span>
-            )}
-            {sessionStatus === "initializing" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                <RotateCw className="h-2.5 w-2.5 animate-spin" />
-                Starting Ollastar Editor...
-              </span>
-            )}
-            {sessionStatus === "error" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
-                <AlertCircle className="h-2.5 w-2.5" />
-                Ollastar Editor Offline
-              </span>
-            )}
+            {/* Native Editor Badge */}
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 border border-sky-200 px-2.5 py-0.5 text-[11px] font-semibold text-sky-700 shadow-2xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
+              Native Editor
+            </span>
           </div>
         </div>
 
-        {/* Center: Editor Mode Switcher (Ollastar Editor vs Native Editor) */}
+        {/* Center: Native Editor Label */}
         <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 shadow-2xs">
-          <button
-            type="button"
-            onClick={() => setEditorMode("ollastar")}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1.5 ${
-              editorMode === "ollastar"
-                ? "bg-purple-600 text-white shadow-xs"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
+          <div className="px-3 py-1 text-xs font-semibold rounded-md bg-purple-600 text-white shadow-xs flex items-center gap-1.5">
             <Film className="h-3.5 w-3.5" />
-            <span>Ollastar Editor</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditorMode("native")}
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1.5 ${
-              editorMode === "native"
-                ? "bg-purple-600 text-white shadow-xs"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
             <span>Native Editor</span>
-          </button>
+          </div>
         </div>
 
         {/* Right Action Controls */}
@@ -452,86 +415,16 @@ export default function ProjectOllaEditorPage() {
             : "flex-1 flex flex-col w-full h-full bg-neutral-950 relative overflow-hidden"
         }`}
       >
-        {editorMode === "native" ? (
-          /* Native Video Editor (Timeline Studio) */
-          <iframe
-            ref={nativeIframeRef}
-            src={`/native-editor/index.html?project=${encodeURIComponent(projectId)}&title=${encodeURIComponent(projectTitle)}${effectiveVideoUrl ? `&video=${encodeURIComponent(effectiveVideoUrl)}` : ""}${convexProject?.prompt ? `&prompt=${encodeURIComponent(convexProject.prompt)}` : ""}&duration=${convexProject?.duration || 40}`}
-            title={`Ollastar Native Editor - ${projectTitle}`}
-            className="flex-1 w-full h-full border-0 bg-[#101720]"
-            allow="accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen; microphone"
-            allowFullScreen
-            onLoad={handleNativeIframeLoad}
-          />
-        ) : (
-          /* Ollastar Editor (HyperFrames Engine) */
-          <>
-            {/* Loading Overlay */}
-            {sessionStatus === "initializing" && (
-              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm p-6 text-center">
-                <div className="relative mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-500/10 border border-purple-500/20 shadow-lg">
-                  <Tv className="h-7 w-7 text-purple-400" />
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-4 w-4 bg-purple-500" />
-                  </span>
-                </div>
-                <h3 className="text-base font-semibold text-primary">
-                  Connecting to Ollastar Editor
-                </h3>
-                <p className="mt-1.5 max-w-md text-xs text-primary/60">
-                  Launching the official Ollastar Editor engine and mounting project workspace...
-                </p>
-                <div className="mt-5 flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-primary/50 font-mono">
-                  <RotateCw className="h-3.5 w-3.5 animate-spin text-purple-400" />
-                  <span>ollastar editor --ready</span>
-                </div>
-              </div>
-            )}
-
-            {/* Error Overlay with Retry */}
-            {sessionStatus === "error" && (
-              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background/95 p-6 text-center">
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive shadow-lg">
-                  <AlertCircle className="h-7 w-7" />
-                </div>
-                <h3 className="text-base font-semibold text-primary">
-                  Ollastar Editor Unavailable
-                </h3>
-                <p className="mt-1.5 max-w-lg text-xs text-destructive/80 font-mono bg-destructive/5 border border-destructive/10 rounded-lg p-3">
-                  {sessionError ||
-                    "The Ollastar Editor session manager encountered an error starting the service."}
-                </p>
-                <div className="mt-6 flex items-center gap-3">
-                  <Button
-                    onClick={initEditorSession}
-                    size="sm"
-                    className="gap-1.5 text-xs bg-purple-600 hover:bg-purple-500 text-white"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    Retry Connection
-                  </Button>
-                  <Link href="/projects">
-                    <Button variant="ghost" size="sm" className="text-xs">
-                      Back to Projects
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            )}
-
-            {/* Real Ollastar Editor Instance */}
-            {session && session.studioUrl && (
-              <iframe
-                src={session.studioUrl}
-                title={`Ollastar Editor - ${projectTitle}`}
-                className="flex-1 w-full h-full border-0 bg-neutral-950"
-                allow="accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                allowFullScreen
-              />
-            )}
-          </>
-        )}
+        {/* Native Video Editor */}
+        <iframe
+          ref={nativeIframeRef}
+          src={`/native-editor/index.html?project=${encodeURIComponent(projectId)}&title=${encodeURIComponent(projectTitle)}${effectiveVideoUrl ? `&video=${encodeURIComponent(effectiveVideoUrl)}` : ""}${convexProject?.prompt ? `&prompt=${encodeURIComponent(convexProject.prompt)}` : ""}&duration=${convexProject?.duration || 40}`}
+          title={`Native Editor - ${projectTitle}`}
+          className="flex-1 w-full h-full border-0 bg-[#101720]"
+          allow="accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen; microphone"
+          allowFullScreen
+          onLoad={handleNativeIframeLoad}
+        />
       </div>
     </div>
   );
