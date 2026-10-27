@@ -1721,18 +1721,65 @@ export function App({ hostSession = null }) {
   const [selectedElementId, setSelectedElementId] = useState(null);
   const [hoveredElementId, setHoveredElementId] = useState(null);
   const [projectScenes, setProjectScenes] = useState([]);
+  const loadedProjectDataRef = useRef(null);
+  const loadedProjectIdRef = useRef(null);
+  const saveTimeoutRef = useRef(null);
 
   const updateElement = useCallback((id, changes) => {
-    setProjectElements((prev) =>
-      prev.map((el) => {
+    setProjectElements((prev) => {
+      const target = prev.find((el) => el.id === id);
+      if (target && changes.text !== undefined && changes.text !== target.text) {
+        changes.isModified = true;
+
+        // Auto-save modification to index.html if this element maps to a project scene
+        const projectData = loadedProjectDataRef.current;
+        const projectId = loadedProjectIdRef.current;
+        if (projectData && projectData.files && projectData.files["index.html"] && projectId) {
+          try {
+            let indexHtml = projectData.files["index.html"];
+            const oldText = target.originalText || target.text;
+            const newText = changes.text;
+
+            if (oldText && oldText.trim() && indexHtml.includes(oldText)) {
+              // Replace in index.html
+              indexHtml = indexHtml.replace(oldText, newText);
+              projectData.files["index.html"] = indexHtml;
+
+              // Debounce save request
+              if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+              saveTimeoutRef.current = setTimeout(() => {
+                fetch(`/editor/project/${encodeURIComponent(projectId)}/save`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    files: {
+                      "index.html": indexHtml,
+                    },
+                  }),
+                })
+                  .then((res) => {
+                    if (res.ok) {
+                      notify(`Saved text change to video: "${newText.slice(0, 24)}"`);
+                    }
+                  })
+                  .catch((e) => console.warn("Save failed:", e));
+              }, 600);
+            }
+          } catch (err) {
+            console.warn("Failed to patch index.html:", err);
+          }
+        }
+      }
+
+      return prev.map((el) => {
         if (el.id !== id) return el;
         const updated = { ...el, ...changes };
         if (changes.style) updated.style = { ...el.style, ...changes.style };
         if (changes.placement) updated.placement = { ...el.placement, ...changes.placement };
         return updated;
-      })
-    );
-  }, []);
+      });
+    });
+  }, [notify]);
 
   const deleteElement = useCallback((id) => {
     setProjectElements((prev) => prev.filter((el) => el.id !== id));
@@ -1840,161 +1887,182 @@ export function App({ hostSession = null }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    const parseScenesFromHtml = (html) => {
+      if (!html) return [];
+      const scriptMatch = html.match(/<script>([\s\S]*?)(?:const|let|var)\s+(?:SCENES|scenes)\s*=\s*(\[[\s\S]*?\]);/i);
+      if (!scriptMatch) return [];
+      try {
+        const codeBefore = scriptMatch[1];
+        const scenesArrStr = scriptMatch[2];
+        const evalFn = new Function(codeBefore + '; return ' + scenesArrStr + ';');
+        const parsed = evalFn();
+        if (!Array.isArray(parsed)) return [];
+        let runningStart = 0;
+        return parsed.map((s, idx) => {
+          const dur = Number(s.dur) || Number(s.duration) || 3.5;
+          const start = (typeof s.start === "number" && !isNaN(s.start)) ? s.start : runningStart;
+          runningStart = start + dur;
+          return {
+            id: `scene_${idx + 1}`,
+            index: idx,
+            type: s.type || "scene",
+            start,
+            duration: dur,
+            badge: (s.time || s.kicker || s.label || "").replace(/<[^>]+>/g, "").trim(),
+            headline: (s.title || "").replace(/<[^>]+>/g, "").trim(),
+            subtitle: (s.sub || s.subtitle || "").replace(/<[^>]+>/g, "").trim(),
+          };
+        });
+      } catch (e) {
+        console.warn("Failed to parse SCENES from index.html:", e);
+        return [];
+      }
+    };
+
     const extractElementsFromProject = (data, dur, fallbackTitle, fallbackPrompt) => {
       const extracted = [];
-      const scenes = Array.isArray(data?.scenes) ? data.scenes : [];
+      let scenes = Array.isArray(data?.scenes) ? [...data.scenes] : [];
+
+      // If data.scenes has no headlines, attempt to parse programmatic SCENES from index.html
+      const indexHtml = data?.files?.["index.html"] || "";
+      if ((scenes.length === 0 || !scenes.some((s) => s.headline)) && indexHtml) {
+        const parsedScenes = parseScenesFromHtml(indexHtml);
+        if (parsedScenes.length > 0) {
+          scenes = parsedScenes;
+        }
+      }
 
       if (scenes.length > 0) {
         scenes.forEach((sc, i) => {
           const scId = sc.id || `scene-${i + 1}`;
           const scStart = Number(sc.start) || 0;
-          const scDur = Number(sc.duration) || (dur / scenes.length);
+          const scDur = Number(sc.duration) || 3.6;
+          const scType = sc.type || "scene";
+          const isStop = scType === "stop";
+          const isIntro = scType === "intro";
+          const isDay = scType === "day";
 
-          if (sc.headline && sc.headline.trim()) {
+          // 1. Badge / Time (e.g. 6:30 PM, Your next great escape, Day 1)
+          if (sc.badge && sc.badge.trim()) {
             extracted.push({
-              id: `el-${scId}-h1`,
+              id: `el-${scId}-badge`,
               sceneId: scId,
+              sceneIndex: i,
+              field: "time",
               sceneStart: scStart,
               sceneDuration: scDur,
-              tag: "h1",
-              type: "heading",
-              name: `H1: ${sc.headline.trim()}`,
-              text: sc.headline.trim(),
+              tag: "pill",
+              type: "badge",
+              name: `Badge: ${sc.badge.trim()}`,
+              text: sc.badge.trim(),
+              originalText: sc.badge.trim(),
+              isModified: false,
               style: {
-                fontFamily: "Cinzel",
-                fontSize: 46,
-                color: "#ffffff",
-                textAlign: "center",
-                opacity: 1,
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 22,
+                color: "#e8c27a",
+                textAlign: isIntro ? "center" : "left",
+                letterSpacing: "0.2em",
               },
-              placement: { x: 50, y: 38, width: 750, height: 80 },
+              placement: isIntro
+                ? { x: 50, y: 32, width: 500, height: 42 }
+                : isStop
+                ? { x: 18, y: 15, width: 200, height: 46 }
+                : { x: 22, y: 16, width: 220, height: 46 },
               visible: true,
             });
           }
 
+          // 2. Headline / Title (e.g. London Eye at Sunset, Westminster & Big Ben)
+          if (sc.headline && sc.headline.trim()) {
+            extracted.push({
+              id: `el-${scId}-h1`,
+              sceneId: scId,
+              sceneIndex: i,
+              field: "title",
+              sceneStart: scStart,
+              sceneDuration: scDur,
+              tag: "h1",
+              type: "heading",
+              name: `Title: ${sc.headline.trim()}`,
+              text: sc.headline.trim(),
+              originalText: sc.headline.trim(),
+              isModified: false,
+              style: {
+                fontFamily: isIntro ? "'Bebas Neue', sans-serif" : "'Playfair Display', serif",
+                fontSize: isIntro ? 100 : isStop ? 58 : 52,
+                color: "#f6efe3",
+                textAlign: isStop ? "left" : "center",
+                fontWeight: isIntro ? 400 : 700,
+              },
+              placement: isIntro
+                ? { x: 50, y: 50, width: 850, height: 160 }
+                : isStop
+                ? { x: 26, y: 44, width: 560, height: 260 }
+                : isDay
+                ? { x: 50, y: 46, width: 850, height: 100 }
+                : { x: 50, y: 44, width: 750, height: 120 },
+              visible: true,
+            });
+          }
+
+          // 3. Subtitle / Description (e.g. The whole city glowing below you)
           if (sc.subtitle && sc.subtitle.trim()) {
             extracted.push({
               id: `el-${scId}-p`,
               sceneId: scId,
+              sceneIndex: i,
+              field: "sub",
               sceneStart: scStart,
               sceneDuration: scDur,
               tag: "p",
               type: "text",
               name: `P: ${sc.subtitle.trim().slice(0, 24)}...`,
               text: sc.subtitle.trim(),
+              originalText: sc.subtitle.trim(),
+              isModified: false,
               style: {
-                fontFamily: "Outfit",
-                fontSize: 22,
-                color: "#cbd5e1",
-                textAlign: "center",
-                opacity: 0.9,
+                fontFamily: "'Inter', sans-serif",
+                fontSize: 24,
+                color: "#f6efe3",
+                textAlign: isStop ? "left" : "center",
+                fontWeight: 300,
               },
-              placement: { x: 50, y: 56, width: 850, height: 70 },
+              placement: isIntro
+                ? { x: 50, y: 68, width: 600, height: 50 }
+                : isStop
+                ? { x: 29, y: 72, width: 680, height: 60 }
+                : { x: 50, y: 62, width: 750, height: 50 },
               visible: true,
             });
-          }
-
-          // Check for button in files
-          const compHtml = (data?.files && (data.files[sc.file] || data.files["index.html"])) || "";
-          const btnMatch = compHtml.match(/<button\b[^>]*>([\s\S]*?)<\/button>/i);
-          if (btnMatch) {
-            const btnText = btnMatch[1].replace(/<[^>]+>/g, "").trim();
-            if (btnText && btnText.length < 40) {
-              extracted.push({
-                id: `el-${scId}-btn`,
-                sceneId: scId,
-                sceneStart: scStart,
-                sceneDuration: scDur,
-                tag: "button",
-                type: "button",
-                name: `Button: ${btnText}`,
-                text: btnText,
-                style: {
-                  fontFamily: "Outfit",
-                  fontSize: 18,
-                  color: "#ffffff",
-                  backgroundColor: "#065f46",
-                  textAlign: "center",
-                  opacity: 1,
-                },
-                placement: { x: 50, y: 76, width: 220, height: 50 },
-                visible: true,
-              });
-            }
-          }
-
-          // Check if there is an asset image matching this scene
-          if (Array.isArray(data?.assets)) {
-            const matchingAsset = data.assets.find(
-              (a) => a.type === "image" && (a.name.includes(`scene_${i + 1}`) || a.name.includes(scId))
-            );
-            if (matchingAsset) {
-              extracted.push({
-                id: `el-${scId}-img`,
-                sceneId: scId,
-                sceneStart: scStart,
-                sceneDuration: scDur,
-                tag: "img",
-                type: "image",
-                name: `Image: ${matchingAsset.name}`,
-                src: matchingAsset.url,
-                style: { opacity: 1, borderRadius: "8px" },
-                placement: { x: 50, y: 50, width: 340, height: 240 },
-                visible: true,
-              });
-            }
           }
         });
       }
 
-      // If no elements were extracted from scenes, check editableProperties or title/prompt
-      if (extracted.length === 0) {
-        const headlineText = data?.editableProperties?.title || fallbackTitle;
-        const subtitleText = data?.editableProperties?.subtitle || (fallbackPrompt ? fallbackPrompt.slice(0, 80) : "");
-
-        if (headlineText) {
-          extracted.push({
-            id: "el-main-title",
-            sceneId: "scene-1",
-            sceneStart: 0,
-            sceneDuration: dur,
-            tag: "h1",
-            type: "heading",
-            name: `H1: ${headlineText}`,
-            text: headlineText,
-            style: {
-              fontFamily: "Cinzel",
-              fontSize: 48,
-              color: "#ffffff",
-              textAlign: "center",
-              opacity: 1,
-            },
-            placement: { x: 50, y: 40 },
-            visible: true,
-          });
-        }
-
-        if (subtitleText) {
-          extracted.push({
-            id: "el-main-subtitle",
-            sceneId: "scene-1",
-            sceneStart: 0,
-            sceneDuration: dur,
-            tag: "p",
-            type: "text",
-            name: `P: ${subtitleText.slice(0, 24)}...`,
-            text: subtitleText,
-            style: {
-              fontFamily: "Outfit",
-              fontSize: 24,
-              color: "#cbd5e1",
-              textAlign: "center",
-              opacity: 0.9,
-            },
-            placement: { x: 50, y: 58 },
-            visible: true,
-          });
-        }
+      // If no elements were extracted from scenes, only fallback to actual editableProperties title (never dummy text)
+      if (extracted.length === 0 && data?.editableProperties?.title) {
+        const headlineText = data.editableProperties.title;
+        extracted.push({
+          id: "el-main-title",
+          sceneId: "scene-1",
+          sceneStart: 0,
+          sceneDuration: dur,
+          tag: "h1",
+          type: "heading",
+          name: `Title: ${headlineText}`,
+          text: headlineText,
+          originalText: headlineText,
+          isModified: false,
+          style: {
+            fontFamily: "'Playfair Display', serif",
+            fontSize: 48,
+            color: "#ffffff",
+            textAlign: "center",
+            opacity: 1,
+          },
+          placement: { x: 50, y: 44, width: 700, height: 100 },
+          visible: true,
+        });
       }
 
       return extracted;
@@ -2045,9 +2113,11 @@ export function App({ hostSession = null }) {
 
       // Fetch real project data to parse real elements and scenes
       const targetProjId = payload.projectId || "latest";
+      loadedProjectIdRef.current = targetProjId;
       fetch(`/editor/project/${encodeURIComponent(targetProjId)}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
+          loadedProjectDataRef.current = data;
           if (data && data.scenes) {
             setProjectScenes(data.scenes);
           }

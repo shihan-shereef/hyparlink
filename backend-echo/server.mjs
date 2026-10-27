@@ -2709,6 +2709,45 @@ const server = http.createServer(async (req, res) => {
           }
         }
 
+        // Check for HyperFrames programmatic SCENES declaration in index.html script
+        if (scenes.length === 0 && rootContent) {
+          const scenesScriptMatch = rootContent.match(/<script>([\s\S]*?)(?:const|let|var)\s+(?:SCENES|scenes)\s*=\s*(\[[\s\S]*?\]);/i);
+          if (scenesScriptMatch) {
+            try {
+              const codeBefore = scenesScriptMatch[1];
+              const scenesArr = scenesScriptMatch[2];
+              const evalFn = new Function(codeBefore + '; return ' + scenesArr + ';');
+              const parsedScenes = evalFn();
+              if (Array.isArray(parsedScenes) && parsedScenes.length > 0) {
+                let runningStart = 0;
+                parsedScenes.forEach((s, idx) => {
+                  const sDur = Number(s.dur) || Number(s.duration) || 3.5;
+                  const sStart = (typeof s.start === "number" && !isNaN(s.start)) ? s.start : runningStart;
+                  runningStart = sStart + sDur;
+                  const title = (s.title || "").replace(/<[^>]+>/g, "").trim();
+                  const sub = (s.sub || s.subtitle || "").replace(/<[^>]+>/g, "").trim();
+                  const badge = (s.time || s.kicker || s.label || "").replace(/<[^>]+>/g, "").trim();
+
+                  scenes.push({
+                    id: `scene_${idx + 1}`,
+                    name: `Scene ${idx + 1}${title ? `: ${title.slice(0, 24)}` : ""}`,
+                    file: "index.html",
+                    start: sStart,
+                    duration: sDur,
+                    mediaOffset: sStart,
+                    headline: title,
+                    subtitle: sub,
+                    badge: badge,
+                    type: s.type || "scene",
+                  });
+                });
+              }
+            } catch (err) {
+              console.warn("[server] Error evaluating SCENES in index.html:", err.message);
+            }
+          }
+        }
+
         // Sort scenes deterministically by start time
         scenes.sort((a, b) => a.start - b.start);
 

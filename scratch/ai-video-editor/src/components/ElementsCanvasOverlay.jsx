@@ -226,24 +226,52 @@ export function ElementsCanvasOverlay({
                   borderRadius: el.style?.borderRadius || "4px",
                 }}
               />
-            ) : isButton ? (
+            ) : isButton || el.tag === "pill" ? (
               <div
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "8px",
-                  padding: "10px 24px",
-                  background: el.style?.backgroundColor || "linear-gradient(135deg, #0ea5e9, #6366f1)",
-                  color: color,
+                  padding: el.tag === "pill" ? "8px 24px" : "10px 24px",
+                  background: el.isModified || inlineEditingId === el.id
+                    ? (el.tag === "pill" ? "rgba(11, 13, 20, 0.9)" : (el.style?.backgroundColor || "linear-gradient(135deg, #0ea5e9, #6366f1)"))
+                    : "transparent",
+                  border: el.tag === "pill"
+                    ? (el.isModified || inlineEditingId === el.id ? "2px solid #e8c27a" : "2px solid transparent")
+                    : "none",
+                  color: el.isModified || inlineEditingId === el.id ? (el.style?.color || "#e8c27a") : "transparent",
                   fontFamily,
                   fontSize: `${fontSize}px`,
                   fontWeight: 700,
-                  borderRadius: "30px",
-                  boxShadow: "0 10px 25px rgba(14, 165, 233, 0.4)",
-                  letterSpacing: "0.02em",
+                  borderRadius: el.tag === "pill" ? "50px" : "30px",
+                  boxShadow: (el.isModified || inlineEditingId === el.id) ? "0 4px 20px rgba(0,0,0,0.8)" : "none",
+                  letterSpacing: el.tag === "pill" ? "0.2em" : "0.02em",
+                  textTransform: el.tag === "pill" ? "uppercase" : "none",
                 }}
               >
-                {el.text || "Click Here"}
+                {inlineEditingId === el.id ? (
+                  <input
+                    type="text"
+                    autoFocus
+                    value={el.text || ""}
+                    onChange={(e) => onUpdateElement?.(el.id, { text: e.target.value, isModified: true })}
+                    onBlur={() => setInlineEditingId(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") setInlineEditingId(null);
+                    }}
+                    style={{
+                      background: "rgba(0,0,0,0.8)",
+                      color: el.tag === "pill" ? "#e8c27a" : "#ffffff",
+                      font: "inherit",
+                      border: "1px solid #38bdf8",
+                      borderRadius: "4px",
+                      padding: "2px 6px",
+                      outline: "none",
+                    }}
+                  />
+                ) : (
+                  el.text || (el.tag === "pill" ? "6:30 PM" : "Click Here")
+                )}
               </div>
             ) : (
               // Headings and Text Elements
@@ -251,13 +279,22 @@ export function ElementsCanvasOverlay({
                 style={{
                   fontFamily,
                   fontSize: `${fontSize}px`,
-                  color,
+                  color: el.isModified || inlineEditingId === el.id ? color : "transparent",
                   textAlign,
                   opacity,
-                  fontWeight: isHeading ? 800 : 500,
-                  lineHeight: 1.25,
-                  letterSpacing: isHeading ? "0.02em" : "normal",
-                  textShadow: "0 2px 10px rgba(0,0,0,0.85), 0 0 20px rgba(0,0,0,0.4)",
+                  fontWeight: isHeading ? 700 : 400,
+                  lineHeight: 1.15,
+                  letterSpacing: isHeading ? "-0.01em" : "normal",
+                  textShadow: (el.isModified || inlineEditingId === el.id)
+                    ? "0 2px 10px rgba(0,0,0,0.85), 0 0 20px rgba(0,0,0,0.4)"
+                    : "none",
+                  background: (el.isModified || inlineEditingId === el.id)
+                    ? "rgba(11, 13, 20, 0.92)"
+                    : "transparent",
+                  backdropFilter: (el.isModified || inlineEditingId === el.id) ? "blur(4px)" : "none",
+                  borderRadius: "6px",
+                  padding: (el.isModified || inlineEditingId === el.id) ? "6px 12px" : "2px 4px",
+                  boxShadow: (el.isModified || inlineEditingId === el.id) ? "0 4px 20px rgba(0,0,0,0.8)" : "none",
                   whiteSpace: "pre-wrap",
                   minWidth: "60px",
                 }}
@@ -267,7 +304,7 @@ export function ElementsCanvasOverlay({
                     type="text"
                     autoFocus
                     value={el.text || ""}
-                    onChange={(e) => onUpdateElement?.(el.id, { text: e.target.value })}
+                    onChange={(e) => onUpdateElement?.(el.id, { text: e.target.value, isModified: true })}
                     onBlur={() => setInlineEditingId(null)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") setInlineEditingId(null);
@@ -280,10 +317,11 @@ export function ElementsCanvasOverlay({
                       borderRadius: "4px",
                       padding: "2px 6px",
                       outline: "none",
+                      width: "100%",
                     }}
                   />
                 ) : (
-                  el.text || "Sample Text"
+                  el.text || ""
                 )}
               </div>
             )}
