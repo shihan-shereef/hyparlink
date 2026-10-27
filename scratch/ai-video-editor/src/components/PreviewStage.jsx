@@ -1266,6 +1266,7 @@ export function PreviewStage({
             {projectElements && projectElements.length > 0 ? (
               <ElementsCanvasOverlay
                 elements={projectElements}
+                compositionIframeRef={compositionIframeRef}
                 currentTime={currentTime}
                 selectedElementId={selectedElementId}
                 hoveredElementId={hoveredElementId}

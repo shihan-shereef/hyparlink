@@ -1731,6 +1731,9 @@ export function App({ hostSession = null }) {
     setProjectElements((prev) => {
       const target = prev.find((el) => el.id === id);
       if (target) {
+        if (changes.placement) {
+          changes.hasMoved = true;
+        }
         if (changes.placement || changes.text !== undefined || changes.style) {
           changes.isModified = true;
         }
@@ -1742,14 +1745,14 @@ export function App({ hostSession = null }) {
             if (target.sceneIndex !== undefined) {
               const sceneEl = win.document.getElementById(`sc${target.sceneIndex}`);
               if (sceneEl) {
-                if (target.field === "title") {
-                  const el = sceneEl.querySelector(".title.m, .mega.m, .big.m");
+                if (target.field === "title" || target.tag === "h1") {
+                  const el = sceneEl.querySelector(".title.m, .mega.m, .big.m, .title, h1");
                   if (el) el.innerHTML = typeof win.words === "function" ? win.words(changes.text) : (typeof win.split === "function" ? win.split(changes.text) : changes.text);
-                } else if (target.field === "subtitle") {
-                  const el = sceneEl.querySelector(".sub.sb");
+                } else if (target.field === "sub" || target.field === "subtitle" || target.tag === "p") {
+                  const el = sceneEl.querySelector(".sub.sb, .sub, p");
                   if (el) el.textContent = changes.text;
-                } else if (target.field === "time" || target.field === "badge") {
-                  const el = sceneEl.querySelector(".pill.k, .kicker.k");
+                } else if (target.field === "time" || target.field === "badge" || target.tag === "pill") {
+                  const el = sceneEl.querySelector(".pill.k, .kicker.k, .kicker, .pill");
                   if (el) el.textContent = changes.text;
                 }
               }
@@ -2045,10 +2048,10 @@ export function App({ hostSession = null }) {
           // 1. Badge / Time (e.g. 6:30 PM, Your next great escape, Day 1)
           if (sc.badge && sc.badge.trim()) {
             const badgePlacement = isIntro
-              ? { x: 50, y: 32, width: 500, height: 42 }
+              ? { x: 50, y: 34, width: 450, height: 42, isTopLeft: false }
               : isStop
-              ? { x: 18, y: 15, width: 200, height: 46 }
-              : { x: 22, y: 16, width: 220, height: 46 };
+              ? { x: 7.3, y: 44, width: 220, height: 50, isTopLeft: true }
+              : { x: 7.3, y: 28, width: 300, height: 40, isTopLeft: true };
             extracted.push({
               id: `el-${scId}-badge`,
               sceneId: scId,
@@ -2078,12 +2081,12 @@ export function App({ hostSession = null }) {
           // 2. Headline / Title (e.g. London Eye at Sunset, Westminster & Big Ben)
           if (sc.headline && sc.headline.trim()) {
             const titlePlacement = isIntro
-              ? { x: 50, y: 50, width: 850, height: 160 }
+              ? { x: 50, y: 50, width: 850, height: 160, isTopLeft: false }
               : isStop
-              ? { x: 26, y: 44, width: 560, height: 260 }
+              ? { x: 7.3, y: 52, width: 750, height: 260, isTopLeft: true }
               : isDay
-              ? { x: 50, y: 46, width: 850, height: 100 }
-              : { x: 50, y: 44, width: 750, height: 120 };
+              ? { x: 7.3, y: 34, width: 650, height: 380, isTopLeft: true }
+              : { x: 50, y: 50, width: 750, height: 120, isTopLeft: false };
             extracted.push({
               id: `el-${scId}-h1`,
               sceneId: scId,
@@ -2101,7 +2104,7 @@ export function App({ hostSession = null }) {
                 fontFamily: isIntro ? "'Bebas Neue', sans-serif" : "'Playfair Display', serif",
                 fontSize: isIntro ? 100 : isStop ? 58 : 52,
                 color: "#f6efe3",
-                textAlign: isStop ? "left" : "center",
+                textAlign: (isStop || isDay) ? "left" : "center",
                 fontWeight: isIntro ? 400 : 700,
               },
               placement: titlePlacement,
@@ -2113,10 +2116,12 @@ export function App({ hostSession = null }) {
           // 3. Subtitle / Description (e.g. The whole city glowing below you)
           if (sc.subtitle && sc.subtitle.trim()) {
             const subPlacement = isIntro
-              ? { x: 50, y: 68, width: 600, height: 50 }
+              ? { x: 50, y: 66, width: 650, height: 50, isTopLeft: false }
               : isStop
-              ? { x: 29, y: 72, width: 680, height: 60 }
-              : { x: 50, y: 62, width: 750, height: 50 };
+              ? { x: 7.3, y: 80, width: 750, height: 60, isTopLeft: true }
+              : isDay
+              ? { x: 7.3, y: 78, width: 750, height: 60, isTopLeft: true }
+              : { x: 50, y: 68, width: 650, height: 50, isTopLeft: false };
             extracted.push({
               id: `el-${scId}-p`,
               sceneId: scId,
@@ -2134,7 +2139,7 @@ export function App({ hostSession = null }) {
                 fontFamily: "'Inter', sans-serif",
                 fontSize: 24,
                 color: "#f6efe3",
-                textAlign: isStop ? "left" : "center",
+                textAlign: (isStop || isDay) ? "left" : "center",
                 fontWeight: 300,
               },
               placement: subPlacement,

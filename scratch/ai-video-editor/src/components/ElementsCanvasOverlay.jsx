@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 
 export function ElementsCanvasOverlay({
   elements = [],
+  compositionIframeRef = null,
   currentTime = 0,
   selectedElementId = null,
   hoveredElementId = null,
@@ -14,9 +15,95 @@ export function ElementsCanvasOverlay({
   isPlaying = false,
 }) {
   const containerRef = useRef(null);
-  const [dragging, setDragging] = useState(null); // { id, startX, startY, initX, initY }
+  const [dragging, setDragging] = useState(null); // { id, startX, startY, initX, initY, isTopLeft }
   const [resizing, setResizing] = useState(null); // { id, corner, startX, startY, initWidth, initFontSize }
   const [inlineEditingId, setInlineEditingId] = useState(null);
+
+  // Helper to dynamically measure exact bounding rectangle from the live composition iframe DOM
+  const getDynamicPlacement = (el) => {
+    if (!compositionIframeRef?.current) return null;
+    try {
+      const iframe = compositionIframeRef.current;
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) return null;
+
+      let targetEl = null;
+
+      // 1. Try matching by sceneIndex
+      if (el.sceneIndex !== undefined) {
+        const sceneEl = doc.getElementById(`sc${el.sceneIndex}`);
+        if (sceneEl) {
+          if (el.field === "title" || el.tag === "h1") {
+            targetEl = sceneEl.querySelector(".title.m, .mega.m, .big.m, .title, h1");
+          } else if (el.field === "sub" || el.tag === "p" || el.type === "text") {
+            targetEl = sceneEl.querySelector(".sub.sb, .sub, p");
+          } else if (el.field === "time" || el.field === "badge" || el.tag === "pill") {
+            targetEl = sceneEl.querySelector(".pill.k, .kicker.k, .kicker, .pill");
+          }
+        }
+      }
+
+      // 2. If not found by sceneIndex, find in any visible scene
+      if (!targetEl) {
+        const scenes = doc.querySelectorAll(".scene");
+        for (const scene of scenes) {
+          const win = iframe.contentWindow;
+          const style = win?.getComputedStyle(scene);
+          if (style && style.visibility !== "hidden" && style.display !== "none" && style.opacity !== "0") {
+            let candidate = null;
+            if (el.field === "title" || el.tag === "h1") {
+              candidate = scene.querySelector(".title.m, .mega.m, .big.m, .title, h1");
+            } else if (el.field === "sub" || el.tag === "p") {
+              candidate = scene.querySelector(".sub.sb, .sub, p");
+            } else if (el.field === "time" || el.tag === "pill") {
+              candidate = scene.querySelector(".pill.k, .kicker.k, .kicker, .pill");
+            }
+            if (candidate) {
+              targetEl = candidate;
+              break;
+            }
+          }
+        }
+      }
+
+      // 3. Fallback: match by text content in document
+      if (!targetEl && el.text) {
+        const needle = el.text.trim().slice(0, 15);
+        if (needle.length > 2) {
+          const candidates = doc.querySelectorAll(".title, .mega, .big, .sub, .pill, .kicker, h1, h2, p");
+          for (const cand of candidates) {
+            if (cand.textContent && cand.textContent.includes(needle)) {
+              targetEl = cand;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!targetEl) return null;
+
+      const r = targetEl.getBoundingClientRect();
+      if (!r || r.width <= 0 || r.height <= 0) return null;
+
+      const padX = 8;
+      const padY = 4;
+      const left = Math.max(0, r.left - padX);
+      const top = Math.max(0, r.top - padY);
+      const width = r.width + padX * 2;
+      const height = r.height + padY * 2;
+
+      return {
+        leftPercent: (left / 1920) * 100,
+        topPercent: (top / 1080) * 100,
+        widthPercent: (width / 1920) * 100,
+        heightPercent: (height / 1080) * 100,
+        widthPx: width,
+        heightPx: height,
+      };
+    } catch (e) {
+      return null;
+    }
+  };
 
   // Filter elements active at current playhead time
   const visibleElements = elements.filter((el) => {
@@ -42,10 +129,12 @@ export function ElementsCanvasOverlay({
 
       onUpdateElement?.(dragging.id, {
         isModified: true,
+        hasMoved: true,
         placement: {
           ...dragging.initPlacement,
           x: Math.round(newX * 10) / 10,
           y: Math.round(newY * 10) / 10,
+          isTopLeft: dragging.isTopLeft,
         },
       });
     };
@@ -117,18 +206,33 @@ export function ElementsCanvasOverlay({
       {visibleElements.map((el) => {
         const isSelected = el.id === selectedElementId;
         const isHovered = el.id === hoveredElementId;
+        const dynamic = !el.hasMoved ? getDynamicPlacement(el) : null;
+
         const posX = el.placement?.x ?? 50;
         const posY = el.placement?.y ?? 50;
+        const isTopLeft = dynamic ? true : Boolean(el.placement?.isTopLeft);
 
         const isHeading = el.type === "heading" || el.tag === "h1" || el.tag === "h2" || el.tag === "h3";
         const isImage = el.type === "image" || el.tag === "img";
         const isButton = el.type === "button" || el.tag === "button" || el.type === "cta";
 
-        const fontSize = el.style?.fontSize || (isHeading ? 48 : 24);
+        const scale = frameWidth > 0 ? frameWidth / 1920 : 1;
+        const rawFontSize = el.style?.fontSize || (isHeading ? 48 : 24);
+        const fontSize = Math.max(14, Math.round(rawFontSize * scale));
         const fontFamily = el.style?.fontFamily || (isHeading ? "'Cinzel', serif" : "'Outfit', sans-serif");
         const color = el.style?.color || (isHeading ? "#ffffff" : "#e2e8f0");
         const textAlign = el.style?.textAlign || (isHeading ? "center" : "left");
         const opacity = el.style?.opacity ?? 1;
+
+        const boxLeft = dynamic ? `${dynamic.leftPercent}%` : `${posX}%`;
+        const boxTop = dynamic ? `${dynamic.topPercent}%` : `${posY}%`;
+        const boxWidth = dynamic
+          ? `${dynamic.widthPercent}%`
+          : (isTopLeft && el.placement?.width ? `${(el.placement.width / 1920) * 100}%` : "auto");
+        const boxHeight = dynamic
+          ? `${dynamic.heightPercent}%`
+          : (isTopLeft && el.placement?.height ? `${(el.placement.height / 1080) * 100}%` : "auto");
+        const boxTransform = isTopLeft ? "none" : "translate(-50%, -50%)";
 
         return (
           <React.Fragment key={el.id}>
@@ -145,8 +249,9 @@ export function ElementsCanvasOverlay({
                   id: el.id,
                   startX: e.clientX,
                   startY: e.clientY,
-                  initX: posX,
-                  initY: posY,
+                  initX: dynamic ? dynamic.leftPercent : posX,
+                  initY: dynamic ? dynamic.topPercent : posY,
+                  isTopLeft,
                   initPlacement: el.placement || {},
                 });
               }}
@@ -158,13 +263,16 @@ export function ElementsCanvasOverlay({
               }}
               style={{
                 position: "absolute",
-                left: `${posX}%`,
-                top: `${posY}%`,
-                transform: "translate(-50%, -50%)",
+                left: boxLeft,
+                top: boxTop,
+                width: boxWidth,
+                minHeight: boxHeight,
+                transform: boxTransform,
                 cursor: isSelected ? "move" : "pointer",
                 userSelect: "none",
                 zIndex: isSelected ? 30 : isHovered ? 20 : 10,
-                maxWidth: "90%",
+                maxWidth: "96%",
+                boxSizing: "border-box",
                 outline: isSelected
                   ? "2px solid #38bdf8"
                   : isHovered
@@ -177,7 +285,7 @@ export function ElementsCanvasOverlay({
                   ? "0 0 12px rgba(0, 240, 255, 0.4)"
                   : "none",
                 borderRadius: "4px",
-                padding: "2px 6px",
+                padding: "0px",
                 transition: isSelected || dragging ? "none" : "outline 0.15s ease, box-shadow 0.15s ease",
               }}
             >
@@ -323,6 +431,10 @@ export function ElementsCanvasOverlay({
                         borderRadius: "4px",
                         padding: "4px 8px",
                         outline: "none",
+                        width: "100%",
+                        height: "100%",
+                        boxSizing: "border-box",
+                        boxShadow: "0 0 16px rgba(56, 189, 248, 0.6)",
                       }}
                     />
                   ) : (
@@ -348,13 +460,16 @@ export function ElementsCanvasOverlay({
                     padding: "0px",
                     boxShadow: "none",
                     whiteSpace: "pre-wrap",
-                    minWidth: "60px",
+                    width: "100%",
+                    height: "100%",
+                    minHeight: "100%",
+                    boxSizing: "border-box",
                   }}
                 >
                   {inlineEditingId === el.id ? (
                     <textarea
                       autoFocus
-                      rows={3}
+                      rows={Math.max(2, (el.text || "").split("\n").length + 1)}
                       value={el.text || ""}
                       onPointerDown={(e) => e.stopPropagation()}
                       onMouseDown={(e) => e.stopPropagation()}
@@ -373,14 +488,20 @@ export function ElementsCanvasOverlay({
                       style={{
                         background: "rgba(11, 13, 20, 0.95)",
                         color: "#ffffff",
-                        font: "inherit",
+                        fontFamily: "inherit",
+                        fontSize: `${fontSize}px`,
+                        fontWeight: isHeading ? 700 : 400,
+                        lineHeight: 1.15,
+                        textAlign,
                         border: "2px solid #38bdf8",
                         borderRadius: "6px",
                         padding: "6px 10px",
                         outline: "none",
                         width: "100%",
-                        minWidth: "260px",
-                        minHeight: "70px",
+                        minWidth: "100%",
+                        height: "100%",
+                        minHeight: "100%",
+                        boxSizing: "border-box",
                         resize: "both",
                         boxShadow: "0 0 16px rgba(56, 189, 248, 0.6)",
                       }}
