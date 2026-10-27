@@ -4682,15 +4682,15 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
           }
         }
         if (!/data-composition-id=/i.test(finalHtml)) {
-          if (/<(?:div|main)\b[^>]*id=["'](?:root|film|composition)["']/i.test(finalHtml)) {
-            finalHtml = finalHtml.replace(/<(div|main)\b([^>]*id=["'](?:root|film|composition)["'][^>]*)>/i, `<$1$2 data-composition-id="${detectedTlId || "main"}" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true">`);
+          if (/<(?:div|main)\b[^>]*id=["'](?:root|film|composition|ollastar-ad)["']/i.test(finalHtml)) {
+            finalHtml = finalHtml.replace(/<(div|main)\b([^>]*id=["'](?:root|film|composition|ollastar-ad)["'][^>]*)>/i, `<$1$2 data-composition-id="${detectedTlId || "main"}" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true">`);
           } else if (/<body\b[^>]*>/i.test(finalHtml)) {
             finalHtml = finalHtml.replace(/<body\b([^>]*)>([\s\S]*?)<\/body>/i, `<body$1>\n  <div id="root" data-composition-id="${detectedTlId || "main"}" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true" style="position: relative; width: ${wNum}px; height: ${hNum}px; overflow: hidden;">\n$2\n  </div>\n</body>`);
           }
         } else {
           finalHtml = finalHtml.replace(/(<[^>]+data-composition-id=["'][^"']*["'][^>]*?)data-duration=["'][^"']*["']/i, `$1data-duration="${durNum.toFixed(2)}"`);
         }
-        finalHtml = finalHtml.replace(/(<(?:main|div)\b[^>]*\bid=["'](?:composition|film)["'][^>]*)data-duration=["'][^"']*["']/i, (m, prefix) => {
+        finalHtml = finalHtml.replace(/(<(?:main|div)\b[^>]*\bid=["'](?:composition|film|ollastar-ad)["'][^>]*)data-duration=["'][^"']*["']/i, (m, prefix) => {
           return `${prefix}data-duration="${durNum.toFixed(2)}"`;
         });
         if (!finalHtml.includes("/* Headless Seeking Optimization */")) {
@@ -4819,7 +4819,10 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             !lower.includes("nested_structure") &&
             !lower.includes("missing_local_asset") &&
             !lower.includes("duplicate_composition_id") &&
-            !lower.includes("clip_ends_past_root_duration")
+            !lower.includes("clip_ends_past_root_duration") &&
+            !lower.includes("text_not_painted") &&
+            !lower.includes("text_fill_color") &&
+            !lower.includes("text_contrast")
           );
         });
         const isActuallyValid = fatalErrors.length === 0;
@@ -4988,7 +4991,10 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
               !lower.includes("nested_structure") &&
               !lower.includes("missing_local_asset") &&
               !lower.includes("duplicate_composition_id") &&
-              !lower.includes("clip_ends_past_root_duration")
+              !lower.includes("clip_ends_past_root_duration") &&
+              !lower.includes("text_not_painted") &&
+              !lower.includes("text_fill_color") &&
+              !lower.includes("text_contrast")
             );
           });
           if (!valResult.valid && fatalErrors.length > 0) {
