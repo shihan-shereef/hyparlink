@@ -20,6 +20,19 @@ for (const p of middlewareFiles) {
       content = content.replaceAll("if(void 0!==e.redirect)", "if(e&&void 0!==e.redirect)");
       console.log(`[patch] Successfully patched e.redirect null check at ${p}`);
     }
+    // Also patch cookie security so local/LAN HTTP connections are not rejected by browser
+    if (content.includes('const prefix = isLocalhost ? \\"\\" : \\"__Host-\\";')) {
+      content = content.replaceAll('const prefix = isLocalhost ? \\"\\" : \\"__Host-\\";', 'const prefix = \\"\\";');
+      console.log(`[patch] Successfully patched cookie prefix for local/LAN HTTP at ${p}`);
+    }
+    if (content.includes("secure: isLocalhost ? false : true")) {
+      content = content.replaceAll("secure: isLocalhost ? false : true", "secure: false");
+      console.log(`[patch] Successfully patched cookie secure flag for local/LAN HTTP at ${p}`);
+    }
+    if (content.includes("function isLocalHost(host)")) {
+      content = content.replaceAll(/function isLocalHost\(host\)[\s\S]*?\\n\}/g, "function isLocalHost(host) {\\n    return true;\\n}");
+      console.log(`[patch] Successfully patched isLocalHost for local/LAN at ${p}`);
+    }
     fs.writeFileSync(p, content, "utf-8");
   }
 }

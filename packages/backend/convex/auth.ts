@@ -35,13 +35,12 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   signIn: { maxFailedAttempsPerHour: 5 },
   callbacks: {
     async redirect({ redirectTo }) {
-      const site =
-        process.env.SITE_URL ||
-        "https://burke-parallel-nearest-condo.trycloudflare.com";
-      if (!redirectTo || redirectTo === "/") return site;
+      if (!redirectTo || redirectTo === "/") return "/";
       if (redirectTo.startsWith("http://") || redirectTo.startsWith("https://")) {
         return redirectTo;
       }
+      const site = process.env.SITE_URL || "";
+      if (!site) return redirectTo.startsWith("/") ? redirectTo : `/${redirectTo}`;
       return `${site.replace(/\/$/, "")}${redirectTo.startsWith("/") ? "" : "/"}${redirectTo}`;
     },
   },

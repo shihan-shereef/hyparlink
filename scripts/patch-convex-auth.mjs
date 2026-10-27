@@ -79,3 +79,52 @@ for (const rel of clientFiles) {
     }
   }
 }
+
+const utilsFiles = [
+  "node_modules/@convex-dev/auth/dist/server/utils.js",
+  "node_modules/@convex-dev/auth/src/server/utils.ts",
+  "../../node_modules/@convex-dev/auth/dist/server/utils.js",
+  "../../node_modules/@convex-dev/auth/src/server/utils.ts",
+];
+
+for (const rel of utilsFiles) {
+  const p = path.resolve(process.cwd(), rel);
+  if (fs.existsSync(p)) {
+    let content = fs.readFileSync(p, "utf-8");
+    if (content.includes("return /(localhost|127\\.0\\.0\\.1):\\d+/.test(host ?? \"\");")) {
+      content = content.replace(
+        "return /(localhost|127\\.0\\.0\\.1):\\d+/.test(host ?? \"\");",
+        "return true;"
+      );
+      fs.writeFileSync(p, content, "utf-8");
+      console.log(`[patch] Patched isLocalHost in ${rel}`);
+    }
+  }
+}
+
+const cookieFiles = [
+  "node_modules/@convex-dev/auth/dist/nextjs/server/cookies.js",
+  "node_modules/@convex-dev/auth/src/nextjs/server/cookies.ts",
+  "../../node_modules/@convex-dev/auth/dist/nextjs/server/cookies.js",
+  "../../node_modules/@convex-dev/auth/src/nextjs/server/cookies.ts",
+];
+
+for (const rel of cookieFiles) {
+  const p = path.resolve(process.cwd(), rel);
+  if (fs.existsSync(p)) {
+    let content = fs.readFileSync(p, "utf-8");
+    let changed = false;
+    if (content.includes('const prefix = isLocalhost ? "" : "__Host-";')) {
+      content = content.replaceAll('const prefix = isLocalhost ? "" : "__Host-";', 'const prefix = "";');
+      changed = true;
+    }
+    if (content.includes("secure: isLocalhost ? false : true")) {
+      content = content.replaceAll("secure: isLocalhost ? false : true", "secure: false");
+      changed = true;
+    }
+    if (changed) {
+      fs.writeFileSync(p, content, "utf-8");
+      console.log(`[patch] Patched cookies in ${rel}`);
+    }
+  }
+}

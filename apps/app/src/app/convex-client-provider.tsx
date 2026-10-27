@@ -33,11 +33,15 @@ function getConvexUrl(): string {
       window.location.hostname === "localhost" ||
       window.location.hostname === "127.0.0.1";
 
-    if (isLocalhost) {
-      return "http://localhost:3210";
+    const isIp =
+      /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(window.location.hostname) ||
+      /^(\d{1,3}\.){3}\d{1,3}$/.test(window.location.hostname);
+
+    if (isLocalhost || (isIp && window.location.protocol === "http:")) {
+      return `http://${window.location.hostname}:3210`;
     }
 
-    // When accessed through VM IP or public tunnel, proxy through Nginx /convex route
+    // When accessed through public tunnel (HTTPS), proxy through Nginx /convex route
     return `${window.location.origin}/convex`;
   }
 
