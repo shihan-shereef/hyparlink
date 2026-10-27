@@ -4247,6 +4247,96 @@ const server = http.createServer(async (req, res) => {
     }
 
     // =========================================================================
+    function detectTotalDuration(code = "", fallback = 60) {
+      if (!code || typeof code !== "string") return fallback;
+
+      // 1. Scene timeline extent calculation:
+      // Check data-start + data-duration
+      const sceneRegex = /<[a-z0-9_-]+\b[^>]*\bdata-start=["'](\d+(?:\.\d+)?)s?["'][^>]*\bdata-duration=["'](\d+(?:\.\d+)?)s?["'][^>]*>/gi;
+      let sceneMatch;
+      let maxSceneEnd = 0;
+      let sceneCount = 0;
+      while ((sceneMatch = sceneRegex.exec(code)) !== null) {
+        if (sceneMatch[1] && sceneMatch[2]) {
+          const start = parseFloat(sceneMatch[1]);
+          const dur = parseFloat(sceneMatch[2]);
+          if (!isNaN(start) && !isNaN(dur) && dur > 0) {
+            sceneCount++;
+            if (start + dur > maxSceneEnd) {
+              maxSceneEnd = start + dur;
+            }
+          }
+        }
+      }
+      // Check data-duration + data-start
+      const sceneRevRegex = /<[a-z0-9_-]+\b[^>]*\bdata-duration=["'](\d+(?:\.\d+)?)s?["'][^>]*\bdata-start=["'](\d+(?:\.\d+)?)s?["'][^>]*>/gi;
+      while ((sceneMatch = sceneRevRegex.exec(code)) !== null) {
+        if (sceneMatch[1] && sceneMatch[2]) {
+          const dur = parseFloat(sceneMatch[1]);
+          const start = parseFloat(sceneMatch[2]);
+          if (!isNaN(start) && !isNaN(dur) && dur > 0) {
+            sceneCount++;
+            if (start + dur > maxSceneEnd) {
+              maxSceneEnd = start + dur;
+            }
+          }
+        }
+      }
+      // Check data-start + data-end
+      const sceneEndRegex = /<[a-z0-9_-]+\b[^>]*\bdata-start=["'](\d+(?:\.\d+)?)s?["'][^>]*\bdata-end=["'](\d+(?:\.\d+)?)s?["'][^>]*>/gi;
+      while ((sceneMatch = sceneEndRegex.exec(code)) !== null) {
+        if (sceneMatch[1] && sceneMatch[2]) {
+          const start = parseFloat(sceneMatch[1]);
+          const end = parseFloat(sceneMatch[2]);
+          if (!isNaN(start) && !isNaN(end) && end > start) {
+            sceneCount++;
+            if (end > maxSceneEnd) {
+              maxSceneEnd = end;
+            }
+          }
+        }
+      }
+      if (sceneCount > 1 && maxSceneEnd > 0) {
+        return Math.round(maxSceneEnd);
+      }
+
+      // 2. Explicit master/total duration constants in script:
+      const totalConstMatch = code.match(/(?:TOTAL_DURATION|TOTAL_TIME|MASTER_DURATION|COMPOSITION_DURATION|TOTAL_SECONDS|DURATION_SECONDS)\s*[:=]\s*["']?(\d+(?:\.\d+)?)["']?/i);
+      if (totalConstMatch && totalConstMatch[1]) {
+        const val = parseFloat(totalConstMatch[1]);
+        if (!isNaN(val) && val > 0) return Math.round(val);
+      }
+
+      // 3. Composition root element attribute:
+      const compRootMatch = code.match(/<(?:main|div)\b[^>]*\bid=["'](?:film|composition|root|master|ollastar-ad)["'][^>]*\bdata-duration=["'](\d+(?:\.\d+)?)["']/i) ||
+                            code.match(/<(?:main|div)\b[^>]*\bdata-duration=["'](\d+(?:\.\d+)?)["'][^>]*\bid=["'](?:film|composition|root|master|ollastar-ad)["']/i) ||
+                            code.match(/<[a-z0-9_-]+\b[^>]*\bdata-composition-id=["'][^"']*["'][^>]*\bdata-duration=["'](\d+(?:\.\d+)?)["']/i);
+      if (compRootMatch && compRootMatch[1]) {
+        const val = parseFloat(compRootMatch[1]);
+        if (!isNaN(val) && val > 0) return Math.round(val);
+      }
+
+      // 4. Title tag mention: e.g. <title>MacBook — 60 Second Film</title>
+      const titleMatch = code.match(/<title\b[^>]*>[\s\S]*?(\d+)\s*(?:second|sec|s\b)[\s\S]*?<\/title>/i);
+      if (titleMatch && titleMatch[1]) {
+        const val = parseFloat(titleMatch[1]);
+        if (!isNaN(val) && val >= 5 && val <= 300) return Math.round(val);
+      }
+
+      // 5. Generic DURATION variable:
+      const genericDurMatch = code.match(/\b(?:const|let|var)\s+DURATION\s*=\s*["']?(\d+(?:\.\d+)?)["']?/i);
+      if (genericDurMatch && genericDurMatch[1]) {
+        const val = parseFloat(genericDurMatch[1]);
+        if (!isNaN(val) && val > 0) return Math.round(val);
+      }
+
+      if (maxSceneEnd > 0) {
+        return Math.round(maxSceneEnd);
+      }
+
+      return fallback;
+    }
+
     // DIRECT CODE PIPELINE HELPER (Phase 3 & Phase 4)
     // Assembles user HTML, CSS, JS directly into HyperFrames project without LLM
     // =========================================================================
@@ -4256,14 +4346,8 @@ const server = http.createServer(async (req, res) => {
       await fs.promises.mkdir(path.join(projectDir, "assets"), { recursive: true });
 
       const allCodeInput = (html || "") + "\n" + (js || "");
-      const explicitDurMatch = allCodeInput.match(/(?:DURATION|TOTAL_DURATION|data-duration)\s*[:=]\s*["']?(\d+(?:\.\d+)?)["']?/i);
-      let durNum = Number(duration) || 15;
-      if (explicitDurMatch && explicitDurMatch[1]) {
-        const parsedCodeDur = parseFloat(explicitDurMatch[1]);
-        if (!isNaN(parsedCodeDur) && parsedCodeDur > 0) {
-          durNum = parsedCodeDur;
-        }
-      }
+      const detectedDuration = detectTotalDuration(allCodeInput, Number(duration) || 60);
+      let durNum = detectedDuration > 0 ? detectedDuration : (Number(duration) || 60);
       const wNum = Number(width) || 1920;
       const hNum = Number(height) || 1080;
       const fpsNum = Number(fps) || 30;
@@ -4421,51 +4505,63 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
       userJs = userJs.trim();
 
       // Auto-inject GSAP choreography if user provided scenes but JS tab does not animate them
-      if (userHtml.includes("scene") && !userJs.includes(".scene")) {
+      if ((userHtml.includes("scene") || userHtml.includes("data-start")) && (!userJs.includes(".scene") && !userJs.includes(".ad-scene"))) {
         userJs = `
-const composition = document.getElementById("composition") || document.getElementById("root");
-const scenes = [...document.querySelectorAll(".scene")];
+const composition = document.getElementById("composition") || document.getElementById("root") || document.getElementById("ollastar-ad") || document.getElementById("film");
+const scenes = [...document.querySelectorAll(".scene, .ad-scene, [class*='scene'], section[data-start], .clip[data-start]")];
 const progressBar = document.querySelector(".progress-bar");
 const TOTAL_DURATION = ${durNum.toFixed(2)};
 const sceneCount = Math.max(scenes.length, 1);
-const SCENE_DURATION = TOTAL_DURATION / sceneCount;
+const defaultSceneDuration = TOTAL_DURATION / sceneCount;
 
 const tl = gsap.timeline({ paused: true, defaults: { ease: "power2.out" } });
 
 // Make scene 1 immediately visible from frame 0 so thumbnail & initial seek shows text!
 if (scenes[0]) {
-  gsap.set(scenes[0], { autoAlpha: 1 });
+  gsap.set(scenes[0], { autoAlpha: 1, className: "+=is-active active" });
 }
 
 scenes.forEach((scene, index) => {
-  const start = index * SCENE_DURATION;
+  const start = scene.hasAttribute("data-start") ? parseFloat(scene.getAttribute("data-start")) : index * defaultSceneDuration;
+  const duration = scene.hasAttribute("data-duration") ? parseFloat(scene.getAttribute("data-duration")) : defaultSceneDuration;
   const background = scene.querySelector(".scene-background");
-  const content = scene.querySelector(".scene-content");
   const eyebrow = scene.querySelector(".eyebrow");
-  const headline = scene.querySelector(".headline");
-  const description = scene.querySelector(".description");
-  const line = scene.querySelector(".gold-line");
+  const headline = scene.querySelector(".headline, h1, h2");
+  const description = scene.querySelector(".description, p");
+  const line = scene.querySelector(".gold-line, .accent-line");
+  const img = scene.querySelector(".product-image, .feature-image, img");
+  const brand = scene.querySelector(".brand-mark, .brand-badge");
+  const cta = scene.querySelector(".call-to-action, .cta-button, .pill");
 
-  tl.set(scene, { autoAlpha: 1 }, start);
+  tl.set(scene, { autoAlpha: 1, className: "+=is-active active" }, start);
 
   if (background) {
-    tl.fromTo(background, { scale: 1.12, xPercent: -1 }, { scale: 1.0, xPercent: 1, duration: SCENE_DURATION, ease: "none" }, start);
+    tl.fromTo(background, { scale: 1.12, xPercent: -1 }, { scale: 1.0, xPercent: 1, duration: duration, ease: "none" }, start);
   }
   if (eyebrow) {
-    tl.fromTo(eyebrow, { y: 20, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.8 }, start + 0.1);
+    tl.fromTo(eyebrow, { y: 20, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: Math.min(0.8, duration * 0.25) }, start + 0.1);
   }
   if (headline) {
-    tl.fromTo(headline, { y: 35, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 1.0 }, start + 0.2);
+    tl.fromTo(headline, { y: 35, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: Math.min(1.0, duration * 0.3) }, start + 0.2);
+  }
+  if (img) {
+    tl.fromTo(img, { scale: 0.9, autoAlpha: 0 }, { scale: 1.0, autoAlpha: 1, duration: Math.min(1.2, duration * 0.4) }, start + 0.3);
   }
   if (description) {
-    tl.fromTo(description, { y: 20, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.8 }, start + 0.4);
+    tl.fromTo(description, { y: 20, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: Math.min(0.8, duration * 0.25) }, start + 0.4);
+  }
+  if (brand) {
+    tl.fromTo(brand, { scale: 0.8, autoAlpha: 0 }, { scale: 1.0, autoAlpha: 1, duration: Math.min(0.8, duration * 0.25) }, start + 0.2);
+  }
+  if (cta) {
+    tl.fromTo(cta, { y: 15, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: Math.min(0.8, duration * 0.25) }, start + 0.5);
   }
   if (line) {
-    tl.fromTo(line, { scaleX: 0, autoAlpha: 0 }, { scaleX: 1, autoAlpha: 1, duration: 0.8 }, start + 0.5);
+    tl.fromTo(line, { scaleX: 0, autoAlpha: 0 }, { scaleX: 1, autoAlpha: 1, duration: Math.min(0.8, duration * 0.25) }, start + 0.5);
   }
 
   if (index < scenes.length - 1) {
-    tl.to(scene, { autoAlpha: 0, duration: 0.8 }, start + SCENE_DURATION - 0.8);
+    tl.to(scene, { autoAlpha: 0, className: "-=is-active active", duration: 0.6 }, start + duration - 0.6);
   }
 });
 
@@ -4474,7 +4570,7 @@ if (progressBar) {
 }
 
 if (scenes.length > 0) {
-  tl.set(scenes[scenes.length - 1], { autoAlpha: 1 }, TOTAL_DURATION - 0.05);
+  tl.set(scenes[scenes.length - 1], { autoAlpha: 1, className: "+=is-active active" }, TOTAL_DURATION - 0.05);
 }
 
 window.__timelines = window.__timelines || {};
@@ -4502,12 +4598,37 @@ if (window.__timelines["${detectedTlId}"]) {
   window.__timelines["${detectedTlId}"] = window.__timelines["main"];
 }
 ` : ""}
+// Runtime bridge for HyperFrames headless renderer seeking
+window.HyperframesRuntime = window.HyperframesRuntime || {
+  _listeners: [],
+  onTimeUpdate: function(fn) {
+    if (typeof fn === "function") this._listeners.push(fn);
+  },
+  emitTime: function(t) {
+    for (const fn of this._listeners) {
+      try { fn(t); } catch(e) {}
+    }
+  }
+};
+
 if (typeof tl !== "undefined" && !window.__timelines["main"]) {
   window.__timelines["main"] = tl;
 }
 if (!window.__timelines["main"] && typeof gsap !== "undefined") {
   const _baseTl = gsap.timeline({ paused: true });
-  _baseTl.to("#root", { x: 0.01, duration: ${durNum.toFixed(2)}, ease: "none" });
+  _baseTl.to("#root, #film, #composition", { x: 0.01, duration: ${durNum.toFixed(2)}, ease: "none" });
+  const _dispatchSeek = () => {
+    const curTime = _baseTl.time();
+    if (window.HyperframesRuntime && typeof window.HyperframesRuntime.emitTime === "function") {
+      window.HyperframesRuntime.emitTime(curTime);
+    }
+    if (typeof window.seekMacBookAd === "function") {
+      try { window.seekMacBookAd(curTime); } catch(e) {}
+    } else if (typeof showSceneAt === "function") {
+      try { showSceneAt(curTime); } catch(e) {}
+    }
+  };
+  _baseTl.eventCallback("onUpdate", _dispatchSeek);
   window.__timelines["main"] = _baseTl;
   ${detectedTlId && detectedTlId !== "main" ? `window.__timelines["${detectedTlId}"] = _baseTl;` : ""}
 }`;
@@ -4561,17 +4682,25 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
           }
         }
         if (!/data-composition-id=/i.test(finalHtml)) {
-          if (/<div\b[^>]*id=["']root["']/i.test(finalHtml)) {
-            finalHtml = finalHtml.replace(/<div\b([^>]*id=["']root["'][^>]*)>/i, `<div$1 data-composition-id="${detectedTlId || "main"}" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true">`);
+          if (/<(?:div|main)\b[^>]*id=["'](?:root|film|composition)["']/i.test(finalHtml)) {
+            finalHtml = finalHtml.replace(/<(div|main)\b([^>]*id=["'](?:root|film|composition)["'][^>]*)>/i, `<$1$2 data-composition-id="${detectedTlId || "main"}" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true">`);
           } else if (/<body\b[^>]*>/i.test(finalHtml)) {
             finalHtml = finalHtml.replace(/<body\b([^>]*)>([\s\S]*?)<\/body>/i, `<body$1>\n  <div id="root" data-composition-id="${detectedTlId || "main"}" data-start="0" data-duration="${durNum.toFixed(2)}" data-width="${wNum}" data-height="${hNum}" data-layout-allow-overflow="true" data-layout-allow-overlap="true" data-layout-allow-occlusion="true" style="position: relative; width: ${wNum}px; height: ${hNum}px; overflow: hidden;">\n$2\n  </div>\n</body>`);
           }
         } else {
           finalHtml = finalHtml.replace(/(<[^>]+data-composition-id=["'][^"']*["'][^>]*?)data-duration=["'][^"']*["']/i, `$1data-duration="${durNum.toFixed(2)}"`);
         }
-        finalHtml = finalHtml.replace(/(<main\b[^>]*\bid=["']composition["'][^>]*)data-duration=["'][^"']*["']/i, (m, prefix) => {
+        finalHtml = finalHtml.replace(/(<(?:main|div)\b[^>]*\bid=["'](?:composition|film)["'][^>]*)data-duration=["'][^"']*["']/i, (m, prefix) => {
           return `${prefix}data-duration="${durNum.toFixed(2)}"`;
         });
+        if (!finalHtml.includes("/* Headless Seeking Optimization */")) {
+          const headlessCss = `<style>/* Headless Seeking Optimization */ .scene.active { opacity: 1 !important; visibility: visible !important; }</style>`;
+          if (/<\/head>/i.test(finalHtml)) {
+            finalHtml = finalHtml.replace(/<\/head>/i, `${headlessCss}\n</head>`);
+          } else {
+            finalHtml = `${headlessCss}\n${finalHtml}`;
+          }
+        }
         finalHtml = finalHtml.replace(/(<[^>]+data-composition-id=["'][^"']*["'][^>]*)/i, (match) => {
           let updated = match;
           if (!/data-width=/i.test(updated)) updated += ` data-width="${wNum}"`;
@@ -4666,10 +4795,13 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
     ) {
       try {
         const body = await readBody(req);
-        const { html = "", css = "", js = "", duration = 15, width = 1920, height = 1080, fps = 30 } = body;
+        const { html = "", css = "", js = "", duration = 60, width = 1920, height = 1080, fps = 30 } = body;
+        const allCode = (html || "") + "\n" + (js || "");
+        const detectedDur = detectTotalDuration(allCode, Number(duration) || 60);
+        const effectiveDuration = detectedDur > 0 ? detectedDur : (Number(duration) || 60);
         const tempJobId = `val_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         const tempDir = path.resolve(PROJECTS_DIR, `job-${tempJobId}`);
-        await buildDirectCodeProject(tempDir, { html, css, js, duration, width, height, fps, jobId: tempJobId });
+        await buildDirectCodeProject(tempDir, { html, css, js, duration: effectiveDuration, width, height, fps, jobId: tempJobId });
         const valResult = await Validator.validate(tempDir);
         try { await fs.promises.rm(tempDir, { recursive: true, force: true }); } catch {}
         const fatalErrors = (valResult.errors || []).filter((err) => {
@@ -4727,7 +4859,7 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
         html = "",
         css = "",
         js = "",
-        duration: rawDuration = 15,
+        duration: rawDuration = 60,
         width: rawWidth = 1920,
         height: rawHeight = 1080,
         fps: rawFps = 30,
@@ -4736,7 +4868,9 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
         assets = [],
       } = body;
 
-      const duration = Number(rawDuration) || 15;
+      const allCode = (html || "") + "\n" + (js || "");
+      const detectedDur = detectTotalDuration(allCode, Number(rawDuration) || 60);
+      const duration = detectedDur > 0 ? detectedDur : (Number(rawDuration) || 60);
       const width = Number(rawWidth) || 1920;
       const height = Number(rawHeight) || 1080;
       const fps = Number(rawFps) || 30;

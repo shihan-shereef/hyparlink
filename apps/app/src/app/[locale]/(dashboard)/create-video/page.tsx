@@ -511,14 +511,109 @@ window.__timelines["main"] = tl;`);
   const [isValidatingCode, setIsValidatingCode] = useState<boolean>(false);
   const [recentTab, setRecentTab] = useState<"work" | "chats">("work");
 
+  const detectTotalDuration = (code: string = "", fallback: number = 60): number => {
+    if (!code || typeof code !== "string") return fallback;
+
+    // 1. Scene timeline extent calculation:
+    // Check data-start + data-duration
+    const sceneRegex = /<[a-z0-9_-]+\b[^>]*\bdata-start=["'](\d+(?:\.\d+)?)s?["'][^>]*\bdata-duration=["'](\d+(?:\.\d+)?)s?["'][^>]*>/gi;
+    let sceneMatch: RegExpExecArray | null;
+    let maxSceneEnd = 0;
+    let sceneCount = 0;
+    while ((sceneMatch = sceneRegex.exec(code)) !== null) {
+      if (sceneMatch[1] && sceneMatch[2]) {
+        const start = parseFloat(sceneMatch[1]);
+        const dur = parseFloat(sceneMatch[2]);
+        if (!isNaN(start) && !isNaN(dur) && dur > 0) {
+          sceneCount++;
+          if (start + dur > maxSceneEnd) {
+            maxSceneEnd = start + dur;
+          }
+        }
+      }
+    }
+    // Check data-duration + data-start
+    const sceneRevRegex = /<[a-z0-9_-]+\b[^>]*\bdata-duration=["'](\d+(?:\.\d+)?)s?["'][^>]*\bdata-start=["'](\d+(?:\.\d+)?)s?["'][^>]*>/gi;
+    while ((sceneMatch = sceneRevRegex.exec(code)) !== null) {
+      if (sceneMatch[1] && sceneMatch[2]) {
+        const dur = parseFloat(sceneMatch[1]);
+        const start = parseFloat(sceneMatch[2]);
+        if (!isNaN(start) && !isNaN(dur) && dur > 0) {
+          sceneCount++;
+          if (start + dur > maxSceneEnd) {
+            maxSceneEnd = start + dur;
+          }
+        }
+      }
+    }
+    // Check data-start + data-end
+    const sceneEndRegex = /<[a-z0-9_-]+\b[^>]*\bdata-start=["'](\d+(?:\.\d+)?)s?["'][^>]*\bdata-end=["'](\d+(?:\.\d+)?)s?["'][^>]*>/gi;
+    while ((sceneMatch = sceneEndRegex.exec(code)) !== null) {
+      if (sceneMatch[1] && sceneMatch[2]) {
+        const start = parseFloat(sceneMatch[1]);
+        const end = parseFloat(sceneMatch[2]);
+        if (!isNaN(start) && !isNaN(end) && end > start) {
+          sceneCount++;
+          if (end > maxSceneEnd) {
+            maxSceneEnd = end;
+          }
+        }
+      }
+    }
+    if (sceneCount > 1 && maxSceneEnd > 0) {
+      return Math.round(maxSceneEnd);
+    }
+
+    // 2. Explicit master/total duration constants in script:
+    const totalConstMatch = code.match(/(?:TOTAL_DURATION|TOTAL_TIME|MASTER_DURATION|COMPOSITION_DURATION|TOTAL_SECONDS|DURATION_SECONDS)\s*[:=]\s*["']?(\d+(?:\.\d+)?)["']?/i);
+    if (totalConstMatch && totalConstMatch[1]) {
+      const val = parseFloat(totalConstMatch[1]);
+      if (!isNaN(val) && val > 0) return Math.round(val);
+    }
+
+    // 3. Composition root element attribute:
+    const compRootMatch = code.match(/<(?:main|div)\b[^>]*\bid=["'](?:film|composition|root|master|ollastar-ad)["'][^>]*\bdata-duration=["'](\d+(?:\.\d+)?)["']/i) ||
+                          code.match(/<(?:main|div)\b[^>]*\bdata-duration=["'](\d+(?:\.\d+)?)["'][^>]*\bid=["'](?:film|composition|root|master|ollastar-ad)["']/i) ||
+                          code.match(/<[a-z0-9_-]+\b[^>]*\bdata-composition-id=["'][^"']*["'][^>]*\bdata-duration=["'](\d+(?:\.\d+)?)["']/i);
+    if (compRootMatch && compRootMatch[1]) {
+      const val = parseFloat(compRootMatch[1]);
+      if (!isNaN(val) && val > 0) return Math.round(val);
+    }
+
+    // 4. Title tag mention: e.g. <title>MacBook — 60 Second Film</title>
+    const titleMatch = code.match(/<title\b[^>]*>[\s\S]*?(\d+)\s*(?:second|sec|s\b)[\s\S]*?<\/title>/i);
+    if (titleMatch && titleMatch[1]) {
+      const val = parseFloat(titleMatch[1]);
+      if (!isNaN(val) && val >= 5 && val <= 300) return Math.round(val);
+    }
+
+    // 5. Generic DURATION variable:
+    const genericDurMatch = code.match(/\b(?:const|let|var)\s+DURATION\s*=\s*["']?(\d+(?:\.\d+)?)["']?/i);
+    if (genericDurMatch && genericDurMatch[1]) {
+      const val = parseFloat(genericDurMatch[1]);
+      if (!isNaN(val) && val > 0) return Math.round(val);
+    }
+
+    if (maxSceneEnd > 0) {
+      return Math.round(maxSceneEnd);
+    }
+
+    return fallback;
+  };
+
   const handleDirectHtmlChange = (val: string) => {
     setDirectHtml(val);
-    const durMatch = val.match(/(?:DURATION|TOTAL_DURATION|data-duration)\s*[:=]\s*["']?(\d+(?:\.\d+)?)["']?/i);
-    if (durMatch && durMatch[1]) {
-      const parsed = Math.round(parseFloat(durMatch[1]));
-      if (parsed > 0) {
-        setDirectDuration(parsed);
-      }
+    const detected = detectTotalDuration(val + "\n" + directJs, 0);
+    if (detected > 0) {
+      setDirectDuration(detected);
+    }
+  };
+
+  const handleDirectJsChange = (val: string) => {
+    setDirectJs(val);
+    const detected = detectTotalDuration(directHtml + "\n" + val, 0);
+    if (detected > 0) {
+      setDirectDuration(detected);
     }
   };
 
@@ -567,16 +662,10 @@ window.__timelines["main"] = tl;`);
     let repairedJs = (inJs || "").trim();
     let repairedCss = (inCss || "").trim();
 
-    // 0. Detect duration from code if present (e.g. DURATION = 60, TOTAL_DURATION = 60, or data-duration="60")
-    const durMatch = (repairedHtml + "\n" + repairedJs).match(/(?:DURATION|TOTAL_DURATION|data-duration)\s*[:=]\s*["']?(\d+(?:\.\d+)?)["']?/i);
-    let matchedDur = dur;
-    if (durMatch && durMatch[1]) {
-      const parsedDur = Math.round(parseFloat(durMatch[1]));
-      if (parsedDur > 0) {
-        matchedDur = parsedDur;
-        dur = parsedDur;
-      }
-    }
+    // 0. Detect duration from code if present (scene timeline sum, TOTAL_DURATION = 60, or root data-duration="60")
+    const detectedCodeDur = detectTotalDuration(repairedHtml + "\n" + repairedJs, dur || 60);
+    let matchedDur = detectedCodeDur > 0 ? detectedCodeDur : (dur || 60);
+    dur = matchedDur;
 
     // 0a. Strip markdown code fences (```html ... ``` or ```css ... ``` or ```)
     repairedHtml = repairedHtml
@@ -688,8 +777,8 @@ window.__timelines["main"] = tl;`);
     const tlKeyMatch = (repairedHtml + "\n" + repairedJs).match(/window\.__timelines\[["']([^"']+)["']\]/);
     const detectedTlId = tlKeyMatch ? tlKeyMatch[1] : null;
 
-    // Find composition root (can be <main id="composition", <div id="composition", <div id="root", etc.)
-    const compTagRegex = /<([a-z0-9_-]+)\b([^>]*\bid=["'](?:composition|root)["'][^>]*)>/i;
+    // Find composition root (can be <main id="film", <main id="composition", <div id="composition", <div id="root", etc.)
+    const compTagRegex = /<([a-z0-9_-]+)\b([^>]*\bid=["'](?:film|composition|root|master)["'][^>]*)>/i;
     if (compTagRegex.test(repairedHtml)) {
       repairedHtml = repairedHtml.replace(compTagRegex, (match, tag, attrs) => {
         let updated = attrs;
@@ -1437,6 +1526,10 @@ window.__timelines["main"] = tl;`);
   // Helper: Extract authoritative duration from prompt
   const extractDuration = (text: string): number | null => {
     if (!text) return null;
+    if (text.includes("<") && text.includes(">")) {
+      const codeDur = detectTotalDuration(text, 0);
+      if (codeDur > 0) return codeDur;
+    }
     const p = text.toLowerCase();
     const secMatch = p.match(/\b(\d{1,3})\s*(?:-|–)?\s*(?:seconds?|secs?|sec|s)\b/i);
     if (secMatch && secMatch[1]) {
@@ -3222,7 +3315,7 @@ window.__timelines["main"] = tl;`);
               {codeTab === "js" && (
                 <textarea
                   value={directJs}
-                  onChange={(e) => setDirectJs(e.target.value)}
+                  onChange={(e) => handleDirectJsChange(e.target.value)}
                   rows={12}
                   className="w-full max-h-[360px] resize-y overflow-y-auto bg-transparent font-mono text-xs leading-relaxed text-emerald-200 placeholder:text-slate-600 focus:outline-none"
                   placeholder="// Enter GSAP timeline registration here"
