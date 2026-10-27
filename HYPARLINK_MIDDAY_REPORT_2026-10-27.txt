@@ -1,0 +1,111 @@
+================================================================================
+                    HYPARLINK DASHBOARD - MID-DAY PROGRESS REPORT
+                                Date: October 27, 2026
+================================================================================
+
+PROJECT OVERVIEW:
+Hyparlink / Ollastar Video Generation & Multi-Track Studio Dashboard
+Local Workspace: /Users/apple/Desktop/hyparlink dashbord
+Remote Server:   shihan@10.70.70.43 (Ubuntu VM)
+Active Web URL:  http://10.70.70.43:3000
+
+================================================================================
+EXECUTIVE SUMMARY
+================================================================================
+During today's session, two major engineering objectives were accomplished:
+1. Complete overhaul and pixel-perfect calibration of the On-Canvas Text Editing 
+   Engine and Element Selection system in the Native Studio Video Editor.
+2. Major storage audit and automated disk cleanup recovering over 3.6 GB of disk space 
+   on the production VM and 3.5 GB locally, while keeping the 4 core HTML video 
+   compositions (London, Kerala, Delhi, Karnataka) fully intact and functional.
+
+--------------------------------------------------------------------------------
+PART 1: ON-CANVAS TEXT EDITING & ELEMENT SELECTION FIXES
+--------------------------------------------------------------------------------
+
+1. Dynamic Bounding Box Alignment (Live Iframe Measurement):
+   - Issue:
+     The blue selection outline ("H1 : CULTURE & MARKETS") and inline text editing 
+     box appeared displaced to the middle-right of the screen instead of directly 
+     on top of the rendered text.
+   - Root Cause:
+     Overlay coordinates were using static percentages with "translate(-50%, -50%)" 
+     centering, whereas left-aligned scenes in HyperFrames (e.g. Westminster, 
+     Culture & Markets) sit at "padding: 0 140px" (~7.3% left margin) with 
+     flex-end vertical alignment.
+   - Resolution:
+     - Passed "compositionIframeRef" into ElementsCanvasOverlay.jsx.
+     - Implemented "getDynamicPlacement(el)" that queries the live composition 
+       DOM ("#sc${sceneIndex} .title.m, .sub.sb, .pill.k") and reads its real-time 
+       "getBoundingClientRect()".
+     - Normalized coordinates to exact viewport percentages ("leftPercent", 
+       "topPercent", "widthPercent", "heightPercent") with "transform: none", 
+       ensuring the selection box and text editor snap directly over the text.
+
+2. In-Place Text Editor (<textarea> & <input>):
+   - Sized the inline editing container to 100% width and 100% height directly 
+     over the element, styled with matching font-family, font-size, line-height, 
+     and text alignment.
+   - Set non-editing text to transparent so the crisp composition text underneath 
+     shows through with zero visual duplicate or ghost text.
+   - Added two-way live synchronization: typing in the textarea updates 
+     the composition iframe DOM ("targetEl.innerHTML / textContent") in real time.
+
+3. Element Deletion & Management:
+   - Added inline "✕ Del" and "✎ Edit" action triggers on the element tag badge.
+   - Added support for keyboard Delete and Backspace shortcuts to delete 
+     selected elements directly.
+
+--------------------------------------------------------------------------------
+PART 2: LARGE-SCALE DISK SPACE CLEANUP (~3.6+ GB RECOVERED)
+--------------------------------------------------------------------------------
+
+1. Cleaned Temporary Files & Old Video Renders:
+   - Evaluated total disk consumption: over 3.9 GB was consumed by hundreds of 
+     old test runs, obsolete .mp4 renders, HeyGen caches, and test projects.
+   - Created automated cleanup script: scripts/clean-storage-and-videos.sh.
+
+2. Preserved 4 Core HTML Video Projects:
+   - London:    job-job_code_1792382768219_mbcw4 (London in 3 Days / 2 Nights)
+   - Kerala:    job-job_code_1792579767973_8fodx (Kerala — God's Own Country)
+   - Delhi:     job-job_code_1792671313199_tmeo3 (The Mughals of Delhi)
+   - Karnataka: job-job_code_1792406082579_51k52 (Karnataka — A 3-Day Journey)
+                plus reference project job-job_code_1792219404621_iizjt.
+
+3. Disk Space Reduction Results:
+   -----------------------------------------------------------------------------
+   Directory                              Before        After         Freed
+   -----------------------------------------------------------------------------
+   ai-composition-generator/generated-projects  1.1 GB (441)   32 MB (4)   ~1.07 GB
+   ai-composition-generator/outputs             1.2 GB        114 MB       ~1.08 GB
+   ai-composition-generator/storage             998 MB        1.6 MB       ~996 MB
+   ai-composition-generator/generated-assets    524 MB        20 MB        ~504 MB
+   root outputs/                                104 MB        25 MB        ~79 MB
+   -----------------------------------------------------------------------------
+   TOTAL DISK SPACE RECOVERED:                                         ~3.6+ GB
+
+--------------------------------------------------------------------------------
+PART 3: PRODUCTION DEPLOYMENT & HEALTH VERIFICATION
+--------------------------------------------------------------------------------
+
+1. Git & Deployment Status:
+   - Commits Pushed to main:
+     * 81e96f1: fix(editor): snap selection box and inline text editor directly onto composition text
+     * 4825b5c: chore: add clean-storage-and-videos script and clean unused files
+   - Active Compiled Editor Bundle: editor-CQlbX1ez.js
+
+2. Production VM Status (10.70.70.43):
+   - backend-echo:  PID 1896746 (Online, 0% CPU, 95.5 MB)
+   - nextjs-app:    PID 1896767 (Online, 0% CPU, 62.8 MB)
+   - tunnel-app:    PID 539094  (Online, 0% CPU, 39.3 MB)
+   - tunnel-convex: PID 539093  (Online, 0% CPU, 37.7 MB)
+
+3. Verified Endpoints:
+   - GET /native-editor/index.html                           -> HTTP 200 OK
+   - GET /editor/project/default_reference_video_2/raw/index.html -> HTTP 200 OK
+   - GET :4000/editor/project/default_reference_video_2      -> HTTP 200 OK
+   - GET /en/login                                          -> HTTP 200 OK (after redirect)
+
+================================================================================
+END OF MID-DAY REPORT
+================================================================================
