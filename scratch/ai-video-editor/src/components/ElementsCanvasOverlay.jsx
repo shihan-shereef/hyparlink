@@ -8,6 +8,7 @@ export function ElementsCanvasOverlay({
   onSelectElement,
   onHoverElement,
   onUpdateElement,
+  onDeleteElement,
   frameWidth = 1280,
   frameHeight = 720,
   isPlaying = false,
@@ -40,6 +41,7 @@ export function ElementsCanvasOverlay({
       const newY = Math.max(0, Math.min(100, dragging.initY + deltaY));
 
       onUpdateElement?.(dragging.id, {
+        isModified: true,
         placement: {
           ...dragging.initPlacement,
           x: Math.round(newX * 10) / 10,
@@ -128,203 +130,296 @@ export function ElementsCanvasOverlay({
         const textAlign = el.style?.textAlign || (isHeading ? "center" : "left");
         const opacity = el.style?.opacity ?? 1;
 
+        const hasMoved = el.originalPlacement && (
+          Math.abs(posX - el.originalPlacement.x) > 2 || Math.abs(posY - el.originalPlacement.y) > 2
+        );
+
         return (
-          <div
-            key={el.id}
-            data-element-id={el.id}
-            onMouseEnter={() => onHoverElement?.(el.id)}
-            onMouseLeave={() => onHoverElement?.(null)}
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onSelectElement?.(el.id);
-              // Start drag
-              setDragging({
-                id: el.id,
-                startX: e.clientX,
-                startY: e.clientY,
-                initX: posX,
-                initY: posY,
-                initPlacement: el.placement || {},
-              });
-            }}
-            onDoubleClick={(e) => {
-              e.stopPropagation();
-              if (!isImage) {
-                setInlineEditingId(el.id);
-              }
-            }}
-            style={{
-              position: "absolute",
-              left: `${posX}%`,
-              top: `${posY}%`,
-              transform: "translate(-50%, -50%)",
-              cursor: isSelected ? "move" : "pointer",
-              userSelect: "none",
-              zIndex: isSelected ? 30 : isHovered ? 20 : 10,
-              maxWidth: "90%",
-              outline: isSelected
-                ? "2px solid #38bdf8"
-                : isHovered
-                ? "2px dashed #00f0ff"
-                : "none",
-              outlineOffset: "4px",
-              boxShadow: isSelected
-                ? "0 0 16px rgba(56, 189, 248, 0.6), inset 0 0 0 1px rgba(255,255,255,0.4)"
-                : isHovered
-                ? "0 0 12px rgba(0, 240, 255, 0.4)"
-                : "none",
-              borderRadius: "4px",
-              padding: "2px 6px",
-              transition: isSelected || dragging ? "none" : "outline 0.15s ease, box-shadow 0.15s ease",
-            }}
-          >
-            {/* Tag badge floating above element on hover or selection */}
-            {(isSelected || isHovered) && (
+          <React.Fragment key={el.id}>
+            {hasMoved && (
               <div
                 style={{
                   position: "absolute",
-                  bottom: "100%",
-                  left: "0",
-                  marginBottom: "6px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  background: isSelected ? "#0284c7" : "#0f172a",
-                  color: "#ffffff",
-                  fontSize: "10px",
-                  fontWeight: 800,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase",
-                  padding: "2px 8px",
-                  borderRadius: "4px",
-                  boxShadow: "0 4px 10px rgba(0,0,0,0.5)",
+                  left: `${el.originalPlacement.x}%`,
+                  top: `${el.originalPlacement.y}%`,
+                  transform: "translate(-50%, -50%)",
+                  width: `${el.originalPlacement.width || 420}px`,
+                  height: `${el.originalPlacement.height || 90}px`,
+                  background: "rgba(11, 13, 20, 0.95)",
+                  backdropFilter: "blur(8px)",
+                  borderRadius: "8px",
                   pointerEvents: "none",
-                  whiteSpace: "nowrap",
-                  zIndex: 40,
-                }}
-              >
-                <span>{el.tag || el.type}</span>
-                {el.text && (
-                  <span style={{ fontWeight: 400, opacity: 0.85, maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    : {el.text.slice(0, 24)}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Content rendering based on type */}
-            {isImage ? (
-              <img
-                src={el.src}
-                alt={el.name || "Element"}
-                style={{
-                  width: `${el.placement?.width || 200}px`,
-                  height: "auto",
-                  display: "block",
-                  opacity,
-                  pointerEvents: "none",
-                  borderRadius: el.style?.borderRadius || "4px",
+                  zIndex: 5,
+                  boxShadow: "0 0 25px rgba(0,0,0,0.85)",
                 }}
               />
-            ) : isButton || el.tag === "pill" ? (
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: el.tag === "pill" ? "8px 24px" : "10px 24px",
-                  background: el.isModified || inlineEditingId === el.id
-                    ? (el.tag === "pill" ? "rgba(11, 13, 20, 0.9)" : (el.style?.backgroundColor || "linear-gradient(135deg, #0ea5e9, #6366f1)"))
-                    : "transparent",
-                  border: el.tag === "pill"
-                    ? (el.isModified || inlineEditingId === el.id ? "2px solid #e8c27a" : "2px solid transparent")
-                    : "none",
-                  color: el.isModified || inlineEditingId === el.id ? (el.style?.color || "#e8c27a") : "transparent",
-                  fontFamily,
-                  fontSize: `${fontSize}px`,
-                  fontWeight: 700,
-                  borderRadius: el.tag === "pill" ? "50px" : "30px",
-                  boxShadow: (el.isModified || inlineEditingId === el.id) ? "0 4px 20px rgba(0,0,0,0.8)" : "none",
-                  letterSpacing: el.tag === "pill" ? "0.2em" : "0.02em",
-                  textTransform: el.tag === "pill" ? "uppercase" : "none",
-                }}
-              >
-                {inlineEditingId === el.id ? (
-                  <input
-                    type="text"
-                    autoFocus
-                    value={el.text || ""}
-                    onChange={(e) => onUpdateElement?.(el.id, { text: e.target.value, isModified: true })}
-                    onBlur={() => setInlineEditingId(null)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") setInlineEditingId(null);
-                    }}
-                    style={{
-                      background: "rgba(0,0,0,0.8)",
-                      color: el.tag === "pill" ? "#e8c27a" : "#ffffff",
-                      font: "inherit",
-                      border: "1px solid #38bdf8",
-                      borderRadius: "4px",
-                      padding: "2px 6px",
-                      outline: "none",
-                    }}
-                  />
-                ) : (
-                  el.text || (el.tag === "pill" ? "6:30 PM" : "Click Here")
-                )}
-              </div>
-            ) : (
-              // Headings and Text Elements
-              <div
-                style={{
-                  fontFamily,
-                  fontSize: `${fontSize}px`,
-                  color: el.isModified || inlineEditingId === el.id ? color : "transparent",
-                  textAlign,
-                  opacity,
-                  fontWeight: isHeading ? 700 : 400,
-                  lineHeight: 1.15,
-                  letterSpacing: isHeading ? "-0.01em" : "normal",
-                  textShadow: (el.isModified || inlineEditingId === el.id)
-                    ? "0 2px 10px rgba(0,0,0,0.85), 0 0 20px rgba(0,0,0,0.4)"
-                    : "none",
-                  background: (el.isModified || inlineEditingId === el.id)
-                    ? "rgba(11, 13, 20, 0.92)"
-                    : "transparent",
-                  backdropFilter: (el.isModified || inlineEditingId === el.id) ? "blur(4px)" : "none",
-                  borderRadius: "6px",
-                  padding: (el.isModified || inlineEditingId === el.id) ? "6px 12px" : "2px 4px",
-                  boxShadow: (el.isModified || inlineEditingId === el.id) ? "0 4px 20px rgba(0,0,0,0.8)" : "none",
-                  whiteSpace: "pre-wrap",
-                  minWidth: "60px",
-                }}
-              >
-                {inlineEditingId === el.id ? (
-                  <input
-                    type="text"
-                    autoFocus
-                    value={el.text || ""}
-                    onChange={(e) => onUpdateElement?.(el.id, { text: e.target.value, isModified: true })}
-                    onBlur={() => setInlineEditingId(null)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") setInlineEditingId(null);
-                    }}
-                    style={{
-                      background: "rgba(0,0,0,0.8)",
-                      color: "#ffffff",
-                      font: "inherit",
-                      border: "1px solid #38bdf8",
-                      borderRadius: "4px",
-                      padding: "2px 6px",
-                      outline: "none",
-                      width: "100%",
-                    }}
-                  />
-                ) : (
-                  el.text || ""
-                )}
-              </div>
             )}
+            <div
+              data-element-id={el.id}
+              onMouseEnter={() => onHoverElement?.(el.id)}
+              onMouseLeave={() => onHoverElement?.(null)}
+              onPointerDown={(e) => {
+                if (inlineEditingId === el.id) return;
+                e.stopPropagation();
+                onSelectElement?.(el.id);
+                // Start drag
+                setDragging({
+                  id: el.id,
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  initX: posX,
+                  initY: posY,
+                  initPlacement: el.placement || {},
+                });
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                if (!isImage) {
+                  setInlineEditingId(el.id);
+                }
+              }}
+              style={{
+                position: "absolute",
+                left: `${posX}%`,
+                top: `${posY}%`,
+                transform: "translate(-50%, -50%)",
+                cursor: isSelected ? "move" : "pointer",
+                userSelect: "none",
+                zIndex: isSelected ? 30 : isHovered ? 20 : 10,
+                maxWidth: "90%",
+                outline: isSelected
+                  ? "2px solid #38bdf8"
+                  : isHovered
+                  ? "2px dashed #00f0ff"
+                  : "none",
+                outlineOffset: "4px",
+                boxShadow: isSelected
+                  ? "0 0 16px rgba(56, 189, 248, 0.6), inset 0 0 0 1px rgba(255,255,255,0.4)"
+                  : isHovered
+                  ? "0 0 12px rgba(0, 240, 255, 0.4)"
+                  : "none",
+                borderRadius: "4px",
+                padding: "2px 6px",
+                transition: isSelected || dragging ? "none" : "outline 0.15s ease, box-shadow 0.15s ease",
+              }}
+            >
+              {/* Tag badge floating above element on hover or selection */}
+              {(isSelected || isHovered) && (
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: "100%",
+                    left: "0",
+                    marginBottom: "6px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: isSelected ? "#0284c7" : "#0f172a",
+                    color: "#ffffff",
+                    fontSize: "10px",
+                    fontWeight: 800,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    padding: "3px 8px",
+                    borderRadius: "4px",
+                    boxShadow: "0 4px 10px rgba(0,0,0,0.5)",
+                    whiteSpace: "nowrap",
+                    zIndex: 40,
+                  }}
+                >
+                  <span>{el.tag || el.type}</span>
+                  {el.text && (
+                    <span style={{ fontWeight: 400, opacity: 0.9, maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      : {el.text.slice(0, 20)}
+                    </span>
+                  )}
+                  {isSelected && !isImage && (
+                    <button
+                      type="button"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setInlineEditingId(el.id);
+                      }}
+                      title="Edit text content"
+                      style={{
+                        background: "rgba(255,255,255,0.2)",
+                        border: "none",
+                        color: "#fff",
+                        borderRadius: "3px",
+                        padding: "1px 6px",
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "2px",
+                        marginLeft: "4px",
+                      }}
+                    >
+                      ✎ Edit
+                    </button>
+                  )}
+                  {isSelected && (
+                    <button
+                      type="button"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteElement?.(el.id);
+                      }}
+                      title="Delete element (or press Del)"
+                      style={{
+                        background: "rgba(239,68,68,0.85)",
+                        border: "none",
+                        color: "#fff",
+                        borderRadius: "3px",
+                        padding: "1px 6px",
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "2px",
+                        marginLeft: "2px",
+                      }}
+                    >
+                      ✕ Del
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Content rendering based on type */}
+              {isImage ? (
+                <img
+                  src={el.src}
+                  alt={el.name || "Element"}
+                  style={{
+                    width: `${el.placement?.width || 200}px`,
+                    height: "auto",
+                    display: "block",
+                    opacity,
+                    pointerEvents: "none",
+                    borderRadius: el.style?.borderRadius || "4px",
+                  }}
+                />
+              ) : isButton || el.tag === "pill" ? (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: el.tag === "pill" ? "8px 24px" : "10px 24px",
+                    background: el.isModified || inlineEditingId === el.id
+                      ? (el.tag === "pill" ? "rgba(11, 13, 20, 0.9)" : (el.style?.backgroundColor || "linear-gradient(135deg, #0ea5e9, #6366f1)"))
+                      : "transparent",
+                    border: el.tag === "pill"
+                      ? (el.isModified || inlineEditingId === el.id ? "2px solid #e8c27a" : "2px solid transparent")
+                      : "none",
+                    color: el.isModified || inlineEditingId === el.id ? (el.style?.color || "#e8c27a") : "transparent",
+                    fontFamily,
+                    fontSize: `${fontSize}px`,
+                    fontWeight: 700,
+                    borderRadius: el.tag === "pill" ? "50px" : "30px",
+                    boxShadow: (el.isModified || inlineEditingId === el.id) ? "0 4px 20px rgba(0,0,0,0.8)" : "none",
+                    letterSpacing: el.tag === "pill" ? "0.2em" : "0.02em",
+                    textTransform: el.tag === "pill" ? "uppercase" : "none",
+                  }}
+                >
+                  {inlineEditingId === el.id ? (
+                    <input
+                      type="text"
+                      autoFocus
+                      value={el.text || ""}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => onUpdateElement?.(el.id, { text: e.target.value, isModified: true })}
+                      onBlur={() => setInlineEditingId(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") setInlineEditingId(null);
+                        if (e.key === "Escape") setInlineEditingId(null);
+                      }}
+                      style={{
+                        background: "rgba(11, 13, 20, 0.95)",
+                        color: el.tag === "pill" ? "#e8c27a" : "#ffffff",
+                        font: "inherit",
+                        border: "2px solid #38bdf8",
+                        borderRadius: "4px",
+                        padding: "4px 8px",
+                        outline: "none",
+                      }}
+                    />
+                  ) : (
+                    el.text || (el.tag === "pill" ? "6:30 PM" : "Click Here")
+                  )}
+                </div>
+              ) : (
+                // Headings and Text Elements
+                <div
+                  style={{
+                    fontFamily,
+                    fontSize: `${fontSize}px`,
+                    color: el.isModified || inlineEditingId === el.id ? color : "transparent",
+                    textAlign,
+                    opacity,
+                    fontWeight: isHeading ? 700 : 400,
+                    lineHeight: 1.15,
+                    letterSpacing: isHeading ? "-0.01em" : "normal",
+                    textShadow: (el.isModified || inlineEditingId === el.id)
+                      ? "0 2px 10px rgba(0,0,0,0.85), 0 0 20px rgba(0,0,0,0.4)"
+                      : "none",
+                    background: (el.isModified || inlineEditingId === el.id)
+                      ? "rgba(11, 13, 20, 0.92)"
+                      : "transparent",
+                    backdropFilter: (el.isModified || inlineEditingId === el.id) ? "blur(4px)" : "none",
+                    borderRadius: "6px",
+                    padding: (el.isModified || inlineEditingId === el.id) ? "6px 14px" : "2px 4px",
+                    boxShadow: (el.isModified || inlineEditingId === el.id) ? "0 4px 20px rgba(0,0,0,0.8)" : "none",
+                    whiteSpace: "pre-wrap",
+                    minWidth: "60px",
+                  }}
+                >
+                  {inlineEditingId === el.id ? (
+                    <textarea
+                      autoFocus
+                      rows={3}
+                      value={el.text || ""}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => onUpdateElement?.(el.id, { text: e.target.value, isModified: true })}
+                      onBlur={() => setInlineEditingId(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          setInlineEditingId(null);
+                        }
+                        if (e.key === "Escape") {
+                          setInlineEditingId(null);
+                        }
+                      }}
+                      style={{
+                        background: "rgba(11, 13, 20, 0.95)",
+                        color: "#ffffff",
+                        font: "inherit",
+                        border: "2px solid #38bdf8",
+                        borderRadius: "6px",
+                        padding: "6px 10px",
+                        outline: "none",
+                        width: "100%",
+                        minWidth: "260px",
+                        minHeight: "70px",
+                        resize: "both",
+                        boxShadow: "0 0 16px rgba(56, 189, 248, 0.6)",
+                      }}
+                    />
+                  ) : (
+                    el.text || ""
+                  )}
+                </div>
+              )}
 
             {/* Resize Handles (Only shown when selected) */}
             {isSelected && !isPlaying && (
@@ -364,8 +459,9 @@ export function ElementsCanvasOverlay({
               </>
             )}
           </div>
-        );
-      })}
+        </React.Fragment>
+      );
+    })}
     </div>
   );
 }

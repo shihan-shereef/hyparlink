@@ -1728,45 +1728,49 @@ export function App({ hostSession = null }) {
   const updateElement = useCallback((id, changes) => {
     setProjectElements((prev) => {
       const target = prev.find((el) => el.id === id);
-      if (target && changes.text !== undefined && changes.text !== target.text) {
-        changes.isModified = true;
+      if (target) {
+        if (changes.placement || changes.text !== undefined || changes.style) {
+          changes.isModified = true;
+        }
 
         // Auto-save modification to index.html if this element maps to a project scene
-        const projectData = loadedProjectDataRef.current;
-        const projectId = loadedProjectIdRef.current;
-        if (projectData && projectData.files && projectData.files["index.html"] && projectId) {
-          try {
-            let indexHtml = projectData.files["index.html"];
-            const oldText = target.originalText || target.text;
-            const newText = changes.text;
+        if (changes.text !== undefined && changes.text !== target.text) {
+          const projectData = loadedProjectDataRef.current;
+          const projectId = loadedProjectIdRef.current;
+          if (projectData && projectData.files && projectData.files["index.html"] && projectId) {
+            try {
+              let indexHtml = projectData.files["index.html"];
+              const currentText = target.currentSavedText || target.text || target.originalText;
+              const newText = changes.text;
 
-            if (oldText && oldText.trim() && indexHtml.includes(oldText)) {
-              // Replace in index.html
-              indexHtml = indexHtml.replace(oldText, newText);
-              projectData.files["index.html"] = indexHtml;
+              if (currentText && currentText.trim() && indexHtml.includes(currentText)) {
+                indexHtml = indexHtml.replace(currentText, newText);
+                projectData.files["index.html"] = indexHtml;
+                target.currentSavedText = newText;
 
-              // Debounce save request
-              if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-              saveTimeoutRef.current = setTimeout(() => {
-                fetch(`/editor/project/${encodeURIComponent(projectId)}/save`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    files: {
-                      "index.html": indexHtml,
-                    },
-                  }),
-                })
-                  .then((res) => {
-                    if (res.ok) {
-                      notify(`Saved text change to video: "${newText.slice(0, 24)}"`);
-                    }
+                // Debounce save request
+                if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+                saveTimeoutRef.current = setTimeout(() => {
+                  fetch(`/editor/project/${encodeURIComponent(projectId)}/save`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      files: {
+                        "index.html": indexHtml,
+                      },
+                    }),
                   })
-                  .catch((e) => console.warn("Save failed:", e));
-              }, 600);
+                    .then((res) => {
+                      if (res.ok) {
+                        notify(`Saved to video: "${newText.slice(0, 24)}"`);
+                      }
+                    })
+                    .catch((e) => console.warn("Save failed:", e));
+                }, 500);
+              }
+            } catch (err) {
+              console.warn("Failed to patch index.html:", err);
             }
-          } catch (err) {
-            console.warn("Failed to patch index.html:", err);
           }
         }
       }
@@ -1782,9 +1786,55 @@ export function App({ hostSession = null }) {
   }, [notify]);
 
   const deleteElement = useCallback((id) => {
-    setProjectElements((prev) => prev.filter((el) => el.id !== id));
+    setProjectElements((prev) => {
+      const target = prev.find((el) => el.id === id);
+      if (target) {
+        // Erase text from index.html if it's an in-video element
+        const projectData = loadedProjectDataRef.current;
+        const projectId = loadedProjectIdRef.current;
+        if (projectData && projectData.files && projectData.files["index.html"] && projectId) {
+          try {
+            let indexHtml = projectData.files["index.html"];
+            const currentText = target.currentSavedText || target.text || target.originalText;
+            if (currentText && currentText.trim() && indexHtml.includes(currentText)) {
+              indexHtml = indexHtml.replace(currentText, "");
+              projectData.files["index.html"] = indexHtml;
+              fetch(`/editor/project/${encodeURIComponent(projectId)}/save`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  files: { "index.html": indexHtml },
+                }),
+              }).catch(() => {});
+            }
+          } catch (e) {}
+        }
+      }
+      return prev.filter((el) => el.id !== id);
+    });
     setSelectedElementId((curr) => (curr === id ? null : curr));
-  }, []);
+    notify("Deleted element");
+  }, [notify]);
+
+  // Keyboard Delete / Backspace shortcut for selected element
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const isInput = e.target instanceof HTMLElement && (
+        e.target.tagName === "INPUT" ||
+        e.target.tagName === "TEXTAREA" ||
+        e.target.isContentEditable
+      );
+      if (isInput) return;
+
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedElementId) {
+        e.preventDefault();
+        e.stopPropagation();
+        deleteElement(selectedElementId);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedElementId, deleteElement]);
 
   const duplicateElement = useCallback((id) => {
     setProjectElements((prev) => {
@@ -1944,6 +1994,11 @@ export function App({ hostSession = null }) {
 
           // 1. Badge / Time (e.g. 6:30 PM, Your next great escape, Day 1)
           if (sc.badge && sc.badge.trim()) {
+            const badgePlacement = isIntro
+              ? { x: 50, y: 32, width: 500, height: 42 }
+              : isStop
+              ? { x: 18, y: 15, width: 200, height: 46 }
+              : { x: 22, y: 16, width: 220, height: 46 };
             extracted.push({
               id: `el-${scId}-badge`,
               sceneId: scId,
@@ -1964,17 +2019,21 @@ export function App({ hostSession = null }) {
                 textAlign: isIntro ? "center" : "left",
                 letterSpacing: "0.2em",
               },
-              placement: isIntro
-                ? { x: 50, y: 32, width: 500, height: 42 }
-                : isStop
-                ? { x: 18, y: 15, width: 200, height: 46 }
-                : { x: 22, y: 16, width: 220, height: 46 },
+              placement: badgePlacement,
+              originalPlacement: { ...badgePlacement },
               visible: true,
             });
           }
 
           // 2. Headline / Title (e.g. London Eye at Sunset, Westminster & Big Ben)
           if (sc.headline && sc.headline.trim()) {
+            const titlePlacement = isIntro
+              ? { x: 50, y: 50, width: 850, height: 160 }
+              : isStop
+              ? { x: 26, y: 44, width: 560, height: 260 }
+              : isDay
+              ? { x: 50, y: 46, width: 850, height: 100 }
+              : { x: 50, y: 44, width: 750, height: 120 };
             extracted.push({
               id: `el-${scId}-h1`,
               sceneId: scId,
@@ -1995,19 +2054,19 @@ export function App({ hostSession = null }) {
                 textAlign: isStop ? "left" : "center",
                 fontWeight: isIntro ? 400 : 700,
               },
-              placement: isIntro
-                ? { x: 50, y: 50, width: 850, height: 160 }
-                : isStop
-                ? { x: 26, y: 44, width: 560, height: 260 }
-                : isDay
-                ? { x: 50, y: 46, width: 850, height: 100 }
-                : { x: 50, y: 44, width: 750, height: 120 },
+              placement: titlePlacement,
+              originalPlacement: { ...titlePlacement },
               visible: true,
             });
           }
 
           // 3. Subtitle / Description (e.g. The whole city glowing below you)
           if (sc.subtitle && sc.subtitle.trim()) {
+            const subPlacement = isIntro
+              ? { x: 50, y: 68, width: 600, height: 50 }
+              : isStop
+              ? { x: 29, y: 72, width: 680, height: 60 }
+              : { x: 50, y: 62, width: 750, height: 50 };
             extracted.push({
               id: `el-${scId}-p`,
               sceneId: scId,
@@ -2028,11 +2087,8 @@ export function App({ hostSession = null }) {
                 textAlign: isStop ? "left" : "center",
                 fontWeight: 300,
               },
-              placement: isIntro
-                ? { x: 50, y: 68, width: 600, height: 50 }
-                : isStop
-                ? { x: 29, y: 72, width: 680, height: 60 }
-                : { x: 50, y: 62, width: 750, height: 50 },
+              placement: subPlacement,
+              originalPlacement: { ...subPlacement },
               visible: true,
             });
           }
@@ -2413,6 +2469,7 @@ export function App({ hostSession = null }) {
           }}
           onHoverElement={setHoveredElementId}
           onUpdateElement={updateElement}
+          onDeleteElement={deleteElement}
           onAddProjectElement={addElement}
         />
 

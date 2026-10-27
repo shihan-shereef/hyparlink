@@ -293,17 +293,22 @@ export function ElementsInspector({
             {/* Text Editor (for text/heading/button) */}
             {selectedElement.type !== "image" && selectedElement.type !== "background" && (
               <div style={{ marginBottom: "14px" }}>
-                <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#94a3b8", marginBottom: "6px" }}>
-                  Text Content
-                </label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                  <label style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8" }}>
+                    Text Content
+                  </label>
+                  <span style={{ fontSize: "10px", color: "#38bdf8", fontWeight: 500 }}>
+                    Live in video
+                  </span>
+                </div>
                 <textarea
                   value={selectedElement.text || ""}
-                  onChange={(e) => onUpdateElement?.(selectedElement.id, { text: e.target.value })}
-                  rows={2}
+                  onChange={(e) => onUpdateElement?.(selectedElement.id, { text: e.target.value, isModified: true })}
+                  rows={3}
                   style={{
                     width: "100%",
                     background: "#090d16",
-                    border: "1px solid rgba(255,255,255,0.15)",
+                    border: "1px solid rgba(56,189,248,0.3)",
                     borderRadius: "6px",
                     color: "#f8fafc",
                     padding: "8px 10px",

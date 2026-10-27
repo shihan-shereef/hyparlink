@@ -181,6 +181,7 @@ export function PreviewStage({
   onSelectElement,
   onHoverElement,
   onUpdateElement,
+  onDeleteElement,
   onAddProjectElement,
   selectedSticker,
   stickers = [],
@@ -1220,6 +1221,7 @@ export function PreviewStage({
                 onSelectElement={onSelectElement}
                 onHoverElement={onHoverElement}
                 onUpdateElement={onUpdateElement}
+                onDeleteElement={onDeleteElement}
                 frameWidth={frameWidth}
                 frameHeight={frameHeight}
                 isPlaying={isPlaying}
