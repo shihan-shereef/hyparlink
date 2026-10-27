@@ -130,30 +130,8 @@ export function ElementsCanvasOverlay({
         const textAlign = el.style?.textAlign || (isHeading ? "center" : "left");
         const opacity = el.style?.opacity ?? 1;
 
-        const hasMoved = el.originalPlacement && (
-          Math.abs(posX - el.originalPlacement.x) > 2 || Math.abs(posY - el.originalPlacement.y) > 2
-        );
-
         return (
           <React.Fragment key={el.id}>
-            {hasMoved && (
-              <div
-                style={{
-                  position: "absolute",
-                  left: `${el.originalPlacement.x}%`,
-                  top: `${el.originalPlacement.y}%`,
-                  transform: "translate(-50%, -50%)",
-                  width: `${el.originalPlacement.width || 420}px`,
-                  height: `${el.originalPlacement.height || 90}px`,
-                  background: "rgba(11, 13, 20, 0.95)",
-                  backdropFilter: "blur(8px)",
-                  borderRadius: "8px",
-                  pointerEvents: "none",
-                  zIndex: 5,
-                  boxShadow: "0 0 25px rgba(0,0,0,0.85)",
-                }}
-              />
-            )}
             <div
               data-element-id={el.id}
               onMouseEnter={() => onHoverElement?.(el.id)}
@@ -311,18 +289,14 @@ export function ElementsCanvasOverlay({
                     alignItems: "center",
                     gap: "8px",
                     padding: el.tag === "pill" ? "8px 24px" : "10px 24px",
-                    background: el.isModified || inlineEditingId === el.id
-                      ? (el.tag === "pill" ? "rgba(11, 13, 20, 0.9)" : (el.style?.backgroundColor || "linear-gradient(135deg, #0ea5e9, #6366f1)"))
-                      : "transparent",
-                    border: el.tag === "pill"
-                      ? (el.isModified || inlineEditingId === el.id ? "2px solid #e8c27a" : "2px solid transparent")
-                      : "none",
-                    color: el.isModified || inlineEditingId === el.id ? (el.style?.color || "#e8c27a") : "transparent",
+                    background: "transparent",
+                    border: "none",
+                    color: inlineEditingId === el.id ? (el.style?.color || "#e8c27a") : "transparent",
                     fontFamily,
                     fontSize: `${fontSize}px`,
                     fontWeight: 700,
                     borderRadius: el.tag === "pill" ? "50px" : "30px",
-                    boxShadow: (el.isModified || inlineEditingId === el.id) ? "0 4px 20px rgba(0,0,0,0.8)" : "none",
+                    boxShadow: "none",
                     letterSpacing: el.tag === "pill" ? "0.2em" : "0.02em",
                     textTransform: el.tag === "pill" ? "uppercase" : "none",
                   }}
@@ -361,22 +335,18 @@ export function ElementsCanvasOverlay({
                   style={{
                     fontFamily,
                     fontSize: `${fontSize}px`,
-                    color: el.isModified || inlineEditingId === el.id ? color : "transparent",
+                    color: inlineEditingId === el.id ? color : "transparent",
                     textAlign,
                     opacity,
                     fontWeight: isHeading ? 700 : 400,
                     lineHeight: 1.15,
                     letterSpacing: isHeading ? "-0.01em" : "normal",
-                    textShadow: (el.isModified || inlineEditingId === el.id)
-                      ? "0 2px 10px rgba(0,0,0,0.85), 0 0 20px rgba(0,0,0,0.4)"
-                      : "none",
-                    background: (el.isModified || inlineEditingId === el.id)
-                      ? "rgba(11, 13, 20, 0.92)"
-                      : "transparent",
-                    backdropFilter: (el.isModified || inlineEditingId === el.id) ? "blur(4px)" : "none",
-                    borderRadius: "6px",
-                    padding: (el.isModified || inlineEditingId === el.id) ? "6px 14px" : "2px 4px",
-                    boxShadow: (el.isModified || inlineEditingId === el.id) ? "0 4px 20px rgba(0,0,0,0.8)" : "none",
+                    textShadow: "none",
+                    background: "transparent",
+                    backdropFilter: "none",
+                    borderRadius: "4px",
+                    padding: "0px",
+                    boxShadow: "none",
                     whiteSpace: "pre-wrap",
                     minWidth: "60px",
                   }}

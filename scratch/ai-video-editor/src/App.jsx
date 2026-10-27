@@ -1721,6 +1721,8 @@ export function App({ hostSession = null }) {
   const [selectedElementId, setSelectedElementId] = useState(null);
   const [hoveredElementId, setHoveredElementId] = useState(null);
   const [projectScenes, setProjectScenes] = useState([]);
+  const [compositionUrl, setCompositionUrl] = useState(null);
+  const compositionIframeRef = useRef(null);
   const loadedProjectDataRef = useRef(null);
   const loadedProjectIdRef = useRef(null);
   const saveTimeoutRef = useRef(null);
@@ -1731,6 +1733,30 @@ export function App({ hostSession = null }) {
       if (target) {
         if (changes.placement || changes.text !== undefined || changes.style) {
           changes.isModified = true;
+        }
+
+        // Live patch composition iframe directly so text updates in the video instantly
+        if (changes.text !== undefined && compositionIframeRef.current?.contentWindow) {
+          try {
+            const win = compositionIframeRef.current.contentWindow;
+            if (target.sceneIndex !== undefined) {
+              const sceneEl = win.document.getElementById(`sc${target.sceneIndex}`);
+              if (sceneEl) {
+                if (target.field === "title") {
+                  const el = sceneEl.querySelector(".title.m, .mega.m, .big.m");
+                  if (el) el.innerHTML = typeof win.words === "function" ? win.words(changes.text) : (typeof win.split === "function" ? win.split(changes.text) : changes.text);
+                } else if (target.field === "subtitle") {
+                  const el = sceneEl.querySelector(".sub.sb");
+                  if (el) el.textContent = changes.text;
+                } else if (target.field === "time" || target.field === "badge") {
+                  const el = sceneEl.querySelector(".pill.k, .kicker.k");
+                  if (el) el.textContent = changes.text;
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("Could not patch live composition iframe:", e);
+          }
         }
 
         // Auto-save modification to index.html if this element maps to a project scene
@@ -1789,6 +1815,30 @@ export function App({ hostSession = null }) {
     setProjectElements((prev) => {
       const target = prev.find((el) => el.id === id);
       if (target) {
+        // Clear text in composition iframe directly
+        if (compositionIframeRef.current?.contentWindow) {
+          try {
+            const win = compositionIframeRef.current.contentWindow;
+            if (target.sceneIndex !== undefined) {
+              const sceneEl = win.document.getElementById(`sc${target.sceneIndex}`);
+              if (sceneEl) {
+                if (target.field === "title") {
+                  const el = sceneEl.querySelector(".title.m, .mega.m, .big.m");
+                  if (el) el.innerHTML = "";
+                } else if (target.field === "subtitle") {
+                  const el = sceneEl.querySelector(".sub.sb");
+                  if (el) el.innerHTML = "";
+                } else if (target.field === "time" || target.field === "badge") {
+                  const el = sceneEl.querySelector(".pill.k, .kicker.k");
+                  if (el) el.innerHTML = "";
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("Could not patch live composition iframe on delete:", e);
+          }
+        }
+
         // Erase text from index.html if it's an in-video element
         const projectData = loadedProjectDataRef.current;
         const projectId = loadedProjectIdRef.current;
@@ -2168,8 +2218,9 @@ export function App({ hostSession = null }) {
       setVisualOverlaySegments(Array.isArray(overlays) ? overlays : []);
 
       // Fetch real project data to parse real elements and scenes
-      const targetProjId = payload.projectId || "latest";
+      const targetProjId = payload.projectId || projectParam || "default_reference_video_2";
       loadedProjectIdRef.current = targetProjId;
+      setCompositionUrl(`/editor/project/${encodeURIComponent(targetProjId)}/raw/index.html`);
       fetch(`/editor/project/${encodeURIComponent(targetProjId)}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
@@ -2461,6 +2512,8 @@ export function App({ hostSession = null }) {
             return ordered.map((item, layer) => ({ ...item, layer: layer + 1 }));
           })}
           projectElements={projectElements}
+          compositionUrl={compositionUrl}
+          compositionIframeRef={compositionIframeRef}
           selectedElementId={selectedElementId}
           hoveredElementId={hoveredElementId}
           onSelectElement={(id) => {

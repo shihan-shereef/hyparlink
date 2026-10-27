@@ -143,6 +143,8 @@ export function PreviewStage({
   previewRatio,
   previewFrameStyle,
   previewFrameSize,
+  compositionUrl = null,
+  compositionIframeRef = null,
   trackVisibility,
   fileInputRef,
   selectedFilter,
@@ -311,6 +313,27 @@ export function PreviewStage({
     transform: `translate(${visualTransform.x + visualAnimation.x}%, ${visualTransform.y + visualAnimation.y}%) scale(${visualTransform.scale * visualAnimation.scale}) rotate(${visualTransform.rotation}deg)`,
     opacity: visualTransform.opacity * visualAnimation.opacity,
   };
+
+  // Live HyperFrames GSAP Composition Synchronization
+  useEffect(() => {
+    if (!compositionUrl || !compositionIframeRef?.current) return;
+    try {
+      const win = compositionIframeRef.current.contentWindow;
+      if (!win) return;
+      const tls = win.__timelines ? Object.values(win.__timelines) : [];
+      if (tls.length > 0) {
+        const tl = tls[0];
+        if (isPlaying) {
+          if (tl.paused()) tl.play(currentTime);
+        } else {
+          tl.pause();
+          tl.seek(currentTime);
+        }
+      }
+    } catch {
+      // Safe no-op
+    }
+  }, [currentTime, isPlaying, compositionUrl, compositionIframeRef]);
   const visualContentBox = activeObjectFit === "contain"
     ? getVisualFitRect(
         { width: visualEffects?.width, height: visualEffects?.height },
@@ -779,6 +802,28 @@ export function PreviewStage({
                   crossOrigin="anonymous"
                   style={{ ...visualTransformStyle, opacity: depthRenderActive ? 0 : visualTransformStyle.opacity, filter: selectedFilterCss, objectFit: activeObjectFit, objectPosition: activeObjectPosition, background: smartContainActive ? "transparent" : undefined }}
                 /> : null}
+                {compositionUrl ? (
+                  <iframe
+                    ref={compositionIframeRef}
+                    className="preview-composition-iframe"
+                    src={compositionUrl}
+                    title="Live Video Composition"
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "1920px",
+                      height: "1080px",
+                      transformOrigin: "top left",
+                      transform: `scale(${frameWidth / 1920}, ${frameHeight / 1080})`,
+                      border: "none",
+                      pointerEvents: "none",
+                      zIndex: 1,
+                      overflow: "hidden",
+                      background: "#000",
+                    }}
+                  />
+                ) : null}
                 {previewVisualType === "video" ? <video
                   key={previewVisualSrc}
                   ref={previewVideoRef}
@@ -831,7 +876,13 @@ export function PreviewStage({
                     if (latestPlaybackRef.current.isPlaying && latestPlaybackRef.current.trackVisibility.image !== false) requestTimelineMediaPlay(event.currentTarget);
                   }}
                   style={{
-                    ...visualTransformStyle, opacity: depthRenderActive ? 0 : visualTransformStyle.opacity, filter: selectedFilterCss, objectFit: activeObjectFit, objectPosition: activeObjectPosition, background: smartContainActive ? "transparent" : undefined,
+                    ...visualTransformStyle,
+                    opacity: compositionUrl ? 0 : (depthRenderActive ? 0 : visualTransformStyle.opacity),
+                    pointerEvents: compositionUrl ? "none" : undefined,
+                    filter: selectedFilterCss,
+                    objectFit: activeObjectFit,
+                    objectPosition: activeObjectPosition,
+                    background: smartContainActive ? "transparent" : undefined,
                     WebkitMaskImage: previewVisionMaskUrl ? `url("${previewVisionMaskUrl}")` : undefined,
                     maskImage: previewVisionMaskUrl ? `url("${previewVisionMaskUrl}")` : undefined,
                     WebkitMaskSize: previewVisionMaskUrl ? activeObjectFit : undefined,
