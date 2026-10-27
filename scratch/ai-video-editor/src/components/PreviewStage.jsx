@@ -1263,7 +1263,7 @@ export function PreviewStage({
                 <div key={sticker.id || `${sticker.text}-${index}`} className="sticker-overlay is-label">{sticker.text}</div>
               ) : null;
             })}
-            {projectElements && projectElements.length > 0 ? (
+            {(projectElements && projectElements.length > 0) || compositionUrl ? (
               <ElementsCanvasOverlay
                 elements={projectElements}
                 compositionIframeRef={compositionIframeRef}
@@ -1274,6 +1274,7 @@ export function PreviewStage({
                 onHoverElement={onHoverElement}
                 onUpdateElement={onUpdateElement}
                 onDeleteElement={onDeleteElement}
+                onAddElement={onAddProjectElement}
                 frameWidth={frameWidth}
                 frameHeight={frameHeight}
                 isPlaying={isPlaying}

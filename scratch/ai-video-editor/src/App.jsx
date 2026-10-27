@@ -1742,19 +1742,48 @@ export function App({ hostSession = null }) {
         if (changes.text !== undefined && compositionIframeRef.current?.contentWindow) {
           try {
             const win = compositionIframeRef.current.contentWindow;
+            const doc = win.document;
+            let targetEl = null;
+
             if (target.sceneIndex !== undefined) {
-              const sceneEl = win.document.getElementById(`sc${target.sceneIndex}`);
+              const sceneEl = doc.getElementById(`sc${target.sceneIndex}`) ||
+                              doc.querySelector(`[data-scene="${target.sceneIndex + 1}"]`) ||
+                              doc.getElementById(`scene${target.sceneIndex + 1}`) ||
+                              doc.querySelectorAll(".scene")[target.sceneIndex];
               if (sceneEl) {
-                if (target.field === "title" || target.tag === "h1") {
-                  const el = sceneEl.querySelector(".title.m, .mega.m, .big.m, .title, h1");
-                  if (el) el.innerHTML = typeof win.words === "function" ? win.words(changes.text) : (typeof win.split === "function" ? win.split(changes.text) : changes.text);
-                } else if (target.field === "sub" || target.field === "subtitle" || target.tag === "p") {
-                  const el = sceneEl.querySelector(".sub.sb, .sub, p");
-                  if (el) el.textContent = changes.text;
+                if (target.field === "title" || target.tag === "h1" || target.tag === "h2" || target.tag === "h3" || target.type === "heading") {
+                  targetEl = sceneEl.querySelector(".headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
+                } else if (target.field === "sub" || target.field === "subtitle" || target.field === "description" || target.tag === "p" || target.type === "text") {
+                  targetEl = sceneEl.querySelector(".description, .sub.sb, .sub, p");
+                } else if (target.field === "kicker" || target.field === "eyebrow") {
+                  targetEl = sceneEl.querySelector(".eyebrow, .kicker.k, .kicker");
                 } else if (target.field === "time" || target.field === "badge" || target.tag === "pill") {
-                  const el = sceneEl.querySelector(".pill.k, .kicker.k, .kicker, .pill");
-                  if (el) el.textContent = changes.text;
+                  targetEl = sceneEl.querySelector(".pill.k, .pill.k2, .pill, .scene-number, .date, .corner-mark, .bottom-label");
+                } else if (target.field === "n" || target.tag === "num") {
+                  targetEl = sceneEl.querySelector(".num.nm, .num, .scene-number");
                 }
+              }
+            }
+
+            // Fallback match by current text content
+            if (!targetEl && (target.currentSavedText || target.text)) {
+              const needle = (target.currentSavedText || target.text).trim().slice(0, 15);
+              if (needle.length >= 2) {
+                const candidates = doc.querySelectorAll(".headline, .title, .mega, .big, .description, .sub, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, h1, h2, h3, h4, p, span, button");
+                for (const cand of candidates) {
+                  if (cand.textContent && cand.textContent.includes(needle)) {
+                    targetEl = cand;
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (targetEl) {
+              if (target.field === "title" || target.tag === "h1") {
+                targetEl.innerHTML = typeof win.words === "function" ? win.words(changes.text) : (typeof win.split === "function" ? win.split(changes.text) : changes.text);
+              } else {
+                targetEl.textContent = changes.text;
               }
             }
           } catch (e) {
@@ -1822,20 +1851,44 @@ export function App({ hostSession = null }) {
         if (compositionIframeRef.current?.contentWindow) {
           try {
             const win = compositionIframeRef.current.contentWindow;
+            const doc = win.document;
+            let targetEl = null;
+
             if (target.sceneIndex !== undefined) {
-              const sceneEl = win.document.getElementById(`sc${target.sceneIndex}`);
+              const sceneEl = doc.getElementById(`sc${target.sceneIndex}`) ||
+                              doc.querySelector(`[data-scene="${target.sceneIndex + 1}"]`) ||
+                              doc.getElementById(`scene${target.sceneIndex + 1}`) ||
+                              doc.querySelectorAll(".scene")[target.sceneIndex];
               if (sceneEl) {
-                if (target.field === "title") {
-                  const el = sceneEl.querySelector(".title.m, .mega.m, .big.m");
-                  if (el) el.innerHTML = "";
-                } else if (target.field === "subtitle") {
-                  const el = sceneEl.querySelector(".sub.sb");
-                  if (el) el.innerHTML = "";
-                } else if (target.field === "time" || target.field === "badge") {
-                  const el = sceneEl.querySelector(".pill.k, .kicker.k");
-                  if (el) el.innerHTML = "";
+                if (target.field === "title" || target.tag === "h1" || target.type === "heading") {
+                  targetEl = sceneEl.querySelector(".headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
+                } else if (target.field === "sub" || target.field === "subtitle" || target.field === "description" || target.tag === "p" || target.type === "text") {
+                  targetEl = sceneEl.querySelector(".description, .sub.sb, .sub, p");
+                } else if (target.field === "kicker" || target.field === "eyebrow") {
+                  targetEl = sceneEl.querySelector(".eyebrow, .kicker.k, .kicker");
+                } else if (target.field === "time" || target.field === "badge" || target.tag === "pill") {
+                  targetEl = sceneEl.querySelector(".pill.k, .pill.k2, .pill, .scene-number, .date, .corner-mark, .bottom-label");
+                } else if (target.field === "n" || target.tag === "num") {
+                  targetEl = sceneEl.querySelector(".num.nm, .num, .scene-number");
                 }
               }
+            }
+
+            if (!targetEl && (target.currentSavedText || target.text)) {
+              const needle = (target.currentSavedText || target.text).trim().slice(0, 15);
+              if (needle.length >= 2) {
+                const candidates = doc.querySelectorAll(".headline, .title, .mega, .big, .description, .sub, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, h1, h2, h3, h4, p, span, button");
+                for (const cand of candidates) {
+                  if (cand.textContent && cand.textContent.includes(needle)) {
+                    targetEl = cand;
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (targetEl) {
+              targetEl.innerHTML = "";
             }
           } catch (e) {
             console.warn("Could not patch live composition iframe on delete:", e);
@@ -1990,187 +2043,388 @@ export function App({ hostSession = null }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const parseScenesFromHtml = (html) => {
-      if (!html) return [];
-      const scriptMatch = html.match(/<script>([\s\S]*?)(?:const|let|var)\s+(?:SCENES|scenes)\s*=\s*(\[[\s\S]*?\]);/i);
-      if (!scriptMatch) return [];
-      try {
-        const codeBefore = scriptMatch[1];
-        const scenesArrStr = scriptMatch[2];
-        const evalFn = new Function(codeBefore + '; return ' + scenesArrStr + ';');
-        const parsed = evalFn();
-        if (!Array.isArray(parsed)) return [];
-        let runningStart = 0;
-        return parsed.map((s, idx) => {
-          const dur = Number(s.dur) || Number(s.duration) || 3.5;
-          const start = (typeof s.start === "number" && !isNaN(s.start)) ? s.start : runningStart;
-          runningStart = start + dur;
-          return {
-            id: `scene_${idx + 1}`,
-            index: idx,
-            type: s.type || "scene",
-            start,
-            duration: dur,
-            badge: (s.time || s.kicker || s.label || "").replace(/<[^>]+>/g, "").trim(),
-            headline: (s.title || "").replace(/<[^>]+>/g, "").trim(),
-            subtitle: (s.sub || s.subtitle || "").replace(/<[^>]+>/g, "").trim(),
-          };
-        });
-      } catch (e) {
-        console.warn("Failed to parse SCENES from index.html:", e);
-        return [];
-      }
-    };
-
     const extractElementsFromProject = (data, dur, fallbackTitle, fallbackPrompt) => {
       const extracted = [];
-      let scenes = Array.isArray(data?.scenes) ? [...data.scenes] : [];
-
-      // If data.scenes has no headlines, attempt to parse programmatic SCENES from index.html
+      const totalDur = Number(dur) || 40;
       const indexHtml = data?.files?.["index.html"] || "";
-      if ((scenes.length === 0 || !scenes.some((s) => s.headline)) && indexHtml) {
-        const parsedScenes = parseScenesFromHtml(indexHtml);
-        if (parsedScenes.length > 0) {
-          scenes = parsedScenes;
-        }
-      }
 
-      if (scenes.length > 0) {
-        scenes.forEach((sc, i) => {
-          const scId = sc.id || `scene-${i + 1}`;
-          const scStart = Number(sc.start) || 0;
-          const scDur = Number(sc.duration) || 3.6;
-          const scType = sc.type || "scene";
-          const isStop = scType === "stop";
-          const isIntro = scType === "intro";
-          const isDay = scType === "day";
+      // 1. Try parsing JavaScript SCENES array if present in index.html (e.g. London)
+      const scriptMatch = indexHtml.match(/<script>([\s\S]*?)(?:const|let|var)\s+(?:SCENES|scenes)\s*=\s*(\[[\s\S]*?\]);/i);
+      if (scriptMatch) {
+        try {
+          const codeBefore = scriptMatch[1];
+          const scenesArrStr = scriptMatch[2];
+          const evalFn = new Function(codeBefore + '; return ' + scenesArrStr + ';');
+          const parsed = evalFn();
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            let runningStart = 0;
+            parsed.forEach((s, idx) => {
+              const scDur = Number(s.dur) || Number(s.duration) || 3.5;
+              const scStart = (typeof s.start === "number" && !isNaN(s.start)) ? s.start : runningStart;
+              runningStart = scStart + scDur;
+              const scId = `scene_${idx + 1}`;
+              const isStop = s.type === "stop";
+              const isIntro = s.type === "intro";
+              const isDay = s.type === "day";
 
-          // 1. Badge / Time (e.g. 6:30 PM, Your next great escape, Day 1)
-          if (sc.badge && sc.badge.trim()) {
-            const badgePlacement = isIntro
-              ? { x: 50, y: 34, width: 450, height: 42, isTopLeft: false }
-              : isStop
-              ? { x: 7.3, y: 44, width: 220, height: 50, isTopLeft: true }
-              : { x: 7.3, y: 28, width: 300, height: 40, isTopLeft: true };
+              // Kicker / Eyebrow (e.g. "Your next great escape", "Day one")
+              if (s.kicker && s.kicker.trim()) {
+                const kickerText = s.kicker.replace(/<[^>]+>/g, "").trim();
+                extracted.push({
+                  id: `el-${scId}-kicker`,
+                  sceneId: scId,
+                  sceneIndex: idx,
+                  field: "kicker",
+                  sceneStart: scStart,
+                  sceneDuration: scDur,
+                  tag: "kicker",
+                  type: "badge",
+                  name: `Kicker: ${kickerText}`,
+                  text: kickerText,
+                  originalText: kickerText,
+                  isModified: false,
+                  style: {
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 22,
+                    color: "#e8c27a",
+                    textAlign: (isStop || isDay) ? "left" : "center",
+                    letterSpacing: "0.4em",
+                  },
+                  placement: (isStop || isDay)
+                    ? { x: 7.3, y: 22, width: 350, height: 40, isTopLeft: true }
+                    : { x: 50, y: 34, width: 500, height: 42, isTopLeft: false },
+                  visible: true,
+                });
+              }
+
+              // Time badge / pill (e.g. "9:00 AM", "6:30 PM")
+              if (s.time && s.time.trim()) {
+                const timeText = s.time.replace(/<[^>]+>/g, "").trim();
+                extracted.push({
+                  id: `el-${scId}-time`,
+                  sceneId: scId,
+                  sceneIndex: idx,
+                  field: "time",
+                  sceneStart: scStart,
+                  sceneDuration: scDur,
+                  tag: "pill",
+                  type: "badge",
+                  name: `Time: ${timeText}`,
+                  text: timeText,
+                  originalText: timeText,
+                  isModified: false,
+                  style: {
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 22,
+                    color: "#e8c27a",
+                    textAlign: "left",
+                    letterSpacing: "0.2em",
+                  },
+                  placement: { x: 7.3, y: 44, width: 220, height: 50, isTopLeft: true },
+                  visible: true,
+                });
+              }
+
+              // Number badge (e.g. "01", "02", "1")
+              if (s.n !== undefined && String(s.n).trim()) {
+                const nText = String(s.n).replace(/<[^>]+>/g, "").trim();
+                extracted.push({
+                  id: `el-${scId}-num`,
+                  sceneId: scId,
+                  sceneIndex: idx,
+                  field: "n",
+                  sceneStart: scStart,
+                  sceneDuration: scDur,
+                  tag: "num",
+                  type: "badge",
+                  name: `Number: ${nText}`,
+                  text: nText,
+                  originalText: nText,
+                  isModified: false,
+                  style: {
+                    fontFamily: "'Bebas Neue', sans-serif",
+                    fontSize: 140,
+                    color: "rgba(246,239,227,0.28)",
+                    textAlign: "right",
+                  },
+                  placement: { x: 88, y: 50, width: 180, height: 180, isTopLeft: false },
+                  visible: true,
+                });
+              }
+
+              // Title / Headline (e.g. "LONDON", "Westminster & Big Ben")
+              if (s.title && s.title.trim()) {
+                const titleText = s.title.replace(/<[^>]+>/g, "").trim();
+                const titlePlacement = isIntro
+                  ? { x: 50, y: 50, width: 850, height: 160, isTopLeft: false }
+                  : isStop
+                  ? { x: 7.3, y: 52, width: 750, height: 260, isTopLeft: true }
+                  : isDay
+                  ? { x: 7.3, y: 34, width: 650, height: 380, isTopLeft: true }
+                  : { x: 50, y: 50, width: 750, height: 120, isTopLeft: false };
+                extracted.push({
+                  id: `el-${scId}-h1`,
+                  sceneId: scId,
+                  sceneIndex: idx,
+                  field: "title",
+                  sceneStart: scStart,
+                  sceneDuration: scDur,
+                  tag: "h1",
+                  type: "heading",
+                  name: `Title: ${titleText}`,
+                  text: titleText,
+                  originalText: titleText,
+                  isModified: false,
+                  style: {
+                    fontFamily: isIntro ? "'Bebas Neue', sans-serif" : "'Playfair Display', serif",
+                    fontSize: isIntro ? 100 : isStop ? 58 : 52,
+                    color: "#f6efe3",
+                    textAlign: (isStop || isDay) ? "left" : "center",
+                    fontWeight: isIntro ? 400 : 700,
+                  },
+                  placement: titlePlacement,
+                  visible: true,
+                });
+              }
+
+              // Subtitle / Description (e.g. "3 Days · 2 Nights")
+              if (s.sub && s.sub.trim()) {
+                const subText = s.sub.replace(/<[^>]+>/g, "").trim();
+                const subPlacement = isIntro
+                  ? { x: 50, y: 66, width: 650, height: 50, isTopLeft: false }
+                  : isStop
+                  ? { x: 7.3, y: 80, width: 750, height: 60, isTopLeft: true }
+                  : isDay
+                  ? { x: 7.3, y: 78, width: 750, height: 60, isTopLeft: true }
+                  : { x: 50, y: 68, width: 650, height: 50, isTopLeft: false };
+                extracted.push({
+                  id: `el-${scId}-p`,
+                  sceneId: scId,
+                  sceneIndex: idx,
+                  field: "sub",
+                  sceneStart: scStart,
+                  sceneDuration: scDur,
+                  tag: "p",
+                  type: "text",
+                  name: `P: ${subText.slice(0, 24)}...`,
+                  text: subText,
+                  originalText: subText,
+                  isModified: false,
+                  style: {
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 24,
+                    color: "#f6efe3",
+                    textAlign: (isStop || isDay) ? "left" : "center",
+                    fontWeight: 300,
+                  },
+                  placement: subPlacement,
+                  visible: true,
+                });
+              }
+
+              // Outro CTA button
+              if (s.type === "outro") {
+                const ctaText = "Your adventure starts now";
+                extracted.push({
+                  id: `el-${scId}-cta`,
+                  sceneId: scId,
+                  sceneIndex: idx,
+                  field: "cta",
+                  sceneStart: scStart,
+                  sceneDuration: scDur,
+                  tag: "pill",
+                  type: "button",
+                  name: `CTA: ${ctaText}`,
+                  text: ctaText,
+                  originalText: ctaText,
+                  isModified: false,
+                  style: {
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize: 22,
+                    color: "#e8c27a",
+                    textAlign: "center",
+                  },
+                  placement: { x: 50, y: 82, width: 420, height: 50, isTopLeft: false },
+                  visible: true,
+                });
+              }
+            });
+
+            // HUD overlay item (e.g. London, 3D · 2N)
             extracted.push({
-              id: `el-${scId}-badge`,
-              sceneId: scId,
-              sceneIndex: i,
-              field: "time",
-              sceneStart: scStart,
-              sceneDuration: scDur,
-              tag: "pill",
+              id: "el-hud-label",
+              sceneId: "global-hud",
+              sceneStart: 0,
+              sceneDuration: totalDur,
+              field: "hudLabel",
+              tag: "hud",
               type: "badge",
-              name: `Badge: ${sc.badge.trim()}`,
-              text: sc.badge.trim(),
-              originalText: sc.badge.trim(),
+              name: "HUD: London",
+              text: "London",
+              originalText: "London",
               isModified: false,
               style: {
                 fontFamily: "'Inter', sans-serif",
-                fontSize: 22,
-                color: "#e8c27a",
-                textAlign: isIntro ? "center" : "left",
-                letterSpacing: "0.2em",
+                fontSize: 20,
+                color: "#f6efe3",
+                letterSpacing: "0.3em",
               },
-              placement: badgePlacement,
-              originalPlacement: { ...badgePlacement },
+              placement: { x: 10, y: 92, width: 140, height: 30, isTopLeft: true },
               visible: true,
             });
-          }
 
-          // 2. Headline / Title (e.g. London Eye at Sunset, Westminster & Big Ben)
+            return extracted;
+          }
+        } catch (e) {
+          console.warn("Error parsing programmatic SCENES:", e);
+        }
+      }
+
+      // 2. Parse HTML DOM elements (for Kerala, Delhi, Karnataka, and all semantic HyperFrames HTML)
+      if (indexHtml) {
+        try {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(indexHtml, "text/html");
+          const sceneSections = Array.from(doc.querySelectorAll("section.scene, .scene, section[data-scene], div.scene"));
+
+          if (sceneSections.length > 0) {
+            const perSceneDur = totalDur / sceneSections.length;
+            let runningStart = 0;
+
+            sceneSections.forEach((sceneEl, idx) => {
+              const scStart = Number(sceneEl.getAttribute("data-start")) || runningStart;
+              const scDur = Number(sceneEl.getAttribute("data-duration")) || perSceneDur;
+              runningStart = scStart + scDur;
+              const scId = sceneEl.id || `scene-${idx + 1}`;
+
+              // Query all textual elements in this scene
+              const textNodes = sceneEl.querySelectorAll(
+                "h1, h2, h3, h4, p, .headline, .title, .mega, .big, .description, .sub, .subtitle, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, button, a"
+              );
+
+              const seenTexts = new Set();
+              textNodes.forEach((node, nodeIdx) => {
+                // Avoid capturing parent elements whose text is already captured by children
+                if (node.querySelector("h1, h2, h3, p, .headline, .description")) return;
+
+                const rawText = node.textContent?.replace(/\s+/g, " ").trim();
+                if (!rawText || seenTexts.has(rawText)) return;
+                seenTexts.add(rawText);
+
+                const tag = node.tagName.toLowerCase();
+                const cls = (node.className || "").toLowerCase();
+
+                let field = "text";
+                let type = "text";
+                let fontSize = 24;
+                let fontWeight = 400;
+
+                if (tag === "h1" || tag === "h2" || tag === "h3" || cls.includes("headline") || cls.includes("title") || cls.includes("mega") || cls.includes("big")) {
+                  field = "title";
+                  type = "heading";
+                  fontSize = tag === "h1" ? 64 : 48;
+                  fontWeight = 700;
+                } else if (cls.includes("description") || cls.includes("sub") || tag === "p") {
+                  field = "description";
+                  type = "text";
+                  fontSize = 24;
+                  fontWeight = 300;
+                } else if (cls.includes("eyebrow") || cls.includes("kicker")) {
+                  field = "eyebrow";
+                  type = "badge";
+                  fontSize = 20;
+                  fontWeight = 600;
+                } else if (cls.includes("scene-number") || cls.includes("num") || cls.includes("number")) {
+                  field = "number";
+                  type = "badge";
+                  fontSize = 18;
+                } else if (cls.includes("corner-mark") || cls.includes("date") || cls.includes("bottom-label") || cls.includes("pill") || cls.includes("badge")) {
+                  field = "badge";
+                  type = "badge";
+                  fontSize = 16;
+                } else if (tag === "button" || cls.includes("cta") || cls.includes("btn")) {
+                  field = "button";
+                  type = "button";
+                  fontSize = 18;
+                }
+
+                extracted.push({
+                  id: `el-${scId}-${field}-${nodeIdx}`,
+                  sceneId: scId,
+                  sceneIndex: idx,
+                  field,
+                  tag,
+                  type,
+                  name: `${field.toUpperCase()}: ${rawText.slice(0, 20)}`,
+                  text: rawText,
+                  originalText: rawText,
+                  sceneStart: scStart,
+                  sceneDuration: scDur,
+                  isModified: false,
+                  style: {
+                    fontFamily: "'Inter', sans-serif",
+                    fontSize,
+                    fontWeight,
+                    color: "#ffffff",
+                    textAlign: "left",
+                  },
+                  placement: {
+                    x: 10,
+                    y: 20 + (nodeIdx * 12) % 65,
+                    width: 500,
+                    height: 60,
+                    isTopLeft: true,
+                  },
+                  visible: true,
+                });
+              });
+            });
+
+            if (extracted.length > 0) return extracted;
+          }
+        } catch (e) {
+          console.warn("DOMParser failed for index.html:", e);
+        }
+      }
+
+      // 3. Fallback from data.scenes or editableProperties
+      if (Array.isArray(data?.scenes) && data.scenes.length > 0) {
+        data.scenes.forEach((sc, i) => {
           if (sc.headline && sc.headline.trim()) {
-            const titlePlacement = isIntro
-              ? { x: 50, y: 50, width: 850, height: 160, isTopLeft: false }
-              : isStop
-              ? { x: 7.3, y: 52, width: 750, height: 260, isTopLeft: true }
-              : isDay
-              ? { x: 7.3, y: 34, width: 650, height: 380, isTopLeft: true }
-              : { x: 50, y: 50, width: 750, height: 120, isTopLeft: false };
             extracted.push({
-              id: `el-${scId}-h1`,
-              sceneId: scId,
+              id: `el-fallback-${i}-title`,
+              sceneId: `scene-${i + 1}`,
               sceneIndex: i,
-              field: "title",
-              sceneStart: scStart,
-              sceneDuration: scDur,
+              sceneStart: Number(sc.start) || 0,
+              sceneDuration: Number(sc.duration) || 4,
               tag: "h1",
               type: "heading",
               name: `Title: ${sc.headline.trim()}`,
               text: sc.headline.trim(),
               originalText: sc.headline.trim(),
               isModified: false,
-              style: {
-                fontFamily: isIntro ? "'Bebas Neue', sans-serif" : "'Playfair Display', serif",
-                fontSize: isIntro ? 100 : isStop ? 58 : 52,
-                color: "#f6efe3",
-                textAlign: (isStop || isDay) ? "left" : "center",
-                fontWeight: isIntro ? 400 : 700,
-              },
-              placement: titlePlacement,
-              originalPlacement: { ...titlePlacement },
-              visible: true,
-            });
-          }
-
-          // 3. Subtitle / Description (e.g. The whole city glowing below you)
-          if (sc.subtitle && sc.subtitle.trim()) {
-            const subPlacement = isIntro
-              ? { x: 50, y: 66, width: 650, height: 50, isTopLeft: false }
-              : isStop
-              ? { x: 7.3, y: 80, width: 750, height: 60, isTopLeft: true }
-              : isDay
-              ? { x: 7.3, y: 78, width: 750, height: 60, isTopLeft: true }
-              : { x: 50, y: 68, width: 650, height: 50, isTopLeft: false };
-            extracted.push({
-              id: `el-${scId}-p`,
-              sceneId: scId,
-              sceneIndex: i,
-              field: "sub",
-              sceneStart: scStart,
-              sceneDuration: scDur,
-              tag: "p",
-              type: "text",
-              name: `P: ${sc.subtitle.trim().slice(0, 24)}...`,
-              text: sc.subtitle.trim(),
-              originalText: sc.subtitle.trim(),
-              isModified: false,
-              style: {
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 24,
-                color: "#f6efe3",
-                textAlign: (isStop || isDay) ? "left" : "center",
-                fontWeight: 300,
-              },
-              placement: subPlacement,
-              originalPlacement: { ...subPlacement },
+              style: { fontFamily: "'Cinzel', serif", fontSize: 48, color: "#ffffff", textAlign: "center" },
+              placement: { x: 50, y: 48, width: 700, height: 100 },
               visible: true,
             });
           }
         });
       }
 
-      // If no elements were extracted from scenes, only fallback to actual editableProperties title (never dummy text)
       if (extracted.length === 0 && data?.editableProperties?.title) {
         const headlineText = data.editableProperties.title;
         extracted.push({
           id: "el-main-title",
           sceneId: "scene-1",
           sceneStart: 0,
-          sceneDuration: dur,
+          sceneDuration: totalDur,
           tag: "h1",
           type: "heading",
           name: `Title: ${headlineText}`,
           text: headlineText,
           originalText: headlineText,
           isModified: false,
-          style: {
-            fontFamily: "'Playfair Display', serif",
-            fontSize: 48,
-            color: "#ffffff",
-            textAlign: "center",
-            opacity: 1,
-          },
+          style: { fontFamily: "'Playfair Display', serif", fontSize: 48, color: "#ffffff", textAlign: "center" },
           placement: { x: 50, y: 44, width: 700, height: 100 },
           visible: true,
         });

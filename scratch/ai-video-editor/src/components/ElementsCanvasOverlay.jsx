@@ -10,6 +10,7 @@ export function ElementsCanvasOverlay({
   onHoverElement,
   onUpdateElement,
   onDeleteElement,
+  onAddElement,
   frameWidth = 1280,
   frameHeight = 720,
   isPlaying = false,
@@ -29,21 +30,35 @@ export function ElementsCanvasOverlay({
 
       let targetEl = null;
 
-      // 1. Try matching by sceneIndex
+      // 1. Try matching by sceneIndex or sceneId
+      let sceneEl = null;
       if (el.sceneIndex !== undefined) {
-        const sceneEl = doc.getElementById(`sc${el.sceneIndex}`);
-        if (sceneEl) {
-          if (el.field === "title" || el.tag === "h1") {
-            targetEl = sceneEl.querySelector(".title.m, .mega.m, .big.m, .title, h1");
-          } else if (el.field === "sub" || el.tag === "p" || el.type === "text") {
-            targetEl = sceneEl.querySelector(".sub.sb, .sub, p");
-          } else if (el.field === "time" || el.field === "badge" || el.tag === "pill") {
-            targetEl = sceneEl.querySelector(".pill.k, .kicker.k, .kicker, .pill");
-          }
+        sceneEl = doc.getElementById(`sc${el.sceneIndex}`) ||
+                  doc.querySelector(`[data-scene="${el.sceneIndex + 1}"]`) ||
+                  doc.getElementById(`scene${el.sceneIndex + 1}`) ||
+                  doc.querySelectorAll(".scene")[el.sceneIndex];
+      }
+      if (!sceneEl && el.sceneId) {
+        sceneEl = doc.getElementById(el.sceneId) || doc.querySelector(`[data-scene="${el.sceneId}"]`);
+      }
+
+      if (sceneEl) {
+        if (el.field === "title" || el.tag === "h1" || el.tag === "h2" || el.tag === "h3" || el.type === "heading") {
+          targetEl = sceneEl.querySelector(".headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
+        } else if (el.field === "sub" || el.field === "subtitle" || el.field === "description" || el.tag === "p" || el.type === "text") {
+          targetEl = sceneEl.querySelector(".description, .sub.sb, .sub, p");
+        } else if (el.field === "kicker" || el.field === "eyebrow") {
+          targetEl = sceneEl.querySelector(".eyebrow, .kicker.k, .kicker");
+        } else if (el.field === "time" || el.field === "badge" || el.tag === "pill") {
+          targetEl = sceneEl.querySelector(".pill.k, .pill.k2, .pill, .scene-number, .date, .corner-mark, .bottom-label");
+        } else if (el.field === "n" || el.field === "number" || el.tag === "num") {
+          targetEl = sceneEl.querySelector(".num.nm, .num, .scene-number");
+        } else if (el.field === "cta" || el.type === "button") {
+          targetEl = sceneEl.querySelector(".pill.k2, .pill, button, .cta, a.btn");
         }
       }
 
-      // 2. If not found by sceneIndex, find in any visible scene
+      // 2. If not found in specific scene, check active/visible scene in iframe
       if (!targetEl) {
         const scenes = doc.querySelectorAll(".scene");
         for (const scene of scenes) {
@@ -51,12 +66,14 @@ export function ElementsCanvasOverlay({
           const style = win?.getComputedStyle(scene);
           if (style && style.visibility !== "hidden" && style.display !== "none" && style.opacity !== "0") {
             let candidate = null;
-            if (el.field === "title" || el.tag === "h1") {
-              candidate = scene.querySelector(".title.m, .mega.m, .big.m, .title, h1");
-            } else if (el.field === "sub" || el.tag === "p") {
-              candidate = scene.querySelector(".sub.sb, .sub, p");
-            } else if (el.field === "time" || el.tag === "pill") {
-              candidate = scene.querySelector(".pill.k, .kicker.k, .kicker, .pill");
+            if (el.field === "title" || el.tag === "h1" || el.type === "heading") {
+              candidate = scene.querySelector(".headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
+            } else if (el.field === "sub" || el.field === "description" || el.tag === "p") {
+              candidate = scene.querySelector(".description, .sub.sb, .sub, p");
+            } else if (el.field === "kicker" || el.field === "eyebrow") {
+              candidate = scene.querySelector(".eyebrow, .kicker.k, .kicker");
+            } else if (el.field === "time" || el.field === "badge" || el.tag === "pill") {
+              candidate = scene.querySelector(".pill.k, .pill.k2, .pill, .scene-number, .date, .corner-mark, .bottom-label");
             }
             if (candidate) {
               targetEl = candidate;
@@ -68,11 +85,13 @@ export function ElementsCanvasOverlay({
 
       // 3. Fallback: match by text content in document
       if (!targetEl && el.text) {
-        const needle = el.text.trim().slice(0, 15);
-        if (needle.length > 2) {
-          const candidates = doc.querySelectorAll(".title, .mega, .big, .sub, .pill, .kicker, h1, h2, p");
+        const needle = el.text.trim().toLowerCase();
+        const shortNeedle = needle.slice(0, 15);
+        if (shortNeedle.length >= 2) {
+          const candidates = doc.querySelectorAll(".headline, .title, .mega, .big, .description, .sub, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, h1, h2, h3, h4, p, span, button");
           for (const cand of candidates) {
-            if (cand.textContent && cand.textContent.includes(needle)) {
+            const candText = (cand.textContent || "").trim().toLowerCase();
+            if (candText.includes(shortNeedle)) {
               targetEl = cand;
               break;
             }
@@ -109,7 +128,7 @@ export function ElementsCanvasOverlay({
   const visibleElements = elements.filter((el) => {
     if (el.visible === false) return false;
     if (el.sceneStart === undefined || el.sceneDuration === undefined) return true;
-    const end = el.sceneStart + el.sceneDuration;
+    const end = el.sceneStart + el.sceneDuration + 0.3;
     return currentTime >= el.sceneStart && currentTime < end;
   });
 
@@ -196,8 +215,82 @@ export function ElementsCanvasOverlay({
         overflow: "hidden",
       }}
       onPointerDown={(e) => {
-        // Clicking empty canvas deselects element
         if (e.target === containerRef.current) {
+          // Check if user clicked on any text inside the live iframe
+          if (compositionIframeRef?.current) {
+            try {
+              const iframe = compositionIframeRef.current;
+              const doc = iframe.contentDocument || iframe.contentWindow?.document;
+              if (doc) {
+                const rect = containerRef.current.getBoundingClientRect();
+                const clickX = ((e.clientX - rect.left) / rect.width) * 1920;
+                const clickY = ((e.clientY - rect.top) / rect.height) * 1080;
+                const hit = doc.elementFromPoint(clickX, clickY);
+
+                if (hit) {
+                  const textEl = hit.closest("h1, h2, h3, h4, p, span, .headline, .title, .mega, .big, .description, .sub, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, button, a") ||
+                    (hit.textContent?.trim() ? hit : null);
+
+                  if (textEl && textEl.textContent?.trim()) {
+                    const clickedText = textEl.textContent.trim();
+                    // Find if any element matches
+                    const matched = elements.find((el) => {
+                      if (!el.text) return false;
+                      const a = el.text.trim().toLowerCase();
+                      const b = clickedText.toLowerCase();
+                      return a === b || a.includes(b) || b.includes(a);
+                    });
+
+                    if (matched) {
+                      e.stopPropagation();
+                      onSelectElement?.(matched.id);
+                      return;
+                    }
+
+                    // If not found in pre-extracted elements, dynamically register and select it
+                    if (onAddElement) {
+                      e.stopPropagation();
+                      const newId = `el-detected-${Date.now()}`;
+                      const tag = textEl.tagName ? textEl.tagName.toLowerCase() : "div";
+                      const isH = tag.startsWith("h") || textEl.classList?.contains("headline") || textEl.classList?.contains("title");
+                      const newEl = {
+                        id: newId,
+                        sceneStart: Math.max(0, currentTime - 1),
+                        sceneDuration: 6,
+                        tag,
+                        type: isH ? "heading" : "text",
+                        name: `${isH ? "Title" : "Text"}: ${clickedText.slice(0, 20)}`,
+                        text: clickedText,
+                        originalText: clickedText,
+                        isModified: false,
+                        style: {
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: isH ? 48 : 24,
+                          color: "#ffffff",
+                          textAlign: "left",
+                        },
+                        placement: {
+                          x: (clickX / 1920) * 100,
+                          y: (clickY / 1080) * 100,
+                          width: 400,
+                          height: 60,
+                          isTopLeft: true,
+                        },
+                        visible: true,
+                      };
+                      onAddElement(newEl);
+                      onSelectElement?.(newId);
+                      return;
+                    }
+                  }
+                }
+              }
+            } catch (err) {
+              console.warn("Error picking element from point:", err);
+            }
+          }
+
+          // Clicking empty canvas deselects element
           onSelectElement?.(null);
           setInlineEditingId(null);
         }
