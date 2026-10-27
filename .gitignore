@@ -68,6 +68,12 @@ ai-composition-generator/dist/
 outputs/
 generated-projects/
 verify_*.jpg
-scratch/
+scratch/*/node_modules/
+scratch/*/dist/
+scratch/freecut/
+scratch/.DS_Store
+scratch/*.html
+scratch/*.py
+scratch/*.mjs
 ai-composition-generator/job-store.json
 ai-composition-generator/project-store.json
