@@ -112,3 +112,19 @@ export const resetRateLimit = internalMutation({
   },
 });
 
+export const setUserPassword = internalMutation({
+  args: {
+    email: v.string(),
+    password: v.string(),
+  },
+  handler: async (ctx, { email, password }) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const { modifyAccountCredentials } = await import("@convex-dev/auth/server");
+    await modifyAccountCredentials(ctx, {
+      provider: "password",
+      account: { id: cleanEmail, secret: password },
+    });
+    return { success: true, email: cleanEmail };
+  },
+});
+
