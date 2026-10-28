@@ -51,15 +51,41 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
     return;
   }
 
+  let authenticated = false;
+  try {
+    authenticated = await convexAuth.isAuthenticated();
+  } catch (err) {
+    console.warn("[middleware] convexAuth.isAuthenticated error:", err);
+  }
+
+  if (!authenticated) {
+    try {
+      const token = await convexAuth.getToken();
+      if (token && typeof token === "string") {
+        const parts = token.split(".");
+        if (parts.length === 3) {
+          const payload = JSON.parse(
+            Buffer.from(parts[1], "base64").toString("utf-8"),
+          );
+          if (payload.exp && payload.exp * 1000 > Date.now()) {
+            authenticated = true;
+          }
+        }
+      }
+    } catch {
+      // ignore parsing error
+    }
+  }
+
   const isSignIn = isSignInPage(request);
   if (isSignIn) {
-    if (await convexAuth.isAuthenticated()) {
+    if (authenticated) {
       return nextjsMiddlewareRedirect(request, "/");
     }
     return I18nMiddleware(request);
   }
 
-  if (!(await convexAuth.isAuthenticated())) {
+  if (!authenticated) {
     return nextjsMiddlewareRedirect(request, "/login");
   }
 

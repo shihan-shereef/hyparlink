@@ -1581,6 +1581,7 @@ export function VoicePanel({
   hoveredElementId = null,
   onHoverElement,
   projectScenes = [],
+  onSaveProject,
 }) {
   const [captionPanelTab, setCaptionPanelTab] = useState("caption");
   const [activeRightTab, setActiveRightTab] = useState(activeTool === "elements" || (projectElements && projectElements.length > 0) ? "elements" : "inspector");
@@ -1872,6 +1873,7 @@ export function VoicePanel({
             currentTime={currentTime}
             onSeekTo={seekTo}
             scenes={projectScenes}
+            onSaveProject={onSaveProject}
           />
         ) : (
           <>

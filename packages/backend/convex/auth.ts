@@ -8,6 +8,7 @@ import { ResendOTPReset, ResendOTPVerify } from "./passwordProviders";
 // Full auth: email+password (with strength policy, email verification, and password reset),
 // magic email OTP, and Google OAuth (set AUTH_GOOGLE_ID/AUTH_GOOGLE_SECRET to activate).
 const PasswordWithFlows = Password({
+  verify: ResendOTPVerify,
   reset: ResendOTPReset,
   validatePasswordRequirements: (password: string) => {
     if (
@@ -29,7 +30,13 @@ const GoogleProvider = Google({
 });
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  providers: [PasswordWithFlows, ResendOTP, GoogleProvider],
+  providers: [
+    PasswordWithFlows,
+    ResendOTP,
+    ResendOTPVerify,
+    ResendOTPReset,
+    GoogleProvider,
+  ],
   // Brute-force protection: per-email token bucket (default is 10/hr) on password + OTP.
   signIn: { maxFailedAttempsPerHour: 5 },
   callbacks: {

@@ -183,7 +183,7 @@ export function ExportSettingsPanel({
         <button
           className="export-confirm-button"
           type="button"
-          disabled={(!isAudio && (!imageSrc || checking)) || !runtimeAvailable || estimate.duration <= 0}
+          disabled={checking || !runtimeAvailable || estimate.duration <= 0}
           onClick={() => {
             onClose();
             handleExportVideo({
@@ -194,7 +194,7 @@ export function ExportSettingsPanel({
           <FileArrowDown size={17} weight="bold" />
           {isAudio
             ? t(estimate.duration > 0 ? "audioExportStart" : "audioExportNoContent")
-            : imageSrc ? t("startExport") : t("addVisualBeforeExport")}
+            : t("startExport")}
         </button>
       </div>
     </>

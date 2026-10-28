@@ -21,6 +21,7 @@ export function ElementsCanvasOverlay({
   const [inlineEditingId, setInlineEditingId] = useState(null);
 
   // Helper to dynamically measure exact bounding rectangle from the live composition iframe DOM
+  // Helper to dynamically measure exact bounding rectangle from the live composition iframe DOM
   const getDynamicPlacement = (el) => {
     if (!compositionIframeRef?.current) return null;
     try {
@@ -30,71 +31,101 @@ export function ElementsCanvasOverlay({
 
       let targetEl = null;
 
+      // Collect all documents to search (root doc and any subcomposition iframes)
+      const docsToCheck = [doc];
+      try {
+        const subIframes = doc.querySelectorAll("iframe");
+        for (const subIfr of subIframes) {
+          const sd = subIfr.contentDocument || subIfr.contentWindow?.document;
+          if (sd && !docsToCheck.includes(sd)) docsToCheck.push(sd);
+        }
+      } catch (err) {}
+
       // 1. Try matching by sceneIndex or sceneId
       let sceneEl = null;
       if (el.sceneIndex !== undefined) {
         sceneEl = doc.getElementById(`sc${el.sceneIndex}`) ||
                   doc.querySelector(`[data-scene="${el.sceneIndex + 1}"]`) ||
                   doc.getElementById(`scene${el.sceneIndex + 1}`) ||
+                  doc.getElementById(`scene-0${el.sceneIndex + 1}`) ||
+                  doc.getElementById(`scene-${el.sceneIndex + 1}`) ||
                   doc.querySelectorAll(".scene")[el.sceneIndex];
       }
       if (!sceneEl && el.sceneId) {
-        sceneEl = doc.getElementById(el.sceneId) || doc.querySelector(`[data-scene="${el.sceneId}"]`);
+        sceneEl = doc.getElementById(el.sceneId) ||
+                  doc.querySelector(`[data-scene="${el.sceneId}"]`) ||
+                  doc.querySelector(`[data-composition-id="${el.sceneId}"]`);
       }
 
       if (sceneEl) {
-        if (el.field === "title" || el.tag === "h1" || el.tag === "h2" || el.tag === "h3" || el.type === "heading") {
-          targetEl = sceneEl.querySelector(".headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
-        } else if (el.field === "sub" || el.field === "subtitle" || el.field === "description" || el.tag === "p" || el.type === "text") {
-          targetEl = sceneEl.querySelector(".description, .sub.sb, .sub, p");
-        } else if (el.field === "kicker" || el.field === "eyebrow") {
-          targetEl = sceneEl.querySelector(".eyebrow, .kicker.k, .kicker");
-        } else if (el.field === "time" || el.field === "badge" || el.tag === "pill") {
-          targetEl = sceneEl.querySelector(".pill.k, .pill.k2, .pill, .scene-number, .date, .corner-mark, .bottom-label");
-        } else if (el.field === "n" || el.field === "number" || el.tag === "num") {
-          targetEl = sceneEl.querySelector(".num.nm, .num, .scene-number");
-        } else if (el.field === "cta" || el.type === "button") {
-          targetEl = sceneEl.querySelector(".pill.k2, .pill, button, .cta, a.btn");
+        let searchContexts = [sceneEl];
+        const innerIfr = sceneEl.querySelector("iframe");
+        if (innerIfr) {
+          const sd = innerIfr.contentDocument || innerIfr.contentWindow?.document;
+          if (sd) searchContexts.unshift(sd);
+        }
+
+        for (const ctx of searchContexts) {
+          if (el.field === "title" || el.tag === "h1" || el.tag === "h2" || el.tag === "h3" || el.type === "heading") {
+            targetEl = ctx.querySelector(".headline, .hero-headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
+          } else if (el.field === "sub" || el.field === "subtitle" || el.field === "description" || el.tag === "p" || el.type === "text") {
+            targetEl = ctx.querySelector(".description, .hero-subtitle, .sub.sb, .sub, p");
+          } else if (el.field === "kicker" || el.field === "eyebrow") {
+            targetEl = ctx.querySelector(".eyebrow, .kicker.k, .kicker");
+          } else if (el.field === "time" || el.field === "badge" || el.tag === "pill") {
+            targetEl = ctx.querySelector(".pill.k, .pill.k2, .badge-pill, .pill, .scene-number, .date, .corner-mark, .bottom-label");
+          } else if (el.field === "n" || el.field === "number" || el.tag === "num") {
+            targetEl = ctx.querySelector(".num.nm, .num, .scene-number");
+          } else if (el.field === "cta" || el.type === "button") {
+            targetEl = ctx.querySelector(".pill.k2, .pill, button, .cta, a.btn, a");
+          }
+          if (targetEl) break;
         }
       }
 
-      // 2. If not found in specific scene, check active/visible scene in iframe
+      // 2. If not found in specific scene, check active/visible scene in all documents
       if (!targetEl) {
-        const scenes = doc.querySelectorAll(".scene");
-        for (const scene of scenes) {
-          const win = iframe.contentWindow;
-          const style = win?.getComputedStyle(scene);
-          if (style && style.visibility !== "hidden" && style.display !== "none" && style.opacity !== "0") {
-            let candidate = null;
-            if (el.field === "title" || el.tag === "h1" || el.type === "heading") {
-              candidate = scene.querySelector(".headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
-            } else if (el.field === "sub" || el.field === "description" || el.tag === "p") {
-              candidate = scene.querySelector(".description, .sub.sb, .sub, p");
-            } else if (el.field === "kicker" || el.field === "eyebrow") {
-              candidate = scene.querySelector(".eyebrow, .kicker.k, .kicker");
-            } else if (el.field === "time" || el.field === "badge" || el.tag === "pill") {
-              candidate = scene.querySelector(".pill.k, .pill.k2, .pill, .scene-number, .date, .corner-mark, .bottom-label");
-            }
-            if (candidate) {
-              targetEl = candidate;
-              break;
+        for (const currentDoc of docsToCheck) {
+          const scenes = currentDoc.querySelectorAll(".scene, [data-composition-id], section");
+          for (const scene of scenes) {
+            const win = currentDoc.defaultView || iframe.contentWindow;
+            const style = win?.getComputedStyle(scene);
+            if (!style || style.display !== "none") {
+              let candidate = null;
+              if (el.field === "title" || el.tag === "h1" || el.type === "heading") {
+                candidate = scene.querySelector(".headline, .hero-headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
+              } else if (el.field === "sub" || el.field === "description" || el.tag === "p") {
+                candidate = scene.querySelector(".description, .hero-subtitle, .sub.sb, .sub, p");
+              } else if (el.field === "kicker" || el.field === "eyebrow") {
+                candidate = scene.querySelector(".eyebrow, .kicker.k, .kicker");
+              } else if (el.field === "time" || el.field === "badge" || el.tag === "pill") {
+                candidate = scene.querySelector(".pill.k, .pill.k2, .badge-pill, .pill, .scene-number, .date, .corner-mark, .bottom-label");
+              }
+              if (candidate) {
+                targetEl = candidate;
+                break;
+              }
             }
           }
+          if (targetEl) break;
         }
       }
 
-      // 3. Fallback: match by text content in document
+      // 3. Fallback: match by text content in all documents
       if (!targetEl && el.text) {
         const needle = el.text.trim().toLowerCase();
         const shortNeedle = needle.slice(0, 15);
         if (shortNeedle.length >= 2) {
-          const candidates = doc.querySelectorAll(".headline, .title, .mega, .big, .description, .sub, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, h1, h2, h3, h4, p, span, button");
-          for (const cand of candidates) {
-            const candText = (cand.textContent || "").trim().toLowerCase();
-            if (candText.includes(shortNeedle)) {
-              targetEl = cand;
-              break;
+          for (const currentDoc of docsToCheck) {
+            const candidates = currentDoc.querySelectorAll(".headline, .hero-headline, .title, .mega, .big, .description, .hero-subtitle, .sub, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, .badge-pill, h1, h2, h3, h4, p, span, button, a");
+            for (const cand of candidates) {
+              const candText = (cand.textContent || "").trim().toLowerCase();
+              if (candText.includes(shortNeedle)) {
+                targetEl = cand;
+                break;
+              }
             }
+            if (targetEl) break;
           }
         }
       }
@@ -102,14 +133,14 @@ export function ElementsCanvasOverlay({
       if (!targetEl) return null;
 
       const r = targetEl.getBoundingClientRect();
-      if (!r || r.width <= 0 || r.height <= 0) return null;
+      if (!r || r.width <= 0) return null;
 
       const padX = 8;
       const padY = 4;
       const left = Math.max(0, r.left - padX);
       const top = Math.max(0, r.top - padY);
-      const width = r.width + padX * 2;
-      const height = r.height + padY * 2;
+      const width = Math.max(80, r.width + padX * 2);
+      const height = Math.max(30, (r.height > 0 ? r.height : 40) + padY * 2);
 
       return {
         leftPercent: (left / 1920) * 100,
@@ -210,7 +241,7 @@ export function ElementsCanvasOverlay({
       style={{
         position: "absolute",
         inset: 0,
-        pointerEvents: isPlaying ? "none" : "auto",
+        pointerEvents: "none",
         zIndex: 40,
         overflow: "hidden",
       }}
@@ -321,10 +352,10 @@ export function ElementsCanvasOverlay({
         const boxTop = dynamic ? `${dynamic.topPercent}%` : `${posY}%`;
         const boxWidth = dynamic
           ? `${dynamic.widthPercent}%`
-          : (isTopLeft && el.placement?.width ? `${(el.placement.width / 1920) * 100}%` : "auto");
+          : (el.placement?.width ? `${Math.min(95, (el.placement.width / 1920) * 100)}%` : "auto");
         const boxHeight = dynamic
           ? `${dynamic.heightPercent}%`
-          : (isTopLeft && el.placement?.height ? `${(el.placement.height / 1080) * 100}%` : "auto");
+          : (el.placement?.height ? `${Math.min(95, (el.placement.height / 1080) * 100)}%` : "auto");
         const boxTransform = isTopLeft ? "none" : "translate(-50%, -50%)";
 
         return (
@@ -359,10 +390,13 @@ export function ElementsCanvasOverlay({
                 left: boxLeft,
                 top: boxTop,
                 width: boxWidth,
-                minHeight: boxHeight,
+                minWidth: "80px",
+                minHeight: boxHeight && boxHeight !== "auto" ? boxHeight : "32px",
                 transform: boxTransform,
                 cursor: isSelected ? "move" : "pointer",
                 userSelect: "none",
+                pointerEvents: "auto",
+                background: "rgba(0, 0, 0, 0.001)",
                 zIndex: isSelected ? 30 : isHovered ? 20 : 10,
                 maxWidth: "96%",
                 boxSizing: "border-box",

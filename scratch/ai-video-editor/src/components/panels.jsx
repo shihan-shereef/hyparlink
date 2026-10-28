@@ -1653,6 +1653,7 @@ export function ToolPanel(props) {
       title={t("filters")}
       kind="effect"
       options={FILTER_OPTIONS}
+      previewImage={getSegmentFilterPreview(selectedVisualSegment) || SAMPLE_IMAGE}
       selectedId={selectedVisualSegment?.filterId ?? selectedFilterId}
       trOption={trOption}
       onSelect={(id) => {
@@ -1814,12 +1815,22 @@ function ColorWheelsPanel({ t, value, keyframes = [], localTime = 0, onChange })
 }
 
 function getSegmentFilterPreview(segment) {
-  if (!segment) return "";
+  if (!segment) return SAMPLE_IMAGE;
+  const isHtml = (url) => typeof url === "string" && (url.endsWith(".html") || url.includes(".html") || url.includes("/raw/index.html"));
   if (segment.type === "video") {
     const firstFrame = Array.isArray(segment.trackFrames) ? segment.trackFrames[0] : null;
-    return (typeof firstFrame === "string" ? firstFrame : firstFrame?.src) || segment.thumbnail || "";
+    const frameSrc = (typeof firstFrame === "string" ? firstFrame : firstFrame?.src) || segment.thumbnail || "";
+    if (frameSrc && !isHtml(frameSrc)) return frameSrc;
   }
-  return segment.src || segment.thumbnail || "";
+  if (segment.thumbnail && !isHtml(segment.thumbnail)) return segment.thumbnail;
+  if (Array.isArray(segment.thumbnails) && segment.thumbnails.length > 0 && !isHtml(segment.thumbnails[0])) return segment.thumbnails[0];
+  if (Array.isArray(segment.assetImages) && segment.assetImages.length > 0 && !isHtml(segment.assetImages[0])) return segment.assetImages[0];
+  if (Array.isArray(segment.assets) && segment.assets.length > 0) {
+    const firstAssetUrl = typeof segment.assets[0] === "string" ? segment.assets[0] : segment.assets[0]?.url;
+    if (firstAssetUrl && !isHtml(firstAssetUrl)) return firstAssetUrl;
+  }
+  if (segment.src && !isHtml(segment.src)) return segment.src;
+  return SAMPLE_IMAGE;
 }
 
 const SPEED_GRAPH = Object.freeze({ width: 340, height: 198, left: 34, right: 10, top: 14, bottom: 27 });
@@ -2285,7 +2296,11 @@ export function VisualEffectsPanel({
 }
 
 function VisualChoicePanel({ title, hideTitle = false, previewImage = SAMPLE_IMAGE, allowFallbackPreview = true, kind, options, selectedId, trOption = (name) => name, onSelect }) {
-  const resolvedPreviewImage = previewImage || (allowFallbackPreview ? SAMPLE_IMAGE : "");
+  const isHtml = (url) => typeof url === "string" && (url.endsWith(".html") || url.includes(".html") || url.includes("/raw/index.html"));
+  const safePreviewImage = (!previewImage || isHtml(previewImage))
+    ? (allowFallbackPreview ? SAMPLE_IMAGE : "")
+    : previewImage;
+  const resolvedPreviewImage = safePreviewImage || (allowFallbackPreview ? SAMPLE_IMAGE : "");
   return (
     <div className="tool-panel">
       {!hideTitle ? <h2>{title}</h2> : null}
@@ -2310,7 +2325,19 @@ function VisualChoicePanel({ title, hideTitle = false, previewImage = SAMPLE_IMA
             }}
           >
             <span className={`visual-choice-thumb ${resolvedPreviewImage ? "has-source-preview" : "is-preview-empty"}`} aria-hidden="true">
-              {resolvedPreviewImage && kind !== "transition" ? <img src={resolvedPreviewImage} alt="" crossOrigin="anonymous" draggable={false} /> : null}
+              {resolvedPreviewImage && kind !== "transition" ? (
+                <img
+                  src={resolvedPreviewImage}
+                  alt=""
+                  crossOrigin="anonymous"
+                  draggable={false}
+                  onError={(e) => {
+                    if (!e.currentTarget.src.includes("sample-portrait.png")) {
+                      e.currentTarget.src = SAMPLE_IMAGE;
+                    }
+                  }}
+                />
+              ) : null}
             </span>
             <span className="visual-choice-label">
               <span>{trOption(option.name, option)}</span>

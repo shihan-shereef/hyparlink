@@ -73,6 +73,7 @@ export function Topbar({
   handleExportProject,
   handleImportProject,
   projectFileInputRef,
+  onSaveProject,
 }) {
   const ht = (key) => hostText(activeLanguage, key);
   const [namingProject, setNamingProject] = useState(false);
@@ -281,6 +282,22 @@ export function Topbar({
           {isPlaying ? <Pause size={16} weight="fill" /> : <Play size={16} weight="fill" />}
           <span>{t("preview")}</span>
         </button>
+        {onSaveProject ? (
+          <button
+            className="preview-button"
+            type="button"
+            title="Save changes to HTML composition project"
+            onClick={onSaveProject}
+            style={{
+              background: "linear-gradient(135deg, #10b981, #059669)",
+              color: "#ffffff",
+              border: "none",
+              fontWeight: 600,
+            }}
+          >
+            <span>Save HTML</span>
+          </button>
+        ) : null}
         <div className="menu-anchor" ref={exportAnchorRef}>
           <button
             className="export-button"

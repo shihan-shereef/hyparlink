@@ -57,6 +57,7 @@ export function ElementsInspector({
   currentTime = 0,
   onSeekTo,
   scenes = [],
+  onSaveProject,
 }) {
   const [filterScene, setFilterScene] = useState("all");
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -102,7 +103,29 @@ export function ElementsInspector({
             </span>
           </div>
 
-          <div style={{ position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", position: "relative" }}>
+            {onSaveProject ? (
+              <button
+                type="button"
+                onClick={onSaveProject}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  background: "linear-gradient(135deg, #10b981, #059669)",
+                  border: "none",
+                  borderRadius: "6px",
+                  padding: "5px 10px",
+                  color: "#ffffff",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+                title="Save changes to HTML project file"
+              >
+                <span>Save HTML</span>
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setShowAddMenu(!showAddMenu)}

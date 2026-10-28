@@ -135,6 +135,23 @@ export const TimelineThumbnails = memo(function TimelineThumbnails({
     }
   }
   const isPortraitVideo = type === "video" && (segment.height || 0) > (segment.width || 0);
+  const isHtmlSource = !src || typeof src !== "string" || src.endsWith(".html") || src.includes(".html") || src.includes("/raw/index.html");
+  const cellImages = (Array.isArray(segment?.thumbnails) && segment.thumbnails.length > 0)
+    ? segment.thumbnails
+    : (Array.isArray(segment?.assetImages) && segment.assetImages.length > 0)
+      ? segment.assetImages
+      : (Array.isArray(segment?.assets) && segment.assets.length > 0)
+        ? segment.assets.map((a) => (typeof a === "string" ? a : a.url)).filter(Boolean)
+        : (segment?.thumbnail ? [segment.thumbnail] : []);
+
+  const getCellSrc = (index) => {
+    if (cellImages.length > 0) {
+      return cellImages[index % cellImages.length];
+    }
+    if (!isHtmlSource) return src;
+    return segment?.thumbnail || "/assets/sample-portrait.png";
+  };
+
   return (
     <div
       className={overlay ? "visual-overlay-thumbnails" : `image-thumbnails ${type === "video" ? "is-video" : ""} ${isPortraitVideo ? "is-portrait-video" : ""}`}
@@ -151,7 +168,18 @@ export const TimelineThumbnails = memo(function TimelineThumbnails({
           ))
           : <video src={src} crossOrigin="anonymous" muted playsInline preload="metadata" draggable={false} />
         : Array.from({ length: Math.max(1, imageFrameCount) }, (_, index) => (
-          <img src={src} alt="" crossOrigin="anonymous" draggable={false} key={index} />
+          <img
+            src={getCellSrc(index)}
+            alt=""
+            crossOrigin="anonymous"
+            draggable={false}
+            key={index}
+            onError={(e) => {
+              if (!e.currentTarget.src.includes("sample-portrait.png")) {
+                e.currentTarget.src = "/assets/sample-portrait.png";
+              }
+            }}
+          />
         ))}
       {type === "video" ? <canvas ref={liveCanvasRef} aria-hidden="true" style={{
         position: "absolute", top: 0, left: `${Math.max(0, liveCellIndex) / Math.max(1, sampledFrames.length) * 100}%`,

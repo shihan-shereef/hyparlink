@@ -319,15 +319,28 @@ export function PreviewStage({
     if (!compositionUrl || !compositionIframeRef?.current) return;
     try {
       const win = compositionIframeRef.current.contentWindow;
-      if (!win) return;
-      const tls = win.__timelines ? Object.values(win.__timelines) : [];
-      if (tls.length > 0) {
-        const tl = tls[0];
-        if (isPlaying) {
-          if (tl.paused()) tl.play(currentTime);
-        } else {
-          tl.pause();
-          tl.seek(currentTime);
+      if (win) {
+        // Direct control of any window.__timelines, win.tl, or win.master
+        const tls = win.__timelines ? Object.values(win.__timelines) : [];
+        if (win.keralaTourismTimeline && !tls.includes(win.keralaTourismTimeline)) tls.push(win.keralaTourismTimeline);
+        if (win.timeline && !tls.includes(win.timeline)) tls.push(win.timeline);
+        if (win.tl && !tls.includes(win.tl)) tls.push(win.tl);
+        if (win.master && !tls.includes(win.master)) tls.push(win.master);
+        tls.forEach((tl) => {
+          if (!tl || typeof tl.seek !== "function") return;
+          if (typeof tl.pause === "function") tl.pause();
+          tl.seek(currentTime, false);
+        });
+
+        // Always dispatch postMessage to ensure seamless sync even across origins/nested frames
+        win.postMessage({
+          type: "HYPERLINK_SEEK",
+          time: currentTime,
+          isPlaying: isPlaying,
+        }, "*");
+
+        if (!isPlaying) {
+          win.postMessage({ type: "HYPERLINK_PAUSE", time: currentTime }, "*");
         }
       }
     } catch {
@@ -817,16 +830,17 @@ export function PreviewStage({
                       transformOrigin: "top left",
                       transform: `scale(${frameWidth / 1920}, ${frameHeight / 1080})`,
                       border: "none",
-                      pointerEvents: "none",
+                      pointerEvents: isPlaying ? "none" : "auto",
                       zIndex: 1,
                       overflow: "hidden",
                       opacity: 1,
                       visibility: "visible",
                       background: "#000",
+                      filter: selectedFilterCss || "none",
                     }}
                   />
                 ) : null}
-                {previewVisualType === "video" ? <video
+                {!compositionUrl && previewVisualType === "video" ? <video
                   key={previewVisualSrc}
                   ref={previewVideoRef}
                   className="preview-video"

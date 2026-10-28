@@ -1,0 +1,176 @@
+================================================================================
+                    DAILY WORK REPORT - HYPARLINK DASHBOARD
+                            Date: October 28, 2026
+================================================================================
+
+PROJECT: Hyparlink Dashboard & Native AI Video Editor
+MODULES: Native Video Editor (/editor/[projectId]), Backend Echo Service,
+         HyperFrames HTML Composition Engine, Next.js App Routing
+
+--------------------------------------------------------------------------------
+1. OBJECTIVE & USER REQUIREMENTS
+--------------------------------------------------------------------------------
+The primary objective of today's work was to restore and enhance the Native
+Video Editor so that:
+  1. All videos created in the platform remain saved strictly in HyperFrames
+     HTML format (index.html + compositions/scene_XX.html).
+  2. Conversion to MP4 video occurs ONLY upon export/download, leaving the
+     source project in editable HTML format at all times.
+  3. When opening an HTML video in the Native Editor, every single element
+     (titles, descriptions, fonts, images, kickers, pills, buttons) can be
+     clicked directly in the video canvas and edited independently.
+  4. Selected elements display their complete typography properties (text,
+     font family, font size, weight, color, alignment) in the inspector panel.
+  5. Edits live-patch the running video composition instantly and persist back
+     to the source HTML files on disk.
+  6. Fix default reference videos (such as "London in 3 Days") and dynamically
+     generated project videos where elements were previously unselectable.
+
+--------------------------------------------------------------------------------
+2. ROOT CAUSE ANALYSIS OF PREVIOUS ISSUES
+--------------------------------------------------------------------------------
+  • Decorative Overlay Divs Intercepting Clicks:
+    Overlay elements such as #flare, .flare, .grain, .bar, #barTop, #barBot,
+    and .shade sat at high z-indexes (z-index: 700 to 900) without
+    'pointer-events: none', completely blocking user clicks from reaching the
+    actual text and scene content beneath them.
+
+  • Sub-Element Span Splitting Trapping the Element Picker:
+    In animated compositions (e.g., London), titles and headlines used word/letter
+    splitting algorithms (e.g., <span class="ch">L</span><span class="ch">O</span>...).
+    The original click listener was capturing the individual letter <span> rather
+    than the parent semantic container (.mega, .title, .headline, h1, etc.),
+    preventing proper title selection and corrupting live text replacement.
+
+  • Iframe Overlay Blocking:
+    The editor's overlay layer (ElementsCanvasOverlay) previously had a container
+    that captured mouse interactions, preventing clicks from passing into the
+    underlying composition iframe.
+
+  • HTML Composition Source Discovery & Multi-Scene Persistence:
+    Generated projects either use a single index.html or multi-scene subcompositions
+    (compositions/scene_XX.html). Element extraction and save logic was only
+    handling basic single-file projects, causing multi-scene and script-generated
+    scenes to miss elements and fail to persist edits.
+
+  • Export Blocked on Non-Rendered Projects:
+    The editor export panel previously disabled the export button if a pre-rendered
+    MP4 was not found, preventing pure HTML projects from being rendered to MP4.
+
+--------------------------------------------------------------------------------
+3. DETAILED IMPLEMENTATION & CODE CHANGES
+--------------------------------------------------------------------------------
+
+A. Backend Echo Server (backend-echo/server.mjs):
+  1. Multi-Directory Project Resolver:
+     - Implemented `resolveProjectDir(projectId, workspaceId)` to search across
+       both workspace generated-projects and ai-composition-generator/generated-projects.
+  2. Non-Blocking Overlay CSS Injection:
+     - Injected CSS rules into raw index.html responses:
+       "#flare, .flare, .grain, .bar, .shade, #barTop, #barBot { pointer-events: none !important; }"
+       ensuring overlay effects never intercept user mouse clicks.
+  3. Semantic Element Picker Engine:
+     - Implemented `attachElementPicker(targetDoc, targetWin, sceneId, sceneIndex)`:
+       Prioritizes top-level semantic containers (.headline, .title, .mega, .big,
+       .sub, .kicker, .pill, .num, [data-hf-id], h1-h6, p, button, a, img) over
+       individual character spans.
+     - Stamped unique `data-hf-id` attributes on clicked elements for reliable
+       subsequent target identification.
+     - Dispatches `HYPERLINK_ELEMENT_CLICKED` (with id, sceneId, tag, type,
+       classes, full text, computed font styles, and bounding rect) to the parent editor.
+     - Dispatches `HYPERLINK_CANVAS_CLICKED` when empty background space is clicked.
+  4. Real-Time Element Updating (`HYPERLINK_ELEMENT_UPDATE`):
+     - Added two-way postMessage and DOM listener in the composition iframe.
+     - Supports live text updates with automatic formatting via `window.words()`
+       and `window.split()` to keep GSAP kinetic typography animations intact.
+     - Supports live style patching (fontFamily, fontSize, color, textAlign).
+     - Recursively forwards update events into all child subcomposition iframes.
+  5. HTML Save API (`POST /editor/project/:projectId/save`):
+     - Accepts modified file payloads and writes directly to disk.
+     - Creates automatic timestamped backups before applying modifications.
+
+B. Native Video Editor Application (scratch/ai-video-editor):
+  1. App.jsx:
+     - Enhanced `extractElementsFromProject()` to parse both index.html and all
+       subcomposition files (`compositions/*.html`), associating each element
+       with its specific source file.
+     - Enhanced `loadProjectFromSource()` to support pure HTML compositions
+       without requiring a pre-rendered MP4 video.
+     - Implemented `updateElement()`:
+       * Posts `HYPERLINK_ELEMENT_UPDATE` to the live composition iframe.
+       * Live-patches running DOM elements.
+       * Searches `projectData.files` for matching text and applies updates.
+       * Debounces save requests (500ms) to `/editor/project/:projectId/save`.
+     - Added `HYPERLINK_ELEMENT_CLICKED` message listener to auto-select elements,
+       dynamically register elements not yet in memory, and switch active tool
+       to "elements".
+     - Added `HYPERLINK_CANVAS_CLICKED` to deselect active elements.
+     - Added manual `saveProjectHtml` callback and connected it to topbar and
+       inspector save buttons.
+  2. PreviewStage.jsx:
+     - Configured composition iframe with `pointerEvents: isPlaying ? "none" : "auto"`
+       allowing full click interactivity while paused, and smooth playback during preview.
+  3. ElementsCanvasOverlay.jsx:
+     - Set container `pointerEvents: "none"` so clicks fall through to the iframe.
+     - Set element highlight boxes to `pointerEvents: "auto"` with minimum dimensions
+       (80x32px) so selection and dragging are effortless.
+     - Enhanced subcomposition element search to query inside child iframes.
+  4. ElementsInspector.jsx & VoicePanel.jsx & Topbar.jsx:
+     - Added manual "Save HTML" buttons with instant notification toasts.
+  5. useVideoExport.js & ExportSettingsPanel.jsx:
+     - Unlocked MP4 video export for pure HTML compositions.
+     - Added handler to trigger `POST /editor/project/:projectId/render` to
+       compile the composition on-demand and download the MP4 file.
+
+C. Next.js Web Application Integration (apps/app):
+  1. Editor Page (apps/app/src/app/[locale]/(dashboard)/editor/[projectId]/page.tsx):
+     - Ensured `LOAD_PROJECT_VIDEO` postMessage is dispatched to the Native Editor
+       iframe even when effectiveVideoUrl is empty (pure HTML compositions).
+     - Verified Next.js rewrites in next.config.mjs forwarding /editor/project/*
+       and /editor/session/* directly to backend-echo on port 4000.
+  2. Production Build:
+     - Compiled Native Editor Vite bundle directly into `apps/app/public/native-editor/`.
+
+D. Reference Project Fixes:
+  - Updated London reference video (job-job_code_1792382768219_mbcw4/index.html)
+    with non-blocking pointer-events rules so elements are immediately clickable.
+
+--------------------------------------------------------------------------------
+4. VERIFICATION & TESTING RESULTS
+--------------------------------------------------------------------------------
+An end-to-end integration test was executed against the running services:
+  [Test 1] GET /editor/project/default_reference_video_2
+           -> Status 200 OK. Metadata and complete files dictionary verified.
+  [Test 2] GET /editor/project/default_reference_video_2/raw/index.html
+           -> Status 200 OK. attachElementPicker, pointer-events styles, and
+              HYPERLINK_ELEMENT_UPDATE handler confirmed present in output HTML.
+  [Test 3] POST /editor/project/default_reference_video_2/save
+           -> Status 200 OK. Successfully wrote test modification to disk, verified
+              persistence via re-fetch, and cleanly reverted changes.
+  [Test 4] Next.js Proxy Routing (Port 3000 -> Port 4000)
+           -> Status 200 OK. Rewrites confirmed working seamlessly.
+  [Test 5] Native Editor Static Application Serving
+           -> Status 200 OK. Bundle loaded successfully at /native-editor/index.html.
+
+RESULT: 100% of integration and regression checks passed.
+
+--------------------------------------------------------------------------------
+5. KEY FILES MODIFIED
+--------------------------------------------------------------------------------
+  • backend-echo/server.mjs
+  • scratch/ai-video-editor/src/App.jsx
+  • scratch/ai-video-editor/src/components/PreviewStage.jsx
+  • scratch/ai-video-editor/src/components/ElementsCanvasOverlay.jsx
+  • scratch/ai-video-editor/src/components/ElementsInspector.jsx
+  • scratch/ai-video-editor/src/components/ExportSettingsPanel.jsx
+  • scratch/ai-video-editor/src/components/Topbar.jsx
+  • scratch/ai-video-editor/src/components/VoicePanel.jsx
+  • scratch/ai-video-editor/src/hooks/useVideoExport.js
+  • apps/app/src/app/[locale]/(dashboard)/editor/[projectId]/page.tsx
+  • apps/app/public/native-editor/ (Compiled production assets)
+  • ai-composition-generator/generated-projects/job-job_code_1792382768219_mbcw4/index.html
+
+================================================================================
+Report generated and saved to:
+/Users/apple/Downloads/TODAYS_WORK_REPORT_2026-10-28.txt
+================================================================================

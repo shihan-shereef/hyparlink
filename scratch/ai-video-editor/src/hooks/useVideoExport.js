@@ -41,7 +41,7 @@ export function useVideoExport(d) {
     if (options.signal?.aborted) return { status: "canceled" };
     const requestedSettings = normalizeExportSettings(options.settings || d.exportSettings);
     const audioOnly = requestedSettings.mediaType === "audio";
-    if (!audioOnly && !d.imageSrc) {
+    if (!audioOnly && !d.imageSrc && !d.loadedProjectIdRef?.current && !d.compositionUrl) {
       d.notify(d.t("exportVisualRequired"));
       return { status: "blocked", error: d.t("exportVisualRequired") };
     }
@@ -86,8 +86,39 @@ export function useVideoExport(d) {
       reportProgress({ progress: 100, phase, phaseKey: "exportComplete" });
       await new Promise((resolve) => setTimeout(resolve, 450));
     };
-    let actualPipeline = "";
     try {
+      if (!audioOnly && !d.imageSrc && d.loadedProjectIdRef?.current) {
+        const pId = d.loadedProjectIdRef.current;
+        d.setExportPhase("Compiling HyperFrames HTML composition to production MP4...");
+        progress({ progress: 20, phase: "Rendering HTML composition to MP4..." });
+        const res = await fetch(`/editor/project/${encodeURIComponent(pId)}/render`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            resolution: exportSettings.resolution ? `${exportSettings.width || 1920}x${exportSettings.height || 1080}` : "1080p",
+            fps: Number(exportSettings.frameRate) || 30,
+            format: "mp4",
+          }),
+        });
+        const renderData = await res.json();
+        if (renderData && renderData.videoUrl) {
+          progress({ progress: 95, phaseKey: "exportSaveFile", phaseParams: { format: "MP4" } });
+          const link = document.createElement("a");
+          link.href = renderData.videoUrl;
+          link.download = `${pId}-final.mp4`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          d.setStatus("done");
+          d.setStatusText(localize("exportComplete"));
+          await finish(localize("exportComplete"));
+          notify("MP4 video compiled and downloaded successfully!");
+          return { status: "success", fileName: `${pId}-final.mp4`, extension: "mp4", byteSize: 0, mimeType: "video/mp4", sidecars: [] };
+        } else {
+          throw new Error(renderData?.error || "Render pipeline did not return video URL");
+        }
+      }
+
       const exportAudio = exportSettings.audio !== "none";
       const captionDelivery = exportSettings.captions || "burned";
       const burnCaptions = !audioOnly && captionDelivery !== "none" && d.captionsEnabled && d.trackVisibility.caption;

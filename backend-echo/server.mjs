@@ -245,7 +245,12 @@ async function resolveProjectDir(projectId, requestedWorkspaceId) {
   // 1. Direct match in project-map
   if (map[projectId]) {
     const entry = map[projectId];
-    const targetDir = typeof entry === "string" ? entry : entry.dir;
+    let targetDir = typeof entry === "string" ? entry : entry.dir;
+    if (targetDir && !fs.existsSync(targetDir) && targetDir.includes("/generated-projects/")) {
+      const rel = targetDir.split("/generated-projects/")[1];
+      const localTarget = path.join(PROJECTS_DIR, rel);
+      if (fs.existsSync(localTarget)) targetDir = localTarget;
+    }
     const entryWs = typeof entry === "object" ? entry.workspaceId : null;
 
     // Strict cross-workspace isolation
@@ -281,14 +286,19 @@ async function resolveProjectDir(projectId, requestedWorkspaceId) {
       return { dir: targetDir, workspaceId: entry.workspaceId || entryWs };
   }
 
-  // 2. Scan generated-projects subdirectories
-  if (fs.existsSync(PROJECTS_DIR)) {
-    const entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true });
+  // 2. Scan generated-projects subdirectories across both candidate paths
+  const candidateDirs = [
+    PROJECTS_DIR,
+    path.resolve(WORKSPACE_ROOT, "generated-projects"),
+  ].filter((d, i, self) => fs.existsSync(d) && self.indexOf(d) === i);
+
+  for (const cDir of candidateDirs) {
+    const entries = fs.readdirSync(cDir, { withFileTypes: true });
 
     // Look for marker file
     for (const e of entries) {
       if (e.isDirectory()) {
-        const full = path.join(PROJECTS_DIR, e.name);
+        const full = path.join(cDir, e.name);
         const marker = path.join(full, ".convex-project-id");
         if (fs.existsSync(marker)) {
           const markerId = fs.readFileSync(marker, "utf-8").trim();
@@ -310,7 +320,7 @@ async function resolveProjectDir(projectId, requestedWorkspaceId) {
         e.isDirectory() &&
         (e.name === projectId || e.name.includes(projectId))
       ) {
-        const full = path.join(PROJECTS_DIR, e.name);
+        const full = path.join(cDir, e.name);
         recordProjectMapping(
           projectId,
           full,
@@ -3310,14 +3320,163 @@ const server = http.createServer(async (req, res) => {
             );
           }
 
-          // Inject HyperFrames Runtime Scene Composer for multi-scene subcompositions & video sync
+          // Inject HyperFrames Runtime Scene Composer for multi-scene subcompositions, element picking & video sync
           const composerScript = `
+<style id="hyperframes-interactive-editor-styles">
+  #flare, .flare, .grain, .bar, .shade, #barTop, #barBot {
+    pointer-events: none !important;
+  }
+  h1, h2, h3, h4, h5, h6, p, span, a, button, img, svg, .headline, .title, .mega, .big, .sub, .kicker, .pill, .num, .content, .hero-headline, .hero-subtitle, .badge-pill, [data-hf-id] {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+  }
+</style>
 <script id="hyperframes-runtime-composer">
 (function() {
+  function postToEditor(msg) {
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(msg, '*');
+      }
+    } catch(e) {}
+    try {
+      if (window.top && window.top !== window && window.top !== window.parent) {
+        window.top.postMessage(msg, '*');
+      }
+    } catch(e) {}
+  }
+
+  function attachElementPicker(targetDoc, targetWin, sceneId, sceneIndex) {
+    if (!targetDoc || targetDoc.__hfPickerAttached) return;
+    targetDoc.__hfPickerAttached = true;
+
+    targetDoc.addEventListener('click', function(e) {
+      var t = e.target;
+      if (!t || t === targetDoc.body || t === targetDoc.documentElement) {
+        postToEditor({ type: 'HYPERLINK_CANVAS_CLICKED' });
+        return;
+      }
+      if (t.id === 'hyperframes-runtime-composer' || t.tagName === 'SCRIPT' || t.tagName === 'STYLE') return;
+
+      var textEl = t.closest('.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, .hero-headline, .hero-subtitle, .badge-pill, [data-hf-id], h1, h2, h3, h4, h5, h6, p, button, a, img, svg') ||
+        t.closest('span:not(.ch):not(.row)') ||
+        t.closest('span, div') ||
+        (t.innerText && t.innerText.trim() ? t : null);
+
+      if (textEl) {
+        e.stopPropagation();
+        var rect = textEl.getBoundingClientRect();
+        var computed = targetWin ? targetWin.getComputedStyle(textEl) : window.getComputedStyle(textEl);
+        var id = textEl.id || textEl.getAttribute('data-hf-id');
+        var text = (textEl.innerText || textEl.textContent || '').trim();
+        var tag = textEl.tagName ? textEl.tagName.toLowerCase() : 'div';
+        if (!id) {
+          id = (sceneId || 'sc' + (sceneIndex !== undefined ? sceneIndex : '')) + '-' + tag + '-' + Math.abs(text.split('').reduce(function(a,b){a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
+          textEl.setAttribute('data-hf-id', id);
+        }
+        var isHeading = tag.startsWith('h') || (textEl.className && (String(textEl.className).includes('title') || String(textEl.className).includes('headline') || String(textEl.className).includes('mega') || String(textEl.className).includes('big')));
+
+        postToEditor({
+          type: 'HYPERLINK_ELEMENT_CLICKED',
+          payload: {
+            id: id,
+            sceneId: sceneId || undefined,
+            sceneIndex: sceneIndex !== undefined ? sceneIndex : undefined,
+            tag: tag,
+            type: isHeading ? 'heading' : (tag === 'img' ? 'image' : (tag === 'button' ? 'button' : 'text')),
+            classes: Array.from(textEl.classList || []),
+            text: text,
+            originalText: text,
+            rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
+            styles: {
+              fontSize: computed ? computed.fontSize : '24px',
+              fontFamily: computed ? computed.fontFamily : 'Inter',
+              color: computed ? computed.color : '#ffffff',
+              fontWeight: computed ? computed.fontWeight : '400',
+              textAlign: computed ? computed.textAlign : 'left'
+            }
+          }
+        });
+      } else {
+        postToEditor({ type: 'HYPERLINK_CANVAS_CLICKED' });
+      }
+    }, true);
+  }
+
   function composeScenes() {
     var sceneHosts = document.querySelectorAll('[data-composition-src]');
     window.__timelines = window.__timelines || {};
     var master = (typeof gsap !== 'undefined') ? gsap.timeline({ paused: true }) : null;
+
+    // Attach picker to main root document
+    attachElementPicker(document, window);
+
+    setTimeout(function() {
+      try {
+        var scanned = [];
+        var seen = new Set();
+        var allScenes = Array.from(document.querySelectorAll('.scene'));
+        var perSceneDur = allScenes.length > 0 ? (40 / allScenes.length) : 8;
+
+        var candidates = document.querySelectorAll(
+          '.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, .description, .eyebrow, .scene-number, [data-hf-id], h1, h2, h3, h4, p, span.scene-number, button'
+        );
+        candidates.forEach(function(el, idx) {
+          if (el.querySelector('h1, h2, h3, h4, p, .headline, .description')) return;
+          var txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+          if (!txt || txt.length < 1 || seen.has(txt)) return;
+          seen.add(txt);
+          var tag = el.tagName ? el.tagName.toLowerCase() : 'div';
+          var isH = tag.startsWith('h') || (el.className && (String(el.className).includes('title') || String(el.className).includes('headline') || String(el.className).includes('mega') || String(el.className).includes('big')));
+          var isEyebrow = el.className && (String(el.className).includes('eyebrow') || String(el.className).includes('kicker'));
+          var isNum = el.className && (String(el.className).includes('scene-number') || String(el.className).includes('num'));
+          var comp = window.getComputedStyle(el);
+          var rect = el.getBoundingClientRect();
+          var id = el.id || el.getAttribute('data-hf-id');
+          if (!id) {
+            id = 'live-el-' + idx + '-' + Math.abs(txt.split('').reduce(function(a,b){a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
+            el.setAttribute('data-hf-id', id);
+          }
+          var scEl = el.closest('.scene');
+          var scIdx = scEl ? allScenes.indexOf(scEl) : 0;
+          if (scIdx < 0) scIdx = 0;
+          var scStart = scIdx * perSceneDur;
+          var scDur = perSceneDur;
+
+          scanned.push({
+            id: id,
+            sceneId: scEl ? (scEl.id || ('scene-' + (scIdx + 1))) : 'scene-1',
+            sceneIndex: scIdx,
+            sceneStart: scStart,
+            sceneDuration: scDur,
+            tag: tag,
+            type: isH ? 'heading' : (isEyebrow || isNum ? 'badge' : (tag === 'button' ? 'button' : 'text')),
+            name: (isH ? 'Title: ' : isEyebrow ? 'Eyebrow: ' : 'Text: ') + txt.slice(0, 24),
+            text: txt,
+            originalText: txt,
+            isModified: false,
+            style: {
+              fontFamily: comp ? comp.fontFamily : 'Inter',
+              fontSize: comp ? parseInt(comp.fontSize, 10) || (isH ? 64 : 24) : 24,
+              color: comp ? comp.color : '#ffffff',
+              fontWeight: comp ? comp.fontWeight : (isH ? '700' : '400'),
+              textAlign: comp ? comp.textAlign : 'left'
+            },
+            placement: {
+              x: rect && rect.width > 0 ? Math.max(0, Math.min(95, (rect.left / 1920) * 100)) : (isH ? 9 : 9),
+              y: rect && rect.height > 0 ? Math.max(0, Math.min(95, (rect.top / 1080) * 100)) : (isH ? 55 : 48),
+              width: rect && rect.width > 0 ? Math.max(80, rect.width) : (isH ? 800 : 500),
+              height: rect && rect.height > 0 ? Math.max(30, rect.height) : (isH ? 160 : 40),
+              isTopLeft: true
+            },
+            visible: true
+          });
+        });
+        if (scanned.length > 0) {
+          postToEditor({ type: 'HYPERLINK_ELEMENTS_READY', payload: scanned });
+        }
+      } catch(e) {}
+    }, 300);
 
     if (sceneHosts.length > 0) {
       var loadedCount = 0;
@@ -3370,9 +3529,9 @@ const server = http.createServer(async (req, res) => {
         master.seek(0);
       }
 
-      sceneHosts.forEach(function(host) {
+      sceneHosts.forEach(function(host, hostIdx) {
         var src = host.getAttribute('data-composition-src');
-        var id = host.id || host.getAttribute('data-composition-id') || 'scene';
+        var id = host.id || host.getAttribute('data-composition-id') || ('scene-' + (hostIdx + 1));
 
         var ifr = document.createElement('iframe');
         ifr.src = src;
@@ -3385,24 +3544,7 @@ const server = http.createServer(async (req, res) => {
             var subWin = ifr.contentWindow;
             var subDoc = ifr.contentDocument || subWin.document;
             if (subWin && subDoc) {
-              subDoc.addEventListener('click', function(e) {
-                var t = e.target;
-                if (!t || t === subDoc.body || t === subDoc.documentElement) return;
-                var rect = t.getBoundingClientRect();
-                window.parent.postMessage({
-                  type: 'HYPERLINK_ELEMENT_CLICKED',
-                  payload: {
-                    id: t.id || t.getAttribute('data-hf-id') || (t.className ? t.className.split(' ')[0] : 'element'),
-                    tag: t.tagName.toLowerCase(),
-                    type: 'container',
-                    classes: Array.from(t.classList || []),
-                    text: t.innerText || '',
-                    rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
-                    styles: {},
-                    attributes: {}
-                  }
-                }, '*');
-              }, true);
+              attachElementPicker(subDoc, subWin, id, hostIdx);
             }
           } catch(err) {}
 
@@ -3419,15 +3561,45 @@ const server = http.createServer(async (req, res) => {
     // Synchronize master timeline and scenes with editor seek & play commands
     window.addEventListener('message', function(ev) {
       if (!ev.data) return;
+      if (ev.data.type === 'HYPERLINK_ELEMENT_CLICKED' || ev.data.type === 'HYPERLINK_CANVAS_CLICKED') {
+        postToEditor(ev.data);
+        return;
+      }
+      function forEachTimeline(fn) {
+        if (window.__timelines && typeof window.__timelines === 'object') {
+          Object.keys(window.__timelines).forEach(function(k) {
+            var tl = window.__timelines[k];
+            if (tl) fn(tl, k);
+          });
+        }
+        if (window.keralaTourismTimeline) fn(window.keralaTourismTimeline, 'keralaTourismTimeline');
+        if (window.timeline) fn(window.timeline, 'timeline');
+        if (window.tl) fn(window.tl, 'tl');
+        if (master) fn(master, 'master');
+      }
+
       if (ev.data.type === 'HYPERLINK_SEEK') {
         var t = Number(ev.data.time) || 0;
         var isPlaying = Boolean(ev.data.isPlaying);
-        if (!isPlaying) {
-          if (window.__timelines && window.__timelines['main'] && typeof window.__timelines['main'].pause === 'function') {
-            window.__timelines['main'].pause(t);
-          } else if (master && typeof master.pause === 'function') {
-            master.pause(t);
+        forEachTimeline(function(tl) {
+          if (typeof tl.seek === 'function') {
+            if (typeof tl.pause === 'function') tl.pause();
+            tl.seek(t, false);
           }
+        });
+
+        // Frame-accurate scene visibility for native HTML scene compositions (e.g. Kerala, Delhi, Coorg)
+        var scenes = document.querySelectorAll('.scene');
+        if (scenes.length > 0) {
+          var sceneDur = 40 / scenes.length;
+          var activeIdx = Math.min(scenes.length - 1, Math.max(0, Math.floor(t / sceneDur)));
+          scenes.forEach(function(s, idx) {
+            if (idx === activeIdx) {
+              s.classList.add('active');
+            } else {
+              s.classList.remove('active');
+            }
+          });
         }
 
         if (sceneHosts.length > 0) {
@@ -3442,17 +3614,22 @@ const server = http.createServer(async (req, res) => {
             h.style.opacity = inRange ? '1' : '0';
 
             if (subIfr && subIfr.contentWindow) {
+              try {
+                subIfr.contentWindow.postMessage(ev.data, '*');
+              } catch(e) {}
               var sceneT = Math.max(0, Math.min(d, t - st));
               var subWin = subIfr.contentWindow;
-              if (!isPlaying) {
-                if (subWin.__timelines) {
-                  Object.values(subWin.__timelines).forEach(function(s) {
-                    if (s && typeof s.pause === 'function') s.pause(sceneT);
-                  });
-                }
-                if (subWin.tl && typeof subWin.tl.pause === 'function') {
-                  subWin.tl.pause(sceneT);
-                }
+              if (subWin.__timelines) {
+                Object.values(subWin.__timelines).forEach(function(s) {
+                  if (s && typeof s.seek === 'function') {
+                    if (typeof s.pause === 'function') s.pause();
+                    s.seek(sceneT, false);
+                  }
+                });
+              }
+              if (subWin.tl && typeof subWin.tl.seek === 'function') {
+                if (typeof subWin.tl.pause === 'function') subWin.tl.pause();
+                subWin.tl.seek(sceneT, false);
               }
             }
           });
@@ -3469,23 +3646,103 @@ const server = http.createServer(async (req, res) => {
           }
           if (isPlaying && v.paused) {
             v.play().catch(function(){});
+          } else if (!isPlaying && !v.paused) {
+            v.pause();
           }
         });
       } else if (ev.data.type === 'HYPERLINK_PLAY') {
-        if (window.__timelines && window.__timelines['main'] && typeof window.__timelines['main'].play === 'function') {
-          window.__timelines['main'].play();
-        }
+        var t = Number(ev.data.time) || 0;
+        forEachTimeline(function(tl) {
+          if (typeof tl.seek === 'function') {
+            if (typeof tl.pause === 'function') tl.pause();
+            tl.seek(t, false);
+          }
+        });
+        sceneHosts.forEach(function(h) {
+          var subIfr = h.querySelector('iframe');
+          if (subIfr && subIfr.contentWindow) {
+            try { subIfr.contentWindow.postMessage(ev.data, '*'); } catch(e) {}
+          }
+        });
         var playVids = document.querySelectorAll('video');
         playVids.forEach(function(v) {
           if (v.paused) v.play().catch(function(){});
         });
       } else if (ev.data.type === 'HYPERLINK_PAUSE') {
-        if (window.__timelines && window.__timelines['main'] && typeof window.__timelines['main'].pause === 'function') {
-          window.__timelines['main'].pause();
-        }
+        var t = Number(ev.data.time) || 0;
+        forEachTimeline(function(tl) {
+          if (typeof tl.pause === 'function') {
+            tl.pause();
+          }
+          if (typeof tl.seek === 'function') {
+            tl.seek(t, false);
+          }
+        });
+        sceneHosts.forEach(function(h) {
+          var subIfr = h.querySelector('iframe');
+          if (subIfr && subIfr.contentWindow) {
+            try { subIfr.contentWindow.postMessage(ev.data, '*'); } catch(e) {}
+          }
+        });
         var pauseVids = document.querySelectorAll('video');
         pauseVids.forEach(function(v) {
           if (!v.paused) v.pause();
+        });
+      } else if (ev.data.type === 'HYPERLINK_ELEMENT_UPDATE') {
+        var p = ev.data.payload;
+        if (!p) return;
+        var targets = [];
+        if (p.id) {
+          var byId = document.getElementById(p.id) || document.querySelector('[data-hf-id="' + p.id + '"]');
+          if (byId) targets.push(byId);
+        }
+        if (targets.length === 0 && (p.originalText || p.text)) {
+          var searchTxt = (p.originalText || p.text).trim();
+          var allNodes = document.querySelectorAll('.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, [data-hf-id], h1, h2, h3, h4, p, span, button');
+          for (var i = 0; i < allNodes.length; i++) {
+            if ((allNodes[i].innerText || allNodes[i].textContent || '').trim() === searchTxt) {
+              targets.push(allNodes[i]);
+              break;
+            }
+          }
+        }
+        sceneHosts.forEach(function(sh) {
+          var sIfr = sh.querySelector('iframe');
+          if (sIfr && sIfr.contentWindow) {
+            try {
+              sIfr.contentWindow.postMessage(ev.data, '*');
+            } catch(e) {}
+          }
+          if (sIfr && sIfr.contentDocument) {
+            var inSub = sIfr.contentDocument.getElementById(p.id) || sIfr.contentDocument.querySelector('[data-hf-id="' + p.id + '"]');
+            if (inSub) targets.push(inSub);
+            if (!inSub && (p.originalText || p.text)) {
+              var subNodes = sIfr.contentDocument.querySelectorAll('.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, [data-hf-id], h1, h2, h3, h4, p, span, button');
+              for (var j = 0; j < subNodes.length; j++) {
+                if ((subNodes[j].innerText || subNodes[j].textContent || '').trim() === (p.originalText || p.text).trim()) {
+                  targets.push(subNodes[j]);
+                  break;
+                }
+              }
+            }
+          }
+        });
+        targets.forEach(function(el) {
+          if (p.text !== undefined) {
+            if (typeof window.words === 'function' && (el.classList.contains('title') || el.classList.contains('big'))) {
+              el.innerHTML = window.words(p.text);
+            } else if (typeof window.split === 'function' && el.classList.contains('mega')) {
+              el.innerHTML = window.split(p.text);
+            } else {
+              el.innerText = p.text;
+            }
+          }
+          if (p.styles) {
+            if (p.styles.fontFamily) el.style.fontFamily = p.styles.fontFamily;
+            if (p.styles.color) el.style.color = p.styles.color;
+            if (p.styles.fontSize) el.style.fontSize = typeof p.styles.fontSize === 'number' ? p.styles.fontSize + 'px' : p.styles.fontSize;
+            if (p.styles.textAlign) el.style.textAlign = p.styles.textAlign;
+          }
         });
       }
     });

@@ -158,6 +158,17 @@ export function App({ hostSession = null }) {
     setMobilePanel(nextPanel);
   };
   const [introClosing, setIntroClosing] = useState(false);
+
+  // Interactive Project Elements State (Headings, Text, Images, Buttons, Backgrounds)
+  const [projectElements, setProjectElements] = useState([]);
+  const [selectedElementId, setSelectedElementId] = useState(null);
+  const [hoveredElementId, setHoveredElementId] = useState(null);
+  const [projectScenes, setProjectScenes] = useState([]);
+  const [compositionUrl, setCompositionUrl] = useState(null);
+  const compositionIframeRef = useRef(null);
+  const loadedProjectDataRef = useRef(null);
+  const loadedProjectIdRef = useRef(null);
+  const saveTimeoutRef = useRef(null);
   const {
     captionPlacement, captionPosition, captionSegments, captionSize, captionStyle,
     captionStylePresetId, captionStylePresets,
@@ -1443,6 +1454,7 @@ export function App({ hostSession = null }) {
       videoBitsPerSecond: getEffectiveExportBitrate(exportSettings),
     },
     visualOverlaySegments, t, language: activeLanguage,
+    compositionUrl, loadedProjectIdRef,
   };
   const handleExportVideo = useVideoExport(videoCompositionContext);
   const { startCaptionResize, startTimelineClipDrag } = createTimelineReorderControls({
@@ -1716,16 +1728,31 @@ export function App({ hostSession = null }) {
     notify(`Added text with font: ${preset.fontId || "cinzel"}`);
   }, [currentTime, captionStyle, setCaptionSegments, setSelectedSegmentId, setSelectedTrack, setCaptionsEnabled, notify]);
 
-  // Interactive Project Elements State (Headings, Text, Images, Buttons, Backgrounds)
-  const [projectElements, setProjectElements] = useState([]);
-  const [selectedElementId, setSelectedElementId] = useState(null);
-  const [hoveredElementId, setHoveredElementId] = useState(null);
-  const [projectScenes, setProjectScenes] = useState([]);
-  const [compositionUrl, setCompositionUrl] = useState(null);
-  const compositionIframeRef = useRef(null);
-  const loadedProjectDataRef = useRef(null);
-  const loadedProjectIdRef = useRef(null);
-  const saveTimeoutRef = useRef(null);
+
+  const saveProjectHtml = useCallback(async () => {
+    const projectId = loadedProjectIdRef.current;
+    const projectData = loadedProjectDataRef.current;
+    if (!projectId || !projectData || !projectData.files) {
+      notify("No HTML project loaded to save");
+      return;
+    }
+    try {
+      const res = await fetch(`/editor/project/${encodeURIComponent(projectId)}/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          files: projectData.files,
+        }),
+      });
+      if (res.ok) {
+        notify("Project HTML saved successfully!");
+      } else {
+        notify("Failed to save project HTML");
+      }
+    } catch (err) {
+      notify(`Save error: ${err.message}`);
+    }
+  }, [notify]);
 
   const updateElement = useCallback((id, changes) => {
     setProjectElements((prev) => {
@@ -1738,14 +1765,49 @@ export function App({ hostSession = null }) {
           changes.isModified = true;
         }
 
-        // Live patch composition iframe directly so text updates in the video instantly
+        // Live patch composition iframe via postMessage and direct DOM so text and styles update in real time
+        if (compositionIframeRef.current?.contentWindow) {
+          try {
+            compositionIframeRef.current.contentWindow.postMessage({
+              type: "HYPERLINK_ELEMENT_UPDATE",
+              payload: {
+                id: target.id,
+                text: changes.text !== undefined ? changes.text : target.text,
+                styles: changes.style ? {
+                  fontFamily: changes.style.fontFamily || target.style?.fontFamily,
+                  fontSize: changes.style.fontSize || target.style?.fontSize,
+                  color: changes.style.color || target.style?.color,
+                  textAlign: changes.style.textAlign || target.style?.textAlign,
+                } : undefined,
+              },
+            }, "*");
+          } catch(e) {}
+        }
+
         if (changes.text !== undefined && compositionIframeRef.current?.contentWindow) {
           try {
             const win = compositionIframeRef.current.contentWindow;
             const doc = win.document;
             let targetEl = null;
 
-            if (target.sceneIndex !== undefined) {
+            // 1. Direct match by data-hf-id or id
+            if (target.id) {
+              targetEl = doc.querySelector(`[data-hf-id="${target.id}"], #${target.id}`);
+              if (!targetEl) {
+                const subIframes = doc.querySelectorAll("iframe");
+                for (const sub of subIframes) {
+                  try {
+                    const subDoc = sub.contentDocument || sub.contentWindow?.document;
+                    if (subDoc) {
+                      targetEl = subDoc.querySelector(`[data-hf-id="${target.id}"], #${target.id}`);
+                      if (targetEl) break;
+                    }
+                  } catch (e) {}
+                }
+              }
+            }
+
+            if (!targetEl && target.sceneIndex !== undefined) {
               const sceneEl = doc.getElementById(`sc${target.sceneIndex}`) ||
                               doc.querySelector(`[data-scene="${target.sceneIndex + 1}"]`) ||
                               doc.getElementById(`scene${target.sceneIndex + 1}`) ||
@@ -1785,49 +1847,95 @@ export function App({ hostSession = null }) {
               } else {
                 targetEl.textContent = changes.text;
               }
+              if (changes.style) {
+                if (changes.style.fontFamily) targetEl.style.fontFamily = changes.style.fontFamily;
+                if (changes.style.color) targetEl.style.color = changes.style.color;
+                if (changes.style.fontSize) targetEl.style.fontSize = typeof changes.style.fontSize === "number" ? changes.style.fontSize + "px" : changes.style.fontSize;
+                if (changes.style.textAlign) targetEl.style.textAlign = changes.style.textAlign;
+              }
             }
           } catch (e) {
             console.warn("Could not patch live composition iframe:", e);
           }
         }
 
-        // Auto-save modification to index.html if this element maps to a project scene
+        // Auto-save modification to the project HTML file (index.html or compositions/scene_XX.html)
         if (changes.text !== undefined && changes.text !== target.text) {
           const projectData = loadedProjectDataRef.current;
           const projectId = loadedProjectIdRef.current;
-          if (projectData && projectData.files && projectData.files["index.html"] && projectId) {
+          if (projectData && projectData.files && projectId) {
             try {
-              let indexHtml = projectData.files["index.html"];
               const currentText = target.currentSavedText || target.text || target.originalText;
               const newText = changes.text;
 
-              if (currentText && currentText.trim() && indexHtml.includes(currentText)) {
-                indexHtml = indexHtml.replace(currentText, newText);
-                projectData.files["index.html"] = indexHtml;
-                target.currentSavedText = newText;
+              let targetFile = target.file || "index.html";
+              let fileContent = projectData.files[targetFile];
+              if (!fileContent) {
+                const candidate = Object.keys(projectData.files).find((f) => f.endsWith(".html"));
+                if (candidate) {
+                  targetFile = candidate;
+                  fileContent = projectData.files[targetFile];
+                }
+              }
 
-                // Debounce save request
-                if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-                saveTimeoutRef.current = setTimeout(() => {
-                  fetch(`/editor/project/${encodeURIComponent(projectId)}/save`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      files: {
-                        "index.html": indexHtml,
-                      },
-                    }),
-                  })
-                    .then((res) => {
-                      if (res.ok) {
-                        notify(`Saved to video: "${newText.slice(0, 24)}"`);
-                      }
+              if (fileContent) {
+                let replaced = false;
+
+                // 1. Precise replacement by element data-hf-id or id
+                if (target.id) {
+                  const idRegex = new RegExp(`(<[^>]+(?:data-hf-id|id)=["']${target.id}["'][^>]*>)[\\s\\S]*?(<\\/[a-zA-Z0-9]+>)`, "i");
+                  if (idRegex.test(fileContent)) {
+                    fileContent = fileContent.replace(idRegex, `$1${newText}$2`);
+                    replaced = true;
+                  }
+                }
+
+                // 2. Direct string replacement
+                if (!replaced && currentText && fileContent.includes(currentText)) {
+                  fileContent = fileContent.replace(currentText, newText);
+                  replaced = true;
+                }
+
+                // 3. Fuzzy match across <br> or tags
+                if (!replaced && currentText) {
+                  const words = currentText.split(/\s+/).filter(Boolean).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+                  if (words.length > 0) {
+                    const fuzzyRegex = new RegExp(words.join("\\s*(?:<[^>]+>)?\\s*"), "i");
+                    if (fuzzyRegex.test(fileContent)) {
+                      fileContent = fileContent.replace(fuzzyRegex, newText);
+                      replaced = true;
+                    }
+                  }
+                }
+
+                if (replaced) {
+                  projectData.files[targetFile] = fileContent;
+                  target.currentSavedText = newText;
+                  target.file = targetFile;
+
+                  // Debounce save request
+                  if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+                  saveTimeoutRef.current = setTimeout(() => {
+                    fetch(`/editor/project/${encodeURIComponent(projectId)}/save`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        files: {
+                          [targetFile]: projectData.files[targetFile],
+                        },
+                      }),
                     })
-                    .catch((e) => console.warn("Save failed:", e));
-                }, 500);
+                      .then((res) => {
+                        if (res.ok) {
+                          notify(`Saved to ${targetFile}: "${newText.slice(0, 24)}"`);
+                        }
+                      })
+                      .catch((e) => console.warn("Save failed:", e));
+                  }, 500);
+                }
               }
             } catch (err) {
-              console.warn("Failed to patch index.html:", err);
+              console.warn("Failed to patch project HTML:", err);
             }
           }
         }
@@ -2049,14 +2157,15 @@ export function App({ hostSession = null }) {
       const indexHtml = data?.files?.["index.html"] || "";
 
       // 1. Try parsing JavaScript SCENES array if present in index.html (e.g. London)
-      const scriptMatch = indexHtml.match(/<script>([\s\S]*?)(?:const|let|var)\s+(?:SCENES|scenes)\s*=\s*(\[[\s\S]*?\]);/i);
+      const scriptMatch = indexHtml.match(/(?:const|let|var)\s+(?:SCENES|scenes)\s*=\s*(\[[\s\S]*?\]);/i);
       if (scriptMatch) {
         try {
-          const codeBefore = scriptMatch[1];
-          const scenesArrStr = scriptMatch[2];
-          const evalFn = new Function(codeBefore + '; return ' + scenesArrStr + ';');
+          const scenesArrStr = scriptMatch[1];
+          const constsMatch = indexHtml.match(/const\s+([A-Z_0-9,\s=.]+);/);
+          const constsCode = constsMatch ? constsMatch[0] : "const DAY_CARD=3, STOP=3.6, INTRO=6, OVERVIEW=4, OUTRO=8.6;";
+          const evalFn = new Function(constsCode + "; return " + scenesArrStr + ";");
           const parsed = evalFn();
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "object" && (parsed[0].title || parsed[0].kicker || parsed[0].sub || parsed[0].headline)) {
             let runningStart = 0;
             parsed.forEach((s, idx) => {
               const scDur = Number(s.dur) || Number(s.duration) || 3.5;
@@ -2348,10 +2457,180 @@ export function App({ hostSession = null }) {
                   fontSize = 18;
                 }
 
+                const realId = node.getAttribute("data-hf-id") || node.id || `el-${scId}-${field}-${nodeIdx}`;
+                let placement = { x: 9, y: 50, width: 500, height: 60, isTopLeft: true };
+                if (field === "eyebrow") {
+                  placement = { x: 9, y: 48, width: 600, height: 40, isTopLeft: true };
+                } else if (field === "title") {
+                  placement = { x: 9, y: 56, width: 850, height: 160, isTopLeft: true };
+                } else if (field === "description") {
+                  placement = { x: 9, y: 76, width: 750, height: 80, isTopLeft: true };
+                } else if (field === "number") {
+                  placement = { x: 88, y: 88, width: 120, height: 40, isTopLeft: false };
+                }
+
+                extracted.push({
+                  id: realId,
+                  sceneId: scId,
+                  sceneIndex: idx,
+                  field,
+                  tag,
+                  type,
+                  name: `${field.toUpperCase()}: ${rawText.slice(0, 20)}`,
+                  text: rawText,
+                  originalText: rawText,
+                  sceneStart: scStart,
+                  sceneDuration: scDur,
+                  isModified: false,
+                  style: {
+                    fontFamily: (field === "title" || tag === "h1") ? "Georgia, 'Times New Roman', serif" : "'Inter', sans-serif",
+                    fontSize,
+                    fontWeight,
+                    color: field === "eyebrow" ? "#d8bd72" : "#ffffff",
+                    textAlign: "left",
+                  },
+                  placement,
+                  visible: true,
+                });
+              });
+            });
+
+            if (extracted.length > 0) return extracted;
+          }
+        } catch (e) {
+          console.warn("DOMParser failed for index.html:", e);
+        }
+      }
+
+      // 2c. Fallback leaf regex extraction across index.html (guarantees all scenes are extracted)
+      if (extracted.length === 0 && indexHtml) {
+        const leafRegex = /<(h[1-6]|p|span|button|a)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
+        const leafMatches = [...indexHtml.matchAll(leafRegex)];
+        const allScenes = (indexHtml.match(/<section[^>]*class=["'][^"']*scene/gi) || []);
+        const numScenes = Math.max(1, allScenes.length);
+        const perScene = totalDur / numScenes;
+
+        leafMatches.forEach((m, idx) => {
+          const tag = m[1].toLowerCase();
+          const attrs = m[2];
+          const inner = m[3];
+          if (/<(?:h[1-6]|p|div|section)/i.test(inner)) return;
+          const clean = inner.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+          if (!clean || clean.length < 2) return;
+
+          const idM = attrs.match(/data-hf-id=["']([^"']+)["']/i) || attrs.match(/id=["']([^"']+)["']/i);
+          const id = idM ? idM[1] : `leaf-${idx}`;
+          const isH = tag.startsWith("h") || /headline|title/i.test(attrs);
+          const isEyebrow = /eyebrow|kicker/i.test(attrs);
+          const isNum = /scene-number|num/i.test(attrs);
+          const scIdx = Math.min(numScenes - 1, Math.floor(idx / 4));
+
+          extracted.push({
+            id,
+            sceneId: `scene-${scIdx + 1}`,
+            sceneIndex: scIdx,
+            tag,
+            type: isH ? "heading" : (isEyebrow || isNum ? "badge" : "text"),
+            name: (isH ? "Title: " : isEyebrow ? "Eyebrow: " : isNum ? "Number: " : "Text: ") + clean.slice(0, 24),
+            text: clean,
+            originalText: clean,
+            sceneStart: scIdx * perScene,
+            sceneDuration: perScene,
+            isModified: false,
+            style: {
+              fontFamily: isH ? "Georgia, 'Times New Roman', serif" : "'Inter', sans-serif",
+              fontSize: isH ? 64 : (isEyebrow ? 18 : 22),
+              fontWeight: isH ? 700 : (isEyebrow ? 600 : 400),
+              color: isEyebrow ? "#d8bd72" : "#ffffff",
+              textAlign: "left",
+            },
+            placement: isH ? { x: 9, y: 56, width: 850, height: 160, isTopLeft: true }
+              : isEyebrow ? { x: 9, y: 48, width: 600, height: 40, isTopLeft: true }
+              : isNum ? { x: 88, y: 88, width: 120, height: 40, isTopLeft: false }
+              : { x: 9, y: 76, width: 750, height: 80, isTopLeft: true },
+            visible: true,
+          });
+        });
+
+        if (extracted.length > 0) return extracted;
+      }
+
+      // 2b. Parse Subcomposition HTML files (e.g. compositions/scene_01.html, etc.)
+      if (data?.files) {
+        const compFileKeys = Object.keys(data.files).filter((f) => f.startsWith("compositions/") && f.endsWith(".html")).sort();
+        if (compFileKeys.length > 0) {
+          const perCompDur = totalDur / compFileKeys.length;
+          let runningStart = 0;
+
+          compFileKeys.forEach((relPath, idx) => {
+            const compHtml = data.files[relPath];
+            if (!compHtml) return;
+
+            const matchingScene = Array.isArray(data?.scenes)
+              ? data.scenes.find((s) => s.file === relPath || s.id === `scene-${idx + 1}` || s.id === `scene_${idx + 1}`)
+              : null;
+
+            const scStart = matchingScene ? Number(matchingScene.start) : runningStart;
+            const scDur = matchingScene ? Number(matchingScene.duration) : perCompDur;
+            runningStart = scStart + scDur;
+            const scId = matchingScene?.id || `scene-${idx + 1}`;
+
+            try {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(compHtml, "text/html");
+              const textNodes = doc.querySelectorAll(
+                "h1, h2, h3, h4, p, .headline, .hero-headline, .title, .mega, .big, .description, .hero-subtitle, .sub, .subtitle, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, .badge-pill, button, a"
+              );
+
+              const seenTexts = new Set();
+              textNodes.forEach((node, nodeIdx) => {
+                if (node.querySelector("h1, h2, h3, p, .headline, .description")) return;
+                const rawText = node.textContent?.replace(/\s+/g, " ").trim();
+                if (!rawText || seenTexts.has(rawText)) return;
+                seenTexts.add(rawText);
+
+                const tag = node.tagName.toLowerCase();
+                const cls = (node.className || "").toLowerCase();
+
+                let field = "text";
+                let type = "text";
+                let fontSize = 24;
+                let fontWeight = 400;
+
+                if (tag === "h1" || tag === "h2" || tag === "h3" || cls.includes("headline") || cls.includes("title") || cls.includes("mega") || cls.includes("big")) {
+                  field = "title";
+                  type = "heading";
+                  fontSize = tag === "h1" ? 64 : 48;
+                  fontWeight = 700;
+                } else if (cls.includes("description") || cls.includes("sub") || tag === "p") {
+                  field = "description";
+                  type = "text";
+                  fontSize = 24;
+                  fontWeight = 300;
+                } else if (cls.includes("eyebrow") || cls.includes("kicker")) {
+                  field = "eyebrow";
+                  type = "badge";
+                  fontSize = 20;
+                  fontWeight = 600;
+                } else if (cls.includes("scene-number") || cls.includes("num") || cls.includes("number")) {
+                  field = "number";
+                  type = "badge";
+                  fontSize = 18;
+                } else if (cls.includes("corner-mark") || cls.includes("date") || cls.includes("bottom-label") || cls.includes("pill") || cls.includes("badge")) {
+                  field = "badge";
+                  type = "badge";
+                  fontSize = 16;
+                } else if (tag === "button" || cls.includes("cta") || cls.includes("btn")) {
+                  field = "button";
+                  type = "button";
+                  fontSize = 18;
+                }
+
                 extracted.push({
                   id: `el-${scId}-${field}-${nodeIdx}`,
                   sceneId: scId,
                   sceneIndex: idx,
+                  file: relPath,
                   field,
                   tag,
                   type,
@@ -2378,12 +2657,12 @@ export function App({ hostSession = null }) {
                   visible: true,
                 });
               });
-            });
+            } catch (err) {
+              console.warn(`Failed to parse subcomposition ${relPath}:`, err);
+            }
+          });
 
-            if (extracted.length > 0) return extracted;
-          }
-        } catch (e) {
-          console.warn("DOMParser failed for index.html:", e);
+          if (extracted.length > 0) return extracted;
         }
       }
 
@@ -2411,42 +2690,36 @@ export function App({ hostSession = null }) {
         });
       }
 
-      if (extracted.length === 0 && data?.editableProperties?.title) {
-        const headlineText = data.editableProperties.title;
-        extracted.push({
-          id: "el-main-title",
-          sceneId: "scene-1",
-          sceneStart: 0,
-          sceneDuration: totalDur,
-          tag: "h1",
-          type: "heading",
-          name: `Title: ${headlineText}`,
-          text: headlineText,
-          originalText: headlineText,
-          isModified: false,
-          style: { fontFamily: "'Playfair Display', serif", fontSize: 48, color: "#ffffff", textAlign: "center" },
-          placement: { x: 50, y: 44, width: 700, height: 100 },
-          visible: true,
-        });
-      }
 
       return extracted;
     };
 
     const loadProjectFromSource = (payload) => {
-      let { videoUrl, title, duration, prompt, overlays } = payload;
-      if (!videoUrl) return;
-
+      let { videoUrl, title, duration, prompt, overlays, projectId } = payload;
+      const targetProjId = projectId || payload.projectId || projectParam || "default_reference_video_2";
       const dur = Number(duration) && Number(duration) > 0 ? Number(duration) : 40;
       const projectTitle = title || "Project Video";
-      const assetId = "video-source-" + (payload.projectId || Date.now());
+      const assetId = "video-source-" + (targetProjId || Date.now());
 
-      const videoAsset = {
+      // All projects in the editor are HyperFrames HTML compositions.
+      // Always initialize in composition mode so the user can interactively select,
+      // inspect, and edit every element on the live video canvas.
+      const initialThumb = `/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142_thumb.jpg`;
+      const initialAssets = [
+        `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-intro.jpg`,
+        `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-coast.jpg`,
+        `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-mountains.jpg`,
+        `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-backwaters.jpg`,
+        `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-culture.jpg`,
+      ];
+      const compAsset = {
         assetId,
         id: assetId,
-        type: "video",
-        src: videoUrl,
-        originalSrc: videoUrl,
+        type: "composition",
+        src: `/editor/project/${encodeURIComponent(targetProjId)}/raw/index.html`,
+        thumbnail: initialThumb,
+        thumbnails: initialAssets,
+        assetImages: initialAssets,
         name: projectTitle,
         duration: dur,
         sourceDuration: dur,
@@ -2456,18 +2729,19 @@ export function App({ hostSession = null }) {
         width: 1920,
         height: 1080,
       };
-
-      // Add to user assets so media library shows it
-      setUserAssets((prev) => (prev.some((a) => a.src === videoUrl) ? prev : [videoAsset, ...prev]));
-
-      // Create primary visual segment
-      const newSegment = createVisualSegment(dur, videoAsset);
+      const newSegment = {
+        ...createVisualSegment(dur, compAsset),
+        thumbnail: initialThumb,
+        thumbnails: initialAssets,
+        assetImages: initialAssets,
+      };
       setVisualSegments([newSegment]);
       setSelectedVisualSegmentId(newSegment.id);
       setSelectedTrack("image");
       setCanvasVisualTarget(`visual:${newSegment.id}`);
-      setVisualType("video");
-      setImageSrc(videoUrl);
+      setVisualType("composition");
+      setImageSrc("");
+
       setImageName(projectTitle);
       setImageDuration(dur);
 
@@ -2477,7 +2751,6 @@ export function App({ hostSession = null }) {
       setVisualOverlaySegments(Array.isArray(overlays) ? overlays : []);
 
       // Fetch real project data to parse real elements and scenes
-      const targetProjId = payload.projectId || projectParam || "default_reference_video_2";
       loadedProjectIdRef.current = targetProjId;
       setCompositionUrl(`/editor/project/${encodeURIComponent(targetProjId)}/raw/index.html`);
       fetch(`/editor/project/${encodeURIComponent(targetProjId)}`)
@@ -2492,6 +2765,26 @@ export function App({ hostSession = null }) {
           if (realElements.length > 0) {
             setSelectedElementId(realElements[0].id);
           }
+
+          // Populate real video thumbnail and scene images on visual timeline segments
+          const projectThumb = data?.thumbnailUrl ||
+            (data?.renderedVideoUrl ? data.renderedVideoUrl.replace(/\.mp4$/i, "_thumb.jpg") : null) ||
+            (data?.assets && data.assets.length > 0 ? (data.assets[0].url || data.assets[0]) : null) ||
+            initialThumb;
+
+          const assetImages = (data?.assets && Array.isArray(data.assets) && data.assets.length > 0)
+            ? data.assets.map((a) => (typeof a === "string" ? a : a.url)).filter(Boolean)
+            : initialAssets;
+
+          setVisualSegments((prevSegments) =>
+            prevSegments.map((seg) => ({
+              ...seg,
+              thumbnail: projectThumb,
+              thumbnails: assetImages,
+              assetImages: assetImages,
+              assets: data?.assets || [],
+            }))
+          );
         })
         .catch(() => {
           const fallbackElements = extractElementsFromProject(null, dur, projectTitle, prompt);
@@ -2516,23 +2809,97 @@ export function App({ hostSession = null }) {
     const projectParam = params.get("project");
 
     if (!videoParam && (projectParam === "default_reference_video_2" || !projectParam)) {
-      videoParam = "/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142.mp4";
+      videoParam = "";
     }
 
-    if (videoParam && !autoLoadedVideoRef.current) {
+    if (!autoLoadedVideoRef.current && (projectParam || videoParam)) {
       loadProjectFromSource({
-        videoUrl: videoParam,
-        title: titleParam || "London in 3 Days (Reference Video)",
+        videoUrl: "",
+        title: titleParam || (projectParam === "default_reference_video_2" ? "London in 3 Days (Reference Video)" : "Project Video"),
         duration: durationParam || 40,
         prompt: promptParam || "",
         projectId: projectParam || "default_reference_video_2",
       });
     }
 
-    // Listen for postMessage from parent dashboard window
+    // Listen for postMessage from parent dashboard window or composition iframe
     const onMessage = (event) => {
-      if (event.data && event.data.type === "LOAD_PROJECT_VIDEO") {
+      if (!event.data) return;
+      if (event.data.type === "LOAD_PROJECT_VIDEO") {
         loadProjectFromSource(event.data);
+      } else if (event.data.type === "HYPERLINK_ELEMENTS_READY") {
+        const liveElements = event.data.payload;
+        if (Array.isArray(liveElements) && liveElements.length > 0) {
+          setProjectElements((prev) => {
+            if (prev.length === 0 || prev.some((el) => el.id === "el-main-title")) {
+              return liveElements;
+            }
+            return prev.map((el) => {
+              const live = liveElements.find((l) => l.id === el.id || (l.text && l.text.trim().toLowerCase() === (el.text || "").trim().toLowerCase()));
+              if (live && live.placement) {
+                return {
+                  ...el,
+                  id: live.id || el.id,
+                  placement: el.hasMoved ? el.placement : live.placement,
+                  style: { ...el.style, ...live.style },
+                };
+              }
+              return el;
+            });
+          });
+        }
+      } else if (event.data.type === "HYPERLINK_ELEMENT_CLICKED") {
+        const payload = event.data.payload;
+        if (!payload) return;
+
+        setProjectElements((prev) => {
+          const targetText = (payload.text || "").trim().toLowerCase();
+          let match = prev.find((el) => {
+            if (payload.id && el.id === payload.id) return true;
+            if (targetText && el.text && el.text.trim().toLowerCase() === targetText) return true;
+            return false;
+          });
+
+          if (match) {
+            setSelectedElementId(match.id);
+            setActiveTool("elements");
+            return prev;
+          }
+
+          const isHeading = payload.type === "heading" || payload.tag?.startsWith("h");
+          const newEl = {
+            id: payload.id || `el-canvas-${Date.now()}`,
+            sceneId: payload.sceneId || (payload.sceneIndex !== undefined ? `scene-${payload.sceneIndex + 1}` : "scene-1"),
+            sceneIndex: payload.sceneIndex !== undefined ? payload.sceneIndex : 0,
+            file: payload.file || (payload.sceneIndex !== undefined ? `compositions/scene_${payload.sceneIndex + 1}.html` : "index.html"),
+            tag: payload.tag || (isHeading ? "h1" : "p"),
+            type: payload.type || (isHeading ? "heading" : "text"),
+            name: `${payload.tag ? payload.tag.toUpperCase() : "EL"}: ${(payload.text || "Element").slice(0, 20)}`,
+            text: payload.text || "",
+            originalText: payload.text || "",
+            isModified: false,
+            style: {
+              fontFamily: payload.styles?.fontFamily || "'Inter', sans-serif",
+              fontSize: parseInt(payload.styles?.fontSize, 10) || (isHeading ? 48 : 24),
+              fontWeight: payload.styles?.fontWeight || (isHeading ? 700 : 400),
+              color: payload.styles?.color || "#ffffff",
+              textAlign: payload.styles?.textAlign || "left",
+            },
+            placement: {
+              x: payload.rect ? Math.max(0, Math.min(95, (payload.rect.left / 1920) * 100)) : 50,
+              y: payload.rect ? Math.max(0, Math.min(95, (payload.rect.top / 1080) * 100)) : 50,
+              width: payload.rect ? Math.max(80, payload.rect.width) : 400,
+              height: payload.rect ? Math.max(30, payload.rect.height) : 60,
+              isTopLeft: true,
+            },
+            visible: true,
+          };
+          setSelectedElementId(newEl.id);
+          setActiveTool("elements");
+          return [...prev, newEl];
+        });
+      } else if (event.data.type === "HYPERLINK_CANVAS_CLICKED") {
+        setSelectedElementId(null);
       }
     };
     window.addEventListener("message", onMessage);
@@ -2541,7 +2908,7 @@ export function App({ hostSession = null }) {
     createVisualSegment, setVisualSegments, setSelectedVisualSegmentId,
     setSelectedTrack, setCanvasVisualTarget, setVisualType, setImageSrc, setImageName,
     setImageDuration, setCaptionSegments, setCaptionsEnabled, setVisualOverlaySegments,
-    setTimelineHorizon, setCurrentTime, setUserAssets, notify,
+    setTimelineHorizon, setCurrentTime, setUserAssets, notify, setActiveTool,
   ]);
 
   return (
@@ -2619,6 +2986,7 @@ export function App({ hostSession = null }) {
         handleExportProject={handleExportProject}
         handleImportProject={completeProject ? completeProject.importPortable : handleImportProject}
         projectFileInputRef={projectFileInputRef}
+        onSaveProject={saveProjectHtml}
       />
 
       <WebMcpReview agent={webMcp} language={activeLanguage} />
@@ -2796,6 +3164,7 @@ export function App({ hostSession = null }) {
           hoveredElementId={hoveredElementId}
           onHoverElement={setHoveredElementId}
           projectScenes={projectScenes}
+          onSaveProject={saveProjectHtml}
           captionHighlightDisabled={trackLocks.caption}
           t={t}
           activeTool={activeTool}

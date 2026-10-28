@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { modifyAccountCredentials } from "@convex-dev/auth/server";
 
 export const recordOtp = internalMutation({
@@ -170,6 +170,8 @@ export const listAllProjects = query({
       })),
     };
   },
+});
+
 export const retainOnlyFourShowcaseProjects = mutation({
   args: {},
   handler: async (ctx) => {
@@ -291,5 +293,22 @@ export const retainOnlyFourShowcaseProjects = mutation({
     }
 
     return { ws1: idsWs1, ws2: idsWs2 };
+  },
+});
+
+export const updateProjectMetadata = mutation({
+  args: {
+    projectId: v.id("projects"),
+    name: v.optional(v.string()),
+    duration: v.optional(v.number()),
+    thumbnailUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const patch: Record<string, any> = {};
+    if (args.name !== undefined) patch.name = args.name;
+    if (args.duration !== undefined) patch.duration = args.duration;
+    if (args.thumbnailUrl !== undefined) patch.thumbnailUrl = args.thumbnailUrl;
+    await ctx.db.patch(args.projectId, patch);
+    return { success: true };
   },
 });

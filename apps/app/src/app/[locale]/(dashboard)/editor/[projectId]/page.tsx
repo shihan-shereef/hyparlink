@@ -205,18 +205,16 @@ export default function ProjectOllaEditorPage() {
     (convexProject as any)?.cdnUrl ||
     (convexProject as any)?.outputUrl ||
     (convexProject as any)?.storageUrl ||
-    (projectId === "default_reference_video_2"
-      ? "/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142.mp4"
-      : "");
+    "";
 
   const nativeIframeRef = useRef<HTMLIFrameElement>(null);
   const handleNativeIframeLoad = () => {
-    if (nativeIframeRef.current?.contentWindow && effectiveVideoUrl) {
+    if (nativeIframeRef.current?.contentWindow) {
       nativeIframeRef.current.contentWindow.postMessage(
         {
           type: "LOAD_PROJECT_VIDEO",
-          videoUrl: effectiveVideoUrl,
-          title: convexProject?.name || session?.projectName || "London in 3 Days (Reference Video)",
+          videoUrl: effectiveVideoUrl || "",
+          title: convexProject?.name || session?.projectName || "Video Project",
           duration: convexProject?.duration || 40,
           prompt: convexProject?.prompt || "",
           projectId,
@@ -225,6 +223,22 @@ export default function ProjectOllaEditorPage() {
       );
     }
   };
+
+  useEffect(() => {
+    if (nativeIframeRef.current?.contentWindow && projectId) {
+      nativeIframeRef.current.contentWindow.postMessage(
+        {
+          type: "LOAD_PROJECT_VIDEO",
+          videoUrl: effectiveVideoUrl || "",
+          title: convexProject?.name || session?.projectName || "Video Project",
+          duration: convexProject?.duration || 40,
+          prompt: convexProject?.prompt || "",
+          projectId,
+        },
+        "*",
+      );
+    }
+  }, [projectId, effectiveVideoUrl, convexProject, session?.projectName]);
 
   // Handle Sync & Re-Render with Ollastar GPU Pipeline
   const handleSyncAndRender = async () => {
