@@ -566,7 +566,7 @@ button:disabled {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 90px minmax(250px, 0.76fr) minmax(520px, 1.38fr) minmax(300px, 0.86fr);
+  grid-template-columns: 72px minmax(210px, 260px) minmax(300px, 1fr) minmax(260px, 320px);
   grid-template-rows: minmax(0, 1fr);
   gap: 6px;
   min-height: 0;
@@ -576,7 +576,7 @@ button:disabled {
 }
 
 .editor-grid.is-compact-rail {
-  grid-template-columns: 50px minmax(250px, 0.76fr) minmax(520px, 1.38fr) minmax(300px, 0.86fr);
+  grid-template-columns: 50px minmax(210px, 260px) minmax(300px, 1fr) minmax(260px, 320px);
 }
 
 .language-intro {
@@ -9807,10 +9807,10 @@ button:disabled {
   }
 }
 
-/* Compact workspace: sub-1280 browsers and iPad keep the canvas and
-   timeline continuously usable. Utility surfaces open as bounded drawers
-   instead of becoming oversized full-width rows below the preview. */
-@media (min-width: 761px) and (max-width: 1279px) {
+/* Compact workspace: sub-960 mobile/tablet screens keep the canvas and
+   timeline continuously usable. Desktop and laptop screens (>= 960px) keep
+   all panels (Tool Rail, Media/Elements, Canvas, Inspector, and Timeline) fully visible. */
+@media (min-width: 761px) and (max-width: 959px) {
   body { overflow: hidden; }
 
   .app-shell {

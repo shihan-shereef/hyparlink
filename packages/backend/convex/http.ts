@@ -66,6 +66,8 @@ http.route({
       await ctx.runMutation(internal.projects.updateProjectResult, {
         // biome-ignore lint/suspicious/noExplicitAny: id validated by Convex
         projectId: payload.projectId as any,
+        workspaceId: typeof payload.workspaceId === "string" ? payload.workspaceId : undefined,
+        name: typeof payload.name === "string" ? payload.name : undefined,
         status: typeof payload.status === "string" ? payload.status : "completed",
         outputUrl: typeof payload.outputUrl === "string" ? payload.outputUrl : undefined,
         cdnUrl: typeof payload.cdnUrl === "string" ? payload.cdnUrl : undefined,

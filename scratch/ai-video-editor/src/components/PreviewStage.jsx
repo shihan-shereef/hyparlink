@@ -820,7 +820,9 @@ export function PreviewStage({
                       pointerEvents: "none",
                       zIndex: 1,
                       overflow: "hidden",
-                      background: "#000",
+                      opacity: previewVisualSrc ? 0 : 1,
+                      visibility: previewVisualSrc ? "hidden" : "visible",
+                      background: previewVisualSrc ? "transparent" : "#000",
                     }}
                   />
                 ) : null}
@@ -877,8 +879,7 @@ export function PreviewStage({
                   }}
                   style={{
                     ...visualTransformStyle,
-                    opacity: compositionUrl ? 0 : (depthRenderActive ? 0 : visualTransformStyle.opacity),
-                    pointerEvents: compositionUrl ? "none" : undefined,
+                    opacity: depthRenderActive ? 0 : visualTransformStyle.opacity,
                     filter: selectedFilterCss,
                     objectFit: activeObjectFit,
                     objectPosition: activeObjectPosition,

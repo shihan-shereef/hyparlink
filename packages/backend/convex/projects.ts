@@ -1254,6 +1254,7 @@ export const updateProjectResult = internalMutation({
     workspaceId: v.optional(v.string()),
     name: v.optional(v.string()),
     status: v.string(),
+    duration: v.optional(v.number()),
     outputUrl: v.optional(v.string()),
     outputStorageId: v.optional(v.id("_storage")),
     aiProvider: v.optional(v.string()),
@@ -1318,26 +1319,47 @@ export const updateProjectResult = internalMutation({
       }
       if (!targetWs) return;
 
-      const firstUser = await ctx.db.query("users").first();
-      const userId = firstUser ? firstUser._id : (args.projectId as any);
+      // Adopt existing pending/generating direct-code project in targetWs if present
+      const pendingDirect = await ctx.db
+        .query("projects")
+        .withIndex("by_workspace", (q) => q.eq("workspaceId", targetWs!))
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("prompt"), "DIRECT_CODE_RENDER"),
+            q.or(
+              q.eq(q.field("status"), "generating"),
+              q.eq(q.field("status"), "validating"),
+              q.eq(q.field("status"), "queued"),
+              q.eq(q.field("status"), "pending"),
+            ),
+          ),
+        )
+        .order("desc")
+        .first();
 
-      const newId = await ctx.db.insert("projects", {
-        workspaceId: targetWs,
-        userId,
-        name: args.name || "Direct Code Video",
-        prompt: "DIRECT_CODE_RENDER",
-        status: args.status,
-        duration: 30,
-        width: 1920,
-        height: 1080,
-        fps: 30,
-        hyperframesVersion: "0.8.139",
-        outputUrl: args.outputUrl,
-        cdnUrl: args.cdnUrl,
-        storageUrl: args.storageUrl,
-        storageKey: args.storageKey,
-        storageProvider: args.storageProvider,
-        storageBucket: args.storageBucket,
+      if (pendingDirect) {
+        project = pendingDirect;
+      } else {
+        const firstUser = await ctx.db.query("users").first();
+        const userId = firstUser ? firstUser._id : (args.projectId as any);
+
+        const newId = await ctx.db.insert("projects", {
+          workspaceId: targetWs,
+          userId,
+          name: args.name || "Direct Code Video",
+          prompt: "DIRECT_CODE_RENDER",
+          status: args.status,
+          duration: args.duration || 40,
+          width: 1920,
+          height: 1080,
+          fps: 30,
+          hyperframesVersion: "0.8.139",
+          outputUrl: args.outputUrl,
+          cdnUrl: args.cdnUrl,
+          storageUrl: args.storageUrl,
+          storageKey: args.storageKey,
+          storageProvider: args.storageProvider,
+          storageBucket: args.storageBucket,
         fileSize: args.fileSize,
         mimeType: args.mimeType || "video/mp4",
         validationStatus: args.validationStatus || "PASSED",

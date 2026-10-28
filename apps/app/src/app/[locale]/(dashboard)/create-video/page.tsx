@@ -927,7 +927,7 @@ window.__timelines["main"] = tl;`);
 
     setIsSubmitting(true);
     try {
-      const targetWs = current || activeWorkspaceId;
+      const targetWs = current || activeWorkspaceId || workspaces?.[0]?._id;
       const width = directResolution === "720p" ? 1280 : 1920;
       const height = directResolution === "720p" ? 720 : 1080;
 
@@ -938,7 +938,29 @@ window.__timelines["main"] = tl;`);
       const extractedTitle = titleMatch && titleMatch[1] ? titleMatch[1].trim() : "";
       const effectiveTitle = (directTitle || extractedTitle || "Direct Code Video").trim();
 
-      const projId = `proj_code_${Date.now()}`;
+      // Create first-class Convex Project record so it saves into the workspace and appears in /projects
+      let convexProjId: string | null = null;
+      if (targetWs) {
+        try {
+          const res = await createProject({
+            workspaceId: targetWs,
+            name: effectiveTitle,
+            prompt: "DIRECT_CODE_RENDER",
+            duration: effectiveDuration,
+            width,
+            height,
+            fps: directFps,
+            mode: "direct_code",
+          });
+          if (res?.projectId) {
+            convexProjId = String(res.projectId);
+          }
+        } catch (e) {
+          console.warn("Direct code project creation notice:", e);
+        }
+      }
+
+      const projId = convexProjId || `proj_code_${Date.now()}`;
 
       // Instantly set active project ID and polled state so the UI immediately shows the live 5-stage progress card
       setActiveProjectId(projId as any);
@@ -954,20 +976,6 @@ window.__timelines["main"] = tl;`);
       // Smooth scroll to top so the progress card is immediately in view
       if (typeof window !== "undefined") {
         window.scrollTo({ top: 0, behavior: "smooth" });
-      }
-
-      // Non-blocking background sync to Convex (never blocks the render pipeline)
-      if (targetWs) {
-        createProject({
-          workspaceId: targetWs,
-          name: effectiveTitle,
-          prompt: "DIRECT_CODE_RENDER",
-          duration: effectiveDuration,
-          width,
-          height,
-          fps: directFps,
-          mode: "direct_code",
-        }).catch((e) => console.log("Direct code background sync notice:", e));
       }
 
       const { ok, data, error } = await safeJsonFetch("/api/direct-code", {

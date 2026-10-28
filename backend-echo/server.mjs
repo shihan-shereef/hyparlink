@@ -2676,8 +2676,12 @@ const server = http.createServer(async (req, res) => {
             });
           }
         } else {
-          // Single-file composition: check for <section class="scene"> tags
-          const sectionMatches = [...rootContent.matchAll(/<section\b([^>]*\bclass=["'][^"']*\bscene\b[^"']*["'][^>]*)>([\s\S]*?)<\/section>/gi)];
+          // Single-file composition: check for <section class="scene">, <div class="scene">, or <article class="scene"> tags
+          const sectionMatches = [
+            ...rootContent.matchAll(
+              /<(?:section|div|article)\b([^>]*\bclass=["'][^"']*\bscene\b[^"']*["'][^>]*)>([\s\S]*?)<\/(?:section|div|article)>/gi,
+            ),
+          ];
           if (sectionMatches.length > 0) {
             const totalDur = meta.duration || 60;
             const autoDur = totalDur / sectionMatches.length;
@@ -5067,6 +5071,10 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
           const finalVideoUrl = uploadResult.cdnUrl || uploadResult.storageUrl || `/outputs/${filename}`;
 
           recordProjectMapping(projectId, projectDir, workspaceId);
+          if (jobId) recordProjectMapping(jobId, projectDir, workspaceId);
+          try {
+            fs.writeFileSync(path.join(projectDir, ".convex-project-id"), String(projectId), "utf-8");
+          } catch {}
 
           let thumbnailStorageKey = null;
           let thumbnailUrl = null;
@@ -5147,12 +5155,34 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
           apiProjectStore.set(projectId, { ...(apiProjectStore.get(projectId) || {}), ...completionData });
           apiJobStore.set(jobId, { ...(apiJobStore.get(jobId) || {}), ...completionData });
 
+          // Persist meta.json into project directory so editor/project/:id has instant metadata
+          try {
+            const metaObj = {
+              projectId,
+              jobId,
+              workspaceId: workspaceId || "default",
+              title: title || "Direct Code Video",
+              duration: probeData?.duration || duration,
+              width: probeData?.width || width,
+              height: probeData?.height || height,
+              fps: probeData?.fps || fps,
+              renderedVideoUrl: finalVideoUrl,
+              videoUrl: finalVideoUrl,
+              thumbnailUrl: thumbnailCdnUrl || thumbnailUrl || null,
+              renders: completionData.renders,
+              createdAt: initialRecord.createdAt,
+              updatedAt: Date.now(),
+            };
+            fs.writeFileSync(path.join(projectDir, "meta.json"), JSON.stringify(metaObj, null, 2), "utf-8");
+          } catch {}
+
           // Send project.result webhook to ensure Convex projects table updates immediately
           await postWebhook({
             type: "project.result",
             projectId,
             workspaceId,
             name: title || "Direct Code Video",
+            duration: Math.round(probeData?.duration || duration),
             status: "completed",
             outputUrl: finalVideoUrl,
             cdnUrl: finalVideoUrl,
