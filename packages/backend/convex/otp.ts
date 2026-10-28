@@ -128,3 +128,19 @@ export const setUserPassword = internalMutation({
   },
 });
 
+export const markUserEmailVerified = internalMutation({
+  args: { email: v.string() },
+  handler: async (ctx, { email }) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", cleanEmail))
+      .first();
+    if (!user) throw new Error("User not found");
+    await ctx.db.patch(user._id, {
+      emailVerificationTime: Date.now(),
+    });
+    return { success: true, userId: user._id };
+  },
+});
+
