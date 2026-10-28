@@ -8,7 +8,6 @@ import { ResendOTPReset, ResendOTPVerify } from "./passwordProviders";
 // Full auth: email+password (with strength policy, email verification, and password reset),
 // magic email OTP, and Google OAuth (set AUTH_GOOGLE_ID/AUTH_GOOGLE_SECRET to activate).
 const PasswordWithFlows = Password({
-  verify: ResendOTPVerify,
   reset: ResendOTPReset,
   validatePasswordRequirements: (password: string) => {
     if (
