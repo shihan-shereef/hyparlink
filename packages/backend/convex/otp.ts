@@ -149,7 +149,11 @@ export const listAllProjects = query({
   handler: async (ctx) => {
     const list = await ctx.db.query("projects").collect();
     const workspaces = await ctx.db.query("workspaces").collect();
+    const members = await ctx.db.query("members").collect();
+    const users = await ctx.db.query("users").collect();
     return {
+      users: users.map((u) => ({ _id: u._id, email: u.email, name: u.name })),
+      members: members.map((m) => ({ userId: m.userId, workspaceId: m.workspaceId, role: m.role })),
       workspaces: workspaces.map((w) => ({
         _id: w._id,
         name: w.name,
@@ -167,6 +171,7 @@ export const listAllProjects = query({
     };
   },
 });
+
 
 
 
