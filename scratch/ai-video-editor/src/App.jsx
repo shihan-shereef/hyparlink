@@ -2704,7 +2704,13 @@ export function App({ hostSession = null }) {
       // All projects in the editor are HyperFrames HTML compositions.
       // Always initialize in composition mode so the user can interactively select,
       // inspect, and edit every element on the live video canvas.
-      const initialThumb = `/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142_thumb.jpg`;
+      const isKarnataka =
+        targetProjId === "default_reference_video" ||
+        targetProjId === "m57372k27qxvfy1z6zzrh37yrh8gs7aj" ||
+        (projectTitle && projectTitle.toLowerCase().includes("karnataka"));
+      const initialThumb = isKarnataka
+        ? `/outputs/repaired_job-job_code_1792219404621_iizjt_1792381910438_thumb.jpg`
+        : `/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142_thumb.jpg`;
       const initialAssets = [
         `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-intro.jpg`,
         `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-coast.jpg`,

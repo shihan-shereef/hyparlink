@@ -50,13 +50,34 @@ const execAsync = promisify(exec);
 
 // Load environment variables from .env files
 try {
-  const rootEnv = path.resolve(import.meta.dirname, "..", ".env");
-  if (fs.existsSync(rootEnv) && process.loadEnvFile) {
-    process.loadEnvFile(rootEnv);
-  }
-  const localEnv = path.resolve(import.meta.dirname, ".env");
-  if (fs.existsSync(localEnv) && process.loadEnvFile) {
-    process.loadEnvFile(localEnv);
+  const envCandidates = [
+    path.resolve(import.meta.dirname, "..", ".env"),
+    path.resolve(import.meta.dirname, ".env"),
+    path.resolve(import.meta.dirname, "..", "apps", "app", ".env.local"),
+    path.resolve(import.meta.dirname, "..", "apps", "app", ".env"),
+    path.resolve(import.meta.dirname, "..", "packages", "backend", ".env"),
+  ];
+  for (const envPath of envCandidates) {
+    if (fs.existsSync(envPath)) {
+      try {
+        if (process.loadEnvFile) process.loadEnvFile(envPath);
+      } catch {}
+      // Fallback manual line-by-line parsing
+      try {
+        const content = fs.readFileSync(envPath, "utf-8");
+        for (const line of content.split("\n")) {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
+            const eqIdx = trimmed.indexOf("=");
+            const k = trimmed.slice(0, eqIdx).trim();
+            const v = trimmed.slice(eqIdx + 1).trim().replace(/^['"]|['"]$/g, "");
+            if (k && v && !process.env[k]) {
+              process.env[k] = v;
+            }
+          }
+        }
+      } catch {}
+    }
   }
 } catch (e) {}
 
@@ -72,9 +93,19 @@ const SERVICE_KEY = process.env.SERVICE_KEY || "";
 const WEBHOOK_SECRET =
   process.env.WEBHOOK_SECRET || "whsec_hyperframes_secret_2026";
 const CONVEX_SITE_URL = process.env.CONVEX_SITE_URL || "http://127.0.0.1:3211";
+
+const CANDIDATE_CONVEX_URLS = [
+  process.env.CONVEX_URL,
+  process.env.NEXT_PUBLIC_CONVEX_URL,
+  "https://communicate-ecommerce-advancement-subscription.trycloudflare.com",
+  "http://10.70.70.43:3210",
+  "http://127.0.0.1:3210",
+].filter((u, i, arr) => u && arr.indexOf(u) === i);
+
 const CONVEX_URL =
   process.env.CONVEX_URL ||
   process.env.NEXT_PUBLIC_CONVEX_URL ||
+  CANDIDATE_CONVEX_URLS[0] ||
   "http://127.0.0.1:3210";
 const AUDIENCE = process.env.CONVEX_AUDIENCE || "convex";
 const BACKEND_PUBLIC_URL =
@@ -198,15 +229,18 @@ function saveProjectMap(map) {
 
 function recordProjectMapping(projectId, projectDir, workspaceId) {
   const map = getProjectMap();
+  const absDir = path.isAbsolute(projectDir)
+    ? path.resolve(projectDir)
+    : path.resolve(WORKSPACE_ROOT, projectDir);
   map[String(projectId)] = {
-    dir: projectDir,
+    dir: absDir,
     workspaceId: workspaceId || "default",
     updatedAt: Date.now(),
   };
   saveProjectMap(map);
   try {
     fs.writeFileSync(
-      path.join(projectDir, ".convex-project-id"),
+      path.join(absDir, ".convex-project-id"),
       String(projectId),
       "utf-8",
     );
@@ -216,14 +250,17 @@ function recordProjectMapping(projectId, projectDir, workspaceId) {
 async function resolveProjectDir(projectId, requestedWorkspaceId) {
   if (!projectId) return null;
 
-  // Direct route for default reference projects
+  // Direct route for default reference projects or seeded projects
   if (projectId === "default_reference_video_2") {
     const londonDir = path.join(PROJECTS_DIR, "job-job_code_1792382768219_mbcw4");
     if (fs.existsSync(londonDir)) {
       return { dir: londonDir, workspaceId: requestedWorkspaceId || "default" };
     }
   }
-  if (projectId === "default_reference_video") {
+  if (
+    projectId === "default_reference_video" ||
+    projectId === "m57372k27qxvfy1z6zzrh37yrh8gs7aj"
+  ) {
     const karnatakaDir = path.join(PROJECTS_DIR, "job-job_code_1792219404621_iizjt");
     if (fs.existsSync(karnatakaDir)) {
       return { dir: karnatakaDir, workspaceId: requestedWorkspaceId || "default" };
@@ -246,11 +283,15 @@ async function resolveProjectDir(projectId, requestedWorkspaceId) {
   if (map[projectId]) {
     const entry = map[projectId];
     let targetDir = typeof entry === "string" ? entry : entry.dir;
+    if (targetDir && !path.isAbsolute(targetDir)) {
+      targetDir = path.resolve(WORKSPACE_ROOT, targetDir);
+    }
     if (targetDir && !fs.existsSync(targetDir) && targetDir.includes("/generated-projects/")) {
       const rel = targetDir.split("/generated-projects/")[1];
       const localTarget = path.join(PROJECTS_DIR, rel);
       if (fs.existsSync(localTarget)) targetDir = localTarget;
     }
+    if (targetDir) targetDir = path.resolve(targetDir);
     const entryWs = typeof entry === "object" ? entry.workspaceId : null;
 
     // Strict cross-workspace isolation
@@ -333,129 +374,141 @@ async function resolveProjectDir(projectId, requestedWorkspaceId) {
 
   // 3. Fallback: Query Convex database for project metadata and locate or bootstrap project directory
   try {
-    const queryBase = CONVEX_URL || "http://127.0.0.1:3210";
-    const cvxRes = await fetch(`${queryBase}/api/query`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        path: "projects:get",
-        args: { projectId: projectId },
-      }),
-    });
+    let project = null;
+    for (const queryBase of CANDIDATE_CONVEX_URLS) {
+      try {
+        const cvxRes = await fetch(`${queryBase}/api/query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            path: "projects:get",
+            args: { projectId: projectId },
+          }),
+        });
 
-    if (cvxRes.ok) {
-      const cvxData = await cvxRes.json();
-      const project = cvxData.value || cvxData;
-      if (project && project._id) {
-        const outputUrl =
-          project.outputUrl ||
-          project.videoUrl ||
-          project.cdnUrl ||
-          project.storageUrl;
+        if (cvxRes.ok) {
+          const cvxData = await cvxRes.json();
+          const p = cvxData.value || cvxData;
+          if (p && (p._id || p.name)) {
+            project = p;
+            break;
+          }
+        }
+      } catch (e) {
+        // try next endpoint
+      }
+    }
 
-        // A. Match by job code extracted from outputUrl
-        if (outputUrl && fs.existsSync(PROJECTS_DIR)) {
-          const entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true });
-          const jobCodeMatch = outputUrl.match(/job_code_[a-zA-Z0-9_]+/);
-          if (jobCodeMatch) {
-            const code = jobCodeMatch[0];
-            for (const e of entries) {
-              if (e.isDirectory() && e.name.includes(code)) {
-                const matchedDir = path.join(PROJECTS_DIR, e.name);
-                try {
-                  fs.writeFileSync(
-                    path.join(matchedDir, ".convex-project-id"),
-                    projectId,
-                    "utf-8",
-                  );
-                } catch {}
-                recordProjectMapping(
+    if (project) {
+      const outputUrl =
+        project.outputUrl ||
+        project.videoUrl ||
+        project.cdnUrl ||
+        project.storageUrl;
+
+      // A. Match by job code extracted from outputUrl
+      if (outputUrl && fs.existsSync(PROJECTS_DIR)) {
+        const entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true });
+        const jobCodeMatch = outputUrl.match(/job_code_[a-zA-Z0-9_]+/);
+        if (jobCodeMatch) {
+          const code = jobCodeMatch[0];
+          for (const e of entries) {
+            if (e.isDirectory() && e.name.includes(code)) {
+              const matchedDir = path.join(PROJECTS_DIR, e.name);
+              try {
+                fs.writeFileSync(
+                  path.join(matchedDir, ".convex-project-id"),
                   projectId,
-                  matchedDir,
-                  project.workspaceId || requestedWorkspaceId || "default",
+                  "utf-8",
                 );
-                return {
-                  dir: matchedDir,
-                  workspaceId:
-                    project.workspaceId || requestedWorkspaceId || null,
-                };
-              }
+              } catch {}
+              recordProjectMapping(
+                projectId,
+                matchedDir,
+                project.workspaceId || requestedWorkspaceId || "default",
+              );
+              return {
+                dir: matchedDir,
+                workspaceId:
+                  project.workspaceId || requestedWorkspaceId || null,
+              };
             }
           }
         }
+      }
 
-        // B. Bootstrap clean, valid HyperFrames composition directory for this Convex project
-        const projectDir = path.join(PROJECTS_DIR, `project-${projectId}`);
-        fs.mkdirSync(projectDir, { recursive: true });
-        fs.mkdirSync(path.join(projectDir, "compositions"), { recursive: true });
-        fs.mkdirSync(path.join(projectDir, "assets"), { recursive: true });
+      // B. Bootstrap clean, valid HyperFrames composition directory for this Convex project
+      const projectDir = path.join(PROJECTS_DIR, `project-${projectId}`);
+      fs.mkdirSync(projectDir, { recursive: true });
+      fs.mkdirSync(path.join(projectDir, "compositions"), { recursive: true });
+      fs.mkdirSync(path.join(projectDir, "assets"), { recursive: true });
 
-        const videoSrc = outputUrl || "";
-        const title = project.name || "Ollastar Video Project";
-        const duration = Number(project.duration) || 30;
-        const fps = Number(project.fps) || 30;
-        const width = Number(project.width) || 1920;
-        const height = Number(project.height) || 1080;
+      const videoSrc = outputUrl || "";
+      const title = project.name || "Ollastar Video Project";
+      const duration = Number(project.duration) || 30;
+      const fps = Number(project.fps) || 30;
+      const width = Number(project.width) || 1920;
+      const height = Number(project.height) || 1080;
 
-        fs.writeFileSync(
-          path.join(projectDir, "project.json"),
-          JSON.stringify(
-            { id: projectId, name: title, version: "1.0.0" },
-            null,
-            2,
-          ),
-          "utf-8",
-        );
+      fs.writeFileSync(
+        path.join(projectDir, "project.json"),
+        JSON.stringify(
+          { id: projectId, name: title, version: "1.0.0" },
+          null,
+          2,
+        ),
+        "utf-8",
+      );
 
-        fs.writeFileSync(
-          path.join(projectDir, "meta.json"),
-          JSON.stringify(
-            {
-              projectId,
-              title,
-              prompt: project.prompt || "",
-              duration,
-              fps,
-              width,
-              height,
-              renderedVideoUrl: videoSrc,
-              thumbnailUrl: project.thumbnailUrl || null,
-              renders: project.renders || [],
-            },
-            null,
-            2,
-          ),
-          "utf-8",
-        );
+      fs.writeFileSync(
+        path.join(projectDir, "meta.json"),
+        JSON.stringify(
+          {
+            projectId,
+            title,
+            prompt: project.prompt || "",
+            duration,
+            fps,
+            width,
+            height,
+            renderedVideoUrl: videoSrc,
+            thumbnailUrl: project.thumbnailUrl || null,
+            renders: project.renders || [],
+          },
+          null,
+          2,
+        ),
+        "utf-8",
+      );
 
-        fs.writeFileSync(
-          path.join(projectDir, "package.json"),
-          JSON.stringify(
-            { name: `project-${projectId}`, version: "1.0.0", private: true },
-            null,
-            2,
-          ),
-          "utf-8",
-        );
+      fs.writeFileSync(
+        path.join(projectDir, "package.json"),
+        JSON.stringify(
+          { name: `project-${projectId}`, version: "1.0.0", private: true },
+          null,
+          2,
+        ),
+        "utf-8",
+      );
 
-        fs.writeFileSync(
-          path.join(projectDir, "hyperframes.json"),
-          JSON.stringify(
-            {
-              name: `project-${projectId}`,
-              version: "0.8.139",
-              width,
-              height,
-              fps,
-              duration,
-            },
-            null,
-            2,
-          ),
-          "utf-8",
-        );
+      fs.writeFileSync(
+        path.join(projectDir, "hyperframes.json"),
+        JSON.stringify(
+          {
+            name: `project-${projectId}`,
+            version: "0.8.139",
+            width,
+            height,
+            fps,
+            duration,
+          },
+          null,
+          2,
+        ),
+        "utf-8",
+      );
 
-        const indexHtml = `<!DOCTYPE html>
+      const indexHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -478,28 +531,27 @@ async function resolveProjectDir(projectId, requestedWorkspaceId) {
   </div>
 </body>
 </html>`;
-        fs.writeFileSync(
-          path.join(projectDir, "index.html"),
-          indexHtml,
-          "utf-8",
-        );
+      fs.writeFileSync(
+        path.join(projectDir, "index.html"),
+        indexHtml,
+        "utf-8",
+      );
 
-        fs.writeFileSync(
-          path.join(projectDir, ".convex-project-id"),
-          projectId,
-          "utf-8",
-        );
+      fs.writeFileSync(
+        path.join(projectDir, ".convex-project-id"),
+        projectId,
+        "utf-8",
+      );
 
-        recordProjectMapping(
-          projectId,
-          projectDir,
-          project.workspaceId || requestedWorkspaceId || "default",
-        );
-        return {
-          dir: projectDir,
-          workspaceId: project.workspaceId || requestedWorkspaceId || null,
-        };
-      }
+      recordProjectMapping(
+        projectId,
+        projectDir,
+        project.workspaceId || requestedWorkspaceId || "default",
+      );
+      return {
+        dir: projectDir,
+        workspaceId: project.workspaceId || requestedWorkspaceId || null,
+      };
     }
   } catch (cvxErr) {
     console.error(
@@ -508,7 +560,21 @@ async function resolveProjectDir(projectId, requestedWorkspaceId) {
     );
   }
 
-  // 4. Fallback: ONLY if explicitly requested as "latest" or "current"
+  // 4. Fallback: Search PROJECTS_DIR for any match by folder name suffix or prefix
+  if (fs.existsSync(PROJECTS_DIR)) {
+    const entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true });
+    for (const e of entries) {
+      if (e.isDirectory()) {
+        const cleanName = e.name.replace(/^(job-|project-)/, "");
+        if (cleanName === projectId || e.name.includes(projectId)) {
+          const matchedDir = path.join(PROJECTS_DIR, e.name);
+          return { dir: matchedDir, workspaceId: requestedWorkspaceId || null };
+        }
+      }
+    }
+  }
+
+  // 5. Fallback: ONLY if explicitly requested as "latest" or "current"
   if (projectId === "latest" || projectId === "current") {
     if (fs.existsSync(PROJECTS_DIR)) {
       const entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true });
@@ -526,6 +592,34 @@ async function resolveProjectDir(projectId, requestedWorkspaceId) {
         };
       }
     }
+  }
+
+  // 6. Ultimate Fallback: Bootstrap a clean project folder so the editor NEVER crashes or displays 404
+  if (typeof projectId === "string" && projectId.trim().length > 0 && projectId !== "favicon.ico") {
+    try {
+      const projectDir = path.join(PROJECTS_DIR, `project-${projectId}`);
+      fs.mkdirSync(projectDir, { recursive: true });
+      const indexHtmlPath = path.join(projectDir, "index.html");
+      if (!fs.existsSync(indexHtmlPath)) {
+        const title = `Project ${projectId.slice(0, 10)}`;
+        fs.writeFileSync(
+          path.join(projectDir, "project.json"),
+          JSON.stringify({ id: projectId, name: title, version: "1.0.0" }, null, 2),
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(projectDir, "meta.json"),
+          JSON.stringify({ projectId, title, duration: 30, fps: 30, width: 1920, height: 1080 }, null, 2),
+          "utf-8",
+        );
+        fs.writeFileSync(
+          indexHtmlPath,
+          `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>* { box-sizing: border-box; margin: 0; padding: 0; } html, body { width: 100%; height: 100%; background: #000; display: flex; align-items: center; justify-content: center; } .comp { width: 1920px; height: 1080px; background: #070b14; color: #fff; display: flex; align-items: center; justify-content: center; }</style></head><body><div class="comp" data-duration="30" data-fps="30"><h1 style="color:#fff;font-family:sans-serif;">${title}</h1></div></body></html>`,
+          "utf-8",
+        );
+      }
+      return { dir: projectDir, workspaceId: requestedWorkspaceId || "default" };
+    } catch {}
   }
 
   return null;
@@ -3278,18 +3372,19 @@ const server = http.createServer(async (req, res) => {
         const resolved = await resolveProjectDir(projectId, reqWs);
         if (!resolved) return send(res, 404, { error: "Project not found" });
 
-        let targetFile = path.resolve(resolved.dir, subPath);
-        if (!targetFile.startsWith(resolved.dir)) {
+        const resolvedDir = path.resolve(resolved.dir);
+        let targetFile = path.resolve(resolvedDir, subPath);
+        if (!targetFile.startsWith(resolvedDir)) {
           return send(res, 403, { error: "Path traversal denied" });
         }
 
-        // Always serve the project's real index.html directly from resolved.dir
+        // Always serve the project's real index.html directly from resolvedDir
         if (subPath === "index.html") {
-          const directIndex = path.join(resolved.dir, "index.html");
+          const directIndex = path.join(resolvedDir, "index.html");
           if (fs.existsSync(directIndex)) {
             targetFile = directIndex;
           } else {
-            const previewDir = path.join(resolved.dir, ".hyperframes", "preview");
+            const previewDir = path.join(resolvedDir, ".hyperframes", "preview");
             if (fs.existsSync(previewDir)) {
               const previewFiles = fs.readdirSync(previewDir).filter((f) => f.endsWith(".html"));
               if (previewFiles.length > 0) {
