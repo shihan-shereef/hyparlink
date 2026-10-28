@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
+import { modifyAccountCredentials } from "@convex-dev/auth/server";
 
 export const recordOtp = internalMutation({
   args: {
@@ -119,7 +120,6 @@ export const setUserPassword = internalMutation({
   },
   handler: async (ctx, { email, password }) => {
     const cleanEmail = email.trim().toLowerCase();
-    const { modifyAccountCredentials } = await import("@convex-dev/auth/server");
     await modifyAccountCredentials(ctx, {
       provider: "password",
       account: { id: cleanEmail, secret: password },
