@@ -1,9 +1,11 @@
 "use client";
 
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
+import { api } from "@v1/backend/convex/_generated/api";
 import { Button } from "@v1/ui/button";
 import { KeyRound, Mail, Lock } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Mode = "signIn" | "signUp" | "verify" | "forgot" | "reset";
 type AuthMethod = "password" | "otp";
@@ -72,6 +74,18 @@ export function AuthForm() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [otpSent, setOtpSent] = useState(false);
+
+  const cleanEmail = email.trim().toLowerCase();
+  const latestOtp = useQuery(
+    api.otp.getLatestOtp,
+    cleanEmail && cleanEmail.includes("@") && otpSent ? { email: cleanEmail } : "skip",
+  );
+
+  useEffect(() => {
+    if (latestOtp?.code && !code) {
+      setCode(latestOtp.code);
+    }
+  }, [latestOtp?.code]);
 
 
 
@@ -345,6 +359,20 @@ export function AuthForm() {
                 </p>
               </div>
 
+              {latestOtp?.code && (
+                <div className="flex items-center justify-between rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 px-3.5 py-2 text-xs">
+                  <span className="text-indigo-800 dark:text-indigo-300 font-medium">
+                    Active Code: <strong className="font-mono text-sm tracking-widest text-indigo-950 dark:text-white">{latestOtp.code}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCode(latestOtp.code)}
+                    className="text-xs font-semibold px-2 py-1 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition cursor-pointer"
+                  >
+                    Auto-fill
+                  </button>
+                </div>
+              )}
 
               <input
                 className={input}
