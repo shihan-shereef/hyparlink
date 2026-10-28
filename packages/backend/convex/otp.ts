@@ -148,17 +148,25 @@ export const listAllProjects = query({
   args: {},
   handler: async (ctx) => {
     const list = await ctx.db.query("projects").collect();
-    return list.map((p) => ({
-      _id: p._id,
-      name: p.name,
-      workspaceId: p.workspaceId,
-      status: p.status,
-      outputUrl: p.outputUrl,
-      videoUrl: p.videoUrl,
-      duration: p.duration,
-      deletedAt: p.deletedAt,
-    }));
+    const workspaces = await ctx.db.query("workspaces").collect();
+    return {
+      workspaces: workspaces.map((w) => ({
+        _id: w._id,
+        name: w.name,
+      })),
+      projects: list.map((p) => ({
+        _id: p._id,
+        name: p.name,
+        workspaceId: p.workspaceId,
+        status: p.status,
+        outputUrl: p.outputUrl,
+        videoUrl: p.videoUrl,
+        duration: p.duration,
+        deletedAt: p.deletedAt,
+      })),
+    };
   },
 });
+
 
 
