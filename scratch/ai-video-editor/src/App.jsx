@@ -1852,9 +1852,19 @@ export function App({ hostSession = null }) {
             if (targetEl) {
               if (changes.placement) {
                 const pl = changes.placement;
+                const parent = targetEl.offsetParent;
+                const parentIsSceneOrRoot = !parent || parent === doc.body || parent === doc.documentElement || parent.id === "composition" || (parent.classList && parent.classList.contains("scene"));
                 targetEl.style.position = "absolute";
-                if (pl.x !== undefined) targetEl.style.left = `${pl.x}%`;
-                if (pl.y !== undefined) targetEl.style.top = `${pl.y}%`;
+                if (!parentIsSceneOrRoot) {
+                  const pr = parent.getBoundingClientRect();
+                  const targetLeftPx = (pl.x / 100) * 1920;
+                  const targetTopPx = (pl.y / 100) * 1080;
+                  targetEl.style.left = `${Math.round(targetLeftPx - pr.left)}px`;
+                  targetEl.style.top = `${Math.round(targetTopPx - pr.top)}px`;
+                } else {
+                  if (pl.x !== undefined) targetEl.style.left = `${pl.x}%`;
+                  if (pl.y !== undefined) targetEl.style.top = `${pl.y}%`;
+                }
                 targetEl.style.transform = pl.isTopLeft ? "none" : "translate(-50%, -50%)";
                 if (pl.width) {
                   targetEl.style.width = typeof pl.width === "number" ? `${pl.width}px` : pl.width;
@@ -2266,7 +2276,7 @@ export function App({ hostSession = null }) {
       const indexHtml = data?.files?.["index.html"] || "";
 
       // 1. Try parsing JavaScript SCENES array if present in index.html (e.g. London)
-      const scriptMatch = indexHtml.match(/(?:const|let|var)\s+(?:SCENES|scenes)\s*=\s*(\[[\s\S]*?\]);/i);
+      const scriptMatch = indexHtml.match(/(?:const|let|var)\s+(?:SCENES|scenes)\s*=\s*(\[\s*\{[\s\S]*?\}\s*\]);/i);
       if (scriptMatch) {
         try {
           const scenesArrStr = scriptMatch[1];

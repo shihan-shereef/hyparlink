@@ -304,123 +304,152 @@ export function ElementsCanvasOverlay({
                 const rect = containerRef.current.getBoundingClientRect();
                 const clickX = ((e.clientX - rect.left) / rect.width) * 1920;
                 const clickY = ((e.clientY - rect.top) / rect.height) * 1080;
-                const hit = doc.elementFromPoint(clickX, clickY);
+                const hits = doc.elementsFromPoint ? doc.elementsFromPoint(clickX, clickY) : [doc.elementFromPoint(clickX, clickY)].filter(Boolean);
 
-                if (hit) {
-                  const imgEl = hit.closest("img, .product-image, .feature-image, .scene-background") || (hit.tagName === "IMG" ? hit : null);
-                  if (imgEl) {
-                    const matchedImg = elements.find((el) => {
-                      if (el.type === "image" || el.tag === "img") {
-                        if (imgEl.id && el.id === imgEl.id) return true;
-                        if (imgEl.getAttribute("data-hf-id") && el.id === imgEl.getAttribute("data-hf-id")) return true;
-                        const src = imgEl.getAttribute("src");
-                        if (src && el.src && (el.src.includes(src) || src.includes(el.src))) return true;
-                        return true;
-                      }
-                      return false;
-                    });
-                    if (matchedImg) {
-                      e.stopPropagation();
-                      onSelectElement?.(matchedImg.id);
-                      return;
-                    }
-                    if (onAddElement) {
-                      e.stopPropagation();
-                      const imgRect = imgEl.getBoundingClientRect();
-                      const newId = imgEl.getAttribute("data-hf-id") || imgEl.id || `el-img-${Date.now()}`;
-                      imgEl.setAttribute("data-hf-id", newId);
-                      const newEl = {
-                        id: newId,
-                        sceneStart: Math.max(0, currentTime - 1),
-                        sceneDuration: 6,
-                        tag: "img",
-                        type: "image",
-                        name: `Image: ${imgEl.alt || "Visual"}`,
-                        src: imgEl.getAttribute("src") || "",
-                        isModified: false,
-                        style: {
-                          objectFit: "contain",
-                        },
-                        placement: {
-                          x: (imgRect.left / 1920) * 100,
-                          y: (imgRect.top / 1080) * 100,
-                          width: imgRect.width || 300,
-                          height: imgRect.height || 200,
-                          isTopLeft: true,
-                        },
-                        visible: true,
-                      };
-                      onAddElement(newEl);
-                      onSelectElement?.(newId);
-                      return;
+                // Ignore decorative overlays, background filters, progress bars, and container elements
+                const isIgnored = (el) => {
+                  if (!el || !el.tagName) return true;
+                  const tag = el.tagName.toLowerCase();
+                  if (["html", "body", "main", "section", "video"].includes(tag)) return true;
+                  if (el.id === "composition") return true;
+                  const cls = typeof el.className === "string" ? el.className.toLowerCase() : "";
+                  if (cls.includes("scene-overlay") || cls.includes("film-grain") || cls.includes("progress-track") || cls.includes("progress-bar") || cls.includes("composition-root")) return true;
+                  if (cls.includes("gold-line")) return true;
+                  return false;
+                };
+
+                // 1. Look for text elements first (h1-h6, p, span, button, a, or class-based text)
+                let textEl = null;
+                for (const h of hits) {
+                  if (isIgnored(h)) continue;
+                  const t = h.tagName.toLowerCase();
+                  const cls = typeof h.className === "string" ? h.className.toLowerCase() : "";
+                  const isTextTag = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "button", "a"].includes(t);
+                  const isTextCls = cls.includes("headline") || cls.includes("title") || cls.includes("description") || cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("scene-number") || cls.includes("num") || cls.includes("pill");
+                  if ((isTextTag || isTextCls) && h.textContent && h.textContent.trim().length > 0) {
+                    textEl = h;
+                    break;
+                  }
+                }
+
+                // 2. If no direct text element, check for image element
+                let imgEl = null;
+                if (!textEl) {
+                  for (const h of hits) {
+                    if (isIgnored(h)) continue;
+                    if (h.tagName === "IMG" || (typeof h.className === "string" && (h.className.includes("product-image") || h.className.includes("feature-image")))) {
+                      imgEl = h;
+                      break;
                     }
                   }
+                }
 
-                  let textEl = hit.closest("h1, h2, h3, h4, p, span, .headline, .title, .mega, .big, .description, .sub, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, button, a");
-                  // If user clicked inside a container div (e.g. .left, .center, .scene, .content), look for the closest text child element
-                  if (!textEl && hit.textContent?.trim()) {
-                    const textChild = hit.querySelector(".title, .headline, .mega, .big, .sub, .description, .kicker, .eyebrow, .pill, h1, h2, h3, h4, p, span");
-                    if (textChild && textChild.textContent?.trim()) {
-                      textEl = textChild;
-                    } else if (!["html", "body", "section"].includes(hit.tagName.toLowerCase()) && !hit.classList?.contains("scene") && !hit.classList?.contains("content")) {
-                      textEl = hit;
+                // Handle Image selection
+                if (imgEl) {
+                  const targetSrc = imgEl.getAttribute("src") || "";
+                  const targetHfId = imgEl.getAttribute("data-hf-id") || imgEl.id;
+                  const matchedImg = elements.find((el) => {
+                    if (el.type === "image" || el.tag === "img") {
+                      if (targetHfId && el.id === targetHfId) return true;
+                      if (targetSrc && el.src && (el.src.includes(targetSrc) || targetSrc.includes(el.src))) return true;
                     }
+                    return false;
+                  });
+                  if (matchedImg) {
+                    e.stopPropagation();
+                    onSelectElement?.(matchedImg.id);
+                    return;
+                  }
+                  if (onAddElement) {
+                    e.stopPropagation();
+                    const imgRect = imgEl.getBoundingClientRect();
+                    const newId = targetHfId || `el-img-${Date.now()}`;
+                    if (!imgEl.getAttribute("data-hf-id")) imgEl.setAttribute("data-hf-id", newId);
+                    const newEl = {
+                      id: newId,
+                      sceneStart: Math.max(0, currentTime - 1),
+                      sceneDuration: 6,
+                      tag: "img",
+                      type: "image",
+                      name: `Image: ${imgEl.alt || "Visual"}`,
+                      src: targetSrc,
+                      isModified: false,
+                      style: { objectFit: "contain" },
+                      placement: {
+                        x: (imgRect.left / 1920) * 100,
+                        y: (imgRect.top / 1080) * 100,
+                        width: imgRect.width || 300,
+                        height: imgRect.height || 200,
+                        isTopLeft: true,
+                      },
+                      visible: true,
+                    };
+                    onAddElement(newEl);
+                    onSelectElement?.(newId);
+                    return;
+                  }
+                }
+
+                // Handle Text selection
+                if (textEl && textEl.textContent && textEl.textContent.trim().length > 0) {
+                  const clickedText = textEl.textContent.trim();
+                  const targetHfId = textEl.getAttribute("data-hf-id") || textEl.id;
+
+                  // Find matching element from projectElements
+                  const matched = elements.find((el) => {
+                    if (targetHfId && el.id === targetHfId) return true;
+                    if (!el.text) return false;
+                    const a = el.text.trim().toLowerCase();
+                    const b = clickedText.toLowerCase();
+                    return a === b || a.includes(b) || b.includes(a);
+                  });
+
+                  if (matched) {
+                    e.stopPropagation();
+                    onSelectElement?.(matched.id);
+                    return;
                   }
 
-                  if (textEl && textEl.textContent?.trim()) {
-                    const clickedText = textEl.textContent.trim();
-                    // Find if any element matches
-                    const matched = elements.find((el) => {
-                      if (!el.text) return false;
-                      const a = el.text.trim().toLowerCase();
-                      const b = clickedText.toLowerCase();
-                      return a === b || a.includes(b) || b.includes(a);
-                    });
-
-                    if (matched) {
-                      e.stopPropagation();
-                      onSelectElement?.(matched.id);
-                      return;
-                    }
-
-                    // If not found in pre-extracted elements, dynamically register and select it
-                    if (onAddElement) {
-                      e.stopPropagation();
-                      const newId = `el-detected-${Date.now()}`;
-                      const tag = textEl.tagName ? textEl.tagName.toLowerCase() : "text";
-                      const isH = tag.startsWith("h") || textEl.classList?.contains("headline") || textEl.classList?.contains("title") || textEl.classList?.contains("mega") || textEl.classList?.contains("big");
-                      const isPill = textEl.classList?.contains("pill") || textEl.classList?.contains("kicker") || textEl.classList?.contains("badge");
-                      const newType = isH ? "heading" : isPill ? "badge" : "text";
-                      const friendlyLabel = isH ? "Title" : isPill ? "Badge" : "Text";
-                      const newEl = {
-                        id: newId,
-                        sceneStart: Math.max(0, currentTime - 1),
-                        sceneDuration: 6,
-                        tag,
-                        type: newType,
-                        name: `${friendlyLabel}: ${clickedText.slice(0, 20)}`,
-                        text: clickedText,
-                        originalText: clickedText,
-                        isModified: false,
-                        style: {
-                          fontFamily: "'Inter', sans-serif",
-                          fontSize: isH ? 48 : 24,
-                          color: "#ffffff",
-                          textAlign: "left",
-                        },
-                        placement: {
-                          x: (clickX / 1920) * 100,
-                          y: (clickY / 1080) * 100,
-                          width: 400,
-                          height: 60,
-                          isTopLeft: true,
-                        },
-                        visible: true,
-                      };
-                      onAddElement(newEl);
-                      onSelectElement?.(newId);
-                      return;
-                    }
+                  // If not found in pre-extracted elements, dynamically register this leaf text
+                  if (onAddElement) {
+                    e.stopPropagation();
+                    const newId = targetHfId || `el-detected-${Date.now()}`;
+                    if (!textEl.getAttribute("data-hf-id")) textEl.setAttribute("data-hf-id", newId);
+                    const tag = textEl.tagName ? textEl.tagName.toLowerCase() : "p";
+                    const cls = typeof textEl.className === "string" ? textEl.className.toLowerCase() : "";
+                    const isH = tag.startsWith("h") || cls.includes("headline") || cls.includes("title");
+                    const isPill = cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("scene-number") || cls.includes("badge");
+                    const newType = isH ? "heading" : isPill ? "badge" : "text";
+                    const friendlyLabel = isH ? "Title" : isPill ? "Badge" : "Text";
+                    const tRect = textEl.getBoundingClientRect();
+                    const newEl = {
+                      id: newId,
+                      sceneStart: Math.max(0, currentTime - 1),
+                      sceneDuration: 6,
+                      tag,
+                      type: newType,
+                      name: `${friendlyLabel}: ${clickedText.slice(0, 20)}`,
+                      text: clickedText,
+                      originalText: clickedText,
+                      isModified: false,
+                      style: {
+                        fontFamily: isH ? "Georgia, 'Times New Roman', serif" : "'Inter', sans-serif",
+                        fontSize: isH ? 48 : 24,
+                        color: "#ffffff",
+                        textAlign: "left",
+                      },
+                      placement: {
+                        x: tRect ? (tRect.left / 1920) * 100 : (clickX / 1920) * 100,
+                        y: tRect ? (tRect.top / 1080) * 100 : (clickY / 1080) * 100,
+                        width: tRect ? Math.max(100, tRect.width) : 400,
+                        height: tRect ? Math.max(30, tRect.height) : 60,
+                        isTopLeft: true,
+                      },
+                      visible: true,
+                    };
+                    onAddElement(newEl);
+                    onSelectElement?.(newId);
+                    return;
                   }
                 }
               }

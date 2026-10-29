@@ -259,7 +259,9 @@ async function resolveProjectDir(projectId, requestedWorkspaceId) {
   }
   if (
     projectId === "default_reference_video" ||
-    projectId === "m57372k27qxvfy1z6zzrh37yrh8gs7aj"
+    projectId === "m57372k27qxvfy1z6zzrh37yrh8gs7aj" ||
+    projectId === "m57ehq3yfd9dd25re1vjqqbs9s8gr9v9" ||
+    projectId === "project-m57ehq3yfd9dd25re1vjqqbs9s8gr9v9"
   ) {
     const karnatakaDir = path.join(PROJECTS_DIR, "job-job_code_1792219404621_iizjt");
     if (fs.existsSync(karnatakaDir)) {
@@ -409,11 +411,11 @@ async function resolveProjectDir(projectId, requestedWorkspaceId) {
       // A. Match by job code extracted from outputUrl
       if (outputUrl && fs.existsSync(PROJECTS_DIR)) {
         const entries = fs.readdirSync(PROJECTS_DIR, { withFileTypes: true });
-        const jobCodeMatch = outputUrl.match(/job_code_[a-zA-Z0-9_]+/);
+        const jobCodeMatch = outputUrl.match(/job_code_\d+_[a-zA-Z0-9]+/);
         if (jobCodeMatch) {
           const code = jobCodeMatch[0];
           for (const e of entries) {
-            if (e.isDirectory() && e.name.includes(code)) {
+            if (e.isDirectory() && (e.name.includes(code) || code.includes(e.name.replace(/^job-/, "")))) {
               const matchedDir = path.join(PROJECTS_DIR, e.name);
               try {
                 fs.writeFileSync(
@@ -2783,15 +2785,15 @@ const server = http.createServer(async (req, res) => {
           // Single-file composition: check for <section class="scene">, <div class="scene">, or <article class="scene"> tags
           const sectionMatches = [
             ...rootContent.matchAll(
-              /<(?:section|div|article)\b([^>]*\bclass=["'][^"']*\bscene\b[^"']*["'][^>]*)>([\s\S]*?)<\/(?:section|div|article)>/gi,
+              /<(section|div|article)\b([^>]*\bclass=["'][^"']*(?<![-\w])scene(?![-\w])[^"']*["'][^>]*)>([\s\S]*?)<\/\1>/gi,
             ),
           ];
           if (sectionMatches.length > 0) {
             const totalDur = meta.duration || 60;
             const autoDur = totalDur / sectionMatches.length;
             sectionMatches.forEach((m, idx) => {
-              const attrs = m[1];
-              const secContent = m[2];
+              const attrs = m[2];
+              const secContent = m[3];
               const idMatch = attrs.match(/id=["']([^"']+)["']/i) || attrs.match(/data-scene=["']([^"']+)["']/i);
               const startMatch = attrs.match(/data-start=["']([\d\.]+)["']/i);
               const durMatch = attrs.match(/data-duration=["']([\d\.]+)["']/i);
