@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { getFriendlyElementLabel } from "./ElementsCanvasOverlay";
 import {
   BoundingBox,
   TextT,
@@ -278,7 +279,7 @@ export function ElementsInspector({
                     color: "#38bdf8",
                   }}
                 >
-                  {selectedElement.tag || selectedElement.type}
+                  {getFriendlyElementLabel(selectedElement)}
                 </span>
                 <span style={{ fontSize: "13px", fontWeight: 700, color: "#f8fafc" }}>
                   Edit Element
@@ -715,7 +716,7 @@ export function ElementsInspector({
                                 shrink: 0,
                               }}
                             >
-                              {el.tag || el.type}
+                              {getFriendlyElementLabel(el)}
                             </span>
                             <span
                               style={{

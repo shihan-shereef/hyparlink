@@ -1,5 +1,24 @@
 import React, { useState, useRef, useEffect } from "react";
 
+export function getFriendlyElementLabel(el) {
+  if (!el) return "Element";
+  const tag = (el.tag || "").toLowerCase();
+  const type = (el.type || "").toLowerCase();
+  const field = (el.field || "").toLowerCase();
+
+  if (type === "image" || tag === "img") return "Image";
+  if (field === "title" || type === "heading" || tag === "h1" || tag === "h2" || tag === "h3" || tag === "title") return "Title";
+  if (field === "sub" || field === "subtitle" || tag === "h4" || tag === "h5" || tag === "h6" || type === "subtitle") return "Subtitle";
+  if (field === "time" || field === "kicker" || field === "eyebrow" || type === "badge" || tag === "pill" || tag === "kicker") return "Badge";
+  if (type === "button" || tag === "button" || type === "cta") return "Button";
+  if (el.text) {
+    if (tag === "p" || type === "text") return "Text";
+    if (el.text.length < 25) return "Title";
+    return "Text";
+  }
+  return "Element";
+}
+
 export function ElementsCanvasOverlay({
   elements = [],
   compositionIframeRef = null,
@@ -337,8 +356,16 @@ export function ElementsCanvasOverlay({
                     }
                   }
 
-                  const textEl = hit.closest("h1, h2, h3, h4, p, span, .headline, .title, .mega, .big, .description, .sub, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, button, a") ||
-                    (hit.textContent?.trim() ? hit : null);
+                  let textEl = hit.closest("h1, h2, h3, h4, p, span, .headline, .title, .mega, .big, .description, .sub, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, button, a");
+                  // If user clicked inside a container div (e.g. .left, .center, .scene, .content), look for the closest text child element
+                  if (!textEl && hit.textContent?.trim()) {
+                    const textChild = hit.querySelector(".title, .headline, .mega, .big, .sub, .description, .kicker, .eyebrow, .pill, h1, h2, h3, h4, p, span");
+                    if (textChild && textChild.textContent?.trim()) {
+                      textEl = textChild;
+                    } else if (!["html", "body", "section"].includes(hit.tagName.toLowerCase()) && !hit.classList?.contains("scene") && !hit.classList?.contains("content")) {
+                      textEl = hit;
+                    }
+                  }
 
                   if (textEl && textEl.textContent?.trim()) {
                     const clickedText = textEl.textContent.trim();
@@ -360,15 +387,18 @@ export function ElementsCanvasOverlay({
                     if (onAddElement) {
                       e.stopPropagation();
                       const newId = `el-detected-${Date.now()}`;
-                      const tag = textEl.tagName ? textEl.tagName.toLowerCase() : "div";
-                      const isH = tag.startsWith("h") || textEl.classList?.contains("headline") || textEl.classList?.contains("title");
+                      const tag = textEl.tagName ? textEl.tagName.toLowerCase() : "text";
+                      const isH = tag.startsWith("h") || textEl.classList?.contains("headline") || textEl.classList?.contains("title") || textEl.classList?.contains("mega") || textEl.classList?.contains("big");
+                      const isPill = textEl.classList?.contains("pill") || textEl.classList?.contains("kicker") || textEl.classList?.contains("badge");
+                      const newType = isH ? "heading" : isPill ? "badge" : "text";
+                      const friendlyLabel = isH ? "Title" : isPill ? "Badge" : "Text";
                       const newEl = {
                         id: newId,
                         sceneStart: Math.max(0, currentTime - 1),
                         sceneDuration: 6,
                         tag,
-                        type: isH ? "heading" : "text",
-                        name: `${isH ? "Title" : "Text"}: ${clickedText.slice(0, 20)}`,
+                        type: newType,
+                        name: `${friendlyLabel}: ${clickedText.slice(0, 20)}`,
                         text: clickedText,
                         originalText: clickedText,
                         isModified: false,
@@ -518,7 +548,7 @@ export function ElementsCanvasOverlay({
                     zIndex: 40,
                   }}
                 >
-                  <span>{el.tag || el.type}</span>
+                  <span>{getFriendlyElementLabel(el)}</span>
                   {el.text && (
                     <span style={{ fontWeight: 400, opacity: 0.9, maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis" }}>
                       : {el.text.slice(0, 20)}
