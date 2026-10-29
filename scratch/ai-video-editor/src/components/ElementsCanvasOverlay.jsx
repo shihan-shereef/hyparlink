@@ -38,6 +38,13 @@ export function ElementsCanvasOverlay({
   const [dragging, setDragging] = useState(null); // { id, startX, startY, initX, initY, isTopLeft }
   const [resizing, setResizing] = useState(null); // { id, corner, startX, startY, initWidth, initFontSize }
   const [inlineEditingId, setInlineEditingId] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null); // { x, y, elementId }
+
+  useEffect(() => {
+    const handleCloseMenu = () => setContextMenu(null);
+    window.addEventListener("click", handleCloseMenu);
+    return () => window.removeEventListener("click", handleCloseMenu);
+  }, []);
 
   // Helper to dynamically measure exact bounding rectangle from the live composition iframe DOM
   // Helper to dynamically measure exact bounding rectangle from the live composition iframe DOM
@@ -280,6 +287,26 @@ export function ElementsCanvasOverlay({
     };
   }, [resizing, onUpdateElement]);
 
+  const handleLayerChange = (elId, action) => {
+    const target = elements.find((e) => e.id === elId);
+    if (!target) return;
+    const currentZ = parseInt(target.style?.zIndex, 10) || 10;
+    let newZ = currentZ;
+    if (action === "front") newZ = 100;
+    else if (action === "forward") newZ = currentZ + 1;
+    else if (action === "backward") newZ = Math.max(1, currentZ - 1);
+    else if (action === "back") newZ = 1;
+
+    onUpdateElement?.(elId, {
+      style: {
+        ...(target.style || {}),
+        zIndex: newZ,
+      },
+      isModified: true,
+    });
+    setContextMenu(null);
+  };
+
   return (
     <div
       ref={containerRef}
@@ -309,10 +336,11 @@ export function ElementsCanvasOverlay({
                   if (!el || !el.tagName) return true;
                   const tag = el.tagName.toLowerCase();
                   if (["html", "body", "main", "section", "video"].includes(tag)) return true;
-                  if (el.id === "composition") return true;
+                  if (["composition", "root", "scenes", "hud", "barTop", "barBot", "flare"].includes(el.id)) return true;
                   const cls = typeof el.className === "string" ? el.className.toLowerCase() : "";
-                  if (cls.includes("scene-overlay") || cls.includes("film-grain") || cls.includes("progress-track") || cls.includes("progress-bar") || cls.includes("composition-root")) return true;
-                  if (cls.includes("gold-line")) return true;
+                  if (cls.includes("scene") || cls.includes("clip") || cls.includes("bg") || cls.includes("shade") || cls.includes("content") || cls.includes("center") || cls.includes("left")) return true;
+                  if (cls.includes("scene-overlay") || cls.includes("film-grain") || cls.includes("grain") || cls.includes("progress-track") || cls.includes("progress-bar") || cls.includes("composition-root")) return true;
+                  if (cls.includes("gold-line") || cls.includes("flare") || cls.includes("bar") || cls.includes("track") || cls.includes("fill")) return true;
                   return false;
                 };
 
@@ -324,7 +352,7 @@ export function ElementsCanvasOverlay({
                   const cls = typeof h.className === "string" ? h.className.toLowerCase() : "";
                   const isTextTag = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "button", "a"].includes(t);
                   const isTextCls = cls.includes("headline") || cls.includes("title") || cls.includes("description") || cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("scene-number") || cls.includes("num") || cls.includes("pill");
-                  if ((isTextTag || isTextCls) && h.textContent && h.textContent.trim().length > 0) {
+                  if ((isTextTag || isTextCls) && h.textContent && h.textContent.trim().length > 0 && h.textContent.trim().length < 200) {
                     textEl = h;
                     break;
                   }
@@ -408,12 +436,13 @@ export function ElementsCanvasOverlay({
                     return;
                   }
 
-                  // If not found in pre-extracted elements, dynamically register this leaf text
-                  if (onAddElement) {
+                  // Only register leaf text elements (never containers or div wrappers)
+                  const tag = textEl.tagName ? textEl.tagName.toLowerCase() : "p";
+                  const isLeafText = tag !== "div" && !textEl.querySelector("p, h1, h2, h3, h4, h5, h6, span, div") && clickedText.length < 150;
+                  if (onAddElement && isLeafText) {
                     e.stopPropagation();
                     const newId = targetHfId || `el-detected-${Date.now()}`;
                     if (!textEl.getAttribute("data-hf-id")) textEl.setAttribute("data-hf-id", newId);
-                    const tag = textEl.tagName ? textEl.tagName.toLowerCase() : "p";
                     const cls = typeof textEl.className === "string" ? textEl.className.toLowerCase() : "";
                     const isH = tag.startsWith("h") || cls.includes("headline") || cls.includes("title");
                     const isPill = cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("scene-number") || cls.includes("badge");
@@ -519,6 +548,19 @@ export function ElementsCanvasOverlay({
                 if (!isImage) {
                   setInlineEditingId(el.id);
                 }
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelectElement?.(el.id);
+                const rect = containerRef.current?.getBoundingClientRect();
+                const posX = e.clientX - (rect?.left || 0);
+                const posY = e.clientY - (rect?.top || 0);
+                setContextMenu({
+                  x: Math.min(posX, (rect?.width || 800) - 180),
+                  y: Math.min(posY, (rect?.height || 500) - 220),
+                  elementId: el.id,
+                });
               }}
               style={{
                 position: "absolute",
@@ -815,6 +857,190 @@ export function ElementsCanvasOverlay({
         </React.Fragment>
       );
     })}
+      {contextMenu && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            left: `${contextMenu.x}px`,
+            top: `${contextMenu.y}px`,
+            background: "rgba(15, 23, 42, 0.96)",
+            backdropFilter: "blur(16px)",
+            border: "1px solid rgba(255, 255, 255, 0.15)",
+            borderRadius: "8px",
+            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.8), 0 0 1px rgba(255,255,255,0.3)",
+            padding: "6px",
+            zIndex: 100,
+            minWidth: "175px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "2px",
+          }}
+        >
+          <div
+            style={{
+              padding: "4px 8px 6px 8px",
+              fontSize: "10px",
+              fontWeight: 700,
+              color: "#94a3b8",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              borderBottom: "1px solid rgba(255,255,255,0.08)",
+              marginBottom: "3px",
+            }}
+          >
+            Layer & Order
+          </div>
+          <button
+            type="button"
+            onClick={() => handleLayerChange(contextMenu.elementId, "front")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "6px 10px",
+              fontSize: "12px",
+              color: "#f8fafc",
+              background: "transparent",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              textAlign: "left",
+              fontWeight: 500,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(56, 189, 248, 0.15)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <span style={{ fontSize: "14px" }}>⇪</span>
+            <span>Bring to Front</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleLayerChange(contextMenu.elementId, "forward")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "6px 10px",
+              fontSize: "12px",
+              color: "#f8fafc",
+              background: "transparent",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              textAlign: "left",
+              fontWeight: 500,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(56, 189, 248, 0.15)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <span style={{ fontSize: "14px" }}>↑</span>
+            <span>Bring Forward</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleLayerChange(contextMenu.elementId, "backward")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "6px 10px",
+              fontSize: "12px",
+              color: "#f8fafc",
+              background: "transparent",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              textAlign: "left",
+              fontWeight: 500,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(56, 189, 248, 0.15)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <span style={{ fontSize: "14px" }}>↓</span>
+            <span>Send Backward</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleLayerChange(contextMenu.elementId, "back")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "6px 10px",
+              fontSize: "12px",
+              color: "#f8fafc",
+              background: "transparent",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              textAlign: "left",
+              fontWeight: 500,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(56, 189, 248, 0.15)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <span style={{ fontSize: "14px" }}>⇩</span>
+            <span>Send to Back</span>
+          </button>
+
+          <div style={{ height: "1px", background: "rgba(255,255,255,0.08)", margin: "4px 0" }} />
+
+          <button
+            type="button"
+            onClick={() => {
+              setInlineEditingId(contextMenu.elementId);
+              setContextMenu(null);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "6px 10px",
+              fontSize: "12px",
+              color: "#38bdf8",
+              background: "transparent",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              textAlign: "left",
+              fontWeight: 500,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(56, 189, 248, 0.15)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <span>✎</span>
+            <span>Edit Text</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onDeleteElement?.(contextMenu.elementId);
+              setContextMenu(null);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "6px 10px",
+              fontSize: "12px",
+              color: "#f87171",
+              background: "transparent",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              textAlign: "left",
+              fontWeight: 500,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <span>✕</span>
+            <span>Delete</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

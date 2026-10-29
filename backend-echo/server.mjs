@@ -2673,6 +2673,17 @@ const server = http.createServer(async (req, res) => {
         }
 
         const projectDir = resolved.dir;
+        const pristineIndex = path.join(projectDir, ".pristine_index.html");
+        const isRef =
+          projectId === "default_reference_video_2" ||
+          projectId === "default_reference_video" ||
+          projectId === "job-job_code_1792382768219_mbcw4" ||
+          projectId === "job-job_code_1792219404621_iizjt";
+        if (isRef && fs.existsSync(pristineIndex)) {
+          try {
+            fs.copyFileSync(pristineIndex, path.join(projectDir, "index.html"));
+          } catch (e) {}
+        }
         const metaPath = path.join(projectDir, "meta.json");
         const projPath = path.join(projectDir, "project.json");
         let meta = {};
@@ -2985,7 +2996,29 @@ const server = http.createServer(async (req, res) => {
           });
         }
 
-        const projectDir = resolved.dir;
+        let targetProjectDir = projectDir;
+        let returnProjectId = projectId;
+        const isRef =
+          projectId === "default_reference_video_2" ||
+          projectId === "default_reference_video" ||
+          projectId === "job-job_code_1792382768219_mbcw4" ||
+          projectId === "job-job_code_1792219404621_iizjt";
+
+        if (isRef) {
+          const newId = `job-job_code_user_${Date.now()}`;
+          targetProjectDir = path.join(PROJECTS_DIR, newId);
+          try {
+            fs.cpSync(projectDir, targetProjectDir, { recursive: true });
+            returnProjectId = newId;
+            const map = getProjectMap();
+            map[newId] = { dir: targetProjectDir, workspaceId: reqWs || "default" };
+            saveProjectMap(map);
+          } catch (err) {
+            console.error("Failed to copy reference project to user project:", err);
+            targetProjectDir = projectDir;
+          }
+        }
+
         const body = await readBody(req);
         const { files = {}, meta, properties, timeline, freecutProject } = body;
 
@@ -2998,24 +3031,24 @@ const server = http.createServer(async (req, res) => {
         }
 
         // Automatic timestamped backup
-        const backupName = backupProjectDir(projectDir);
+        const backupName = backupProjectDir(targetProjectDir);
 
         // Write updated files
         for (const [relPath, content] of Object.entries(files)) {
-          const targetPath = path.join(projectDir, relPath);
+          const targetPath = path.join(targetProjectDir, relPath);
           fs.mkdirSync(path.dirname(targetPath), { recursive: true });
           fs.writeFileSync(targetPath, String(content), "utf-8");
         }
 
         // Save freecut timeline if provided
         if (timeline || freecutProject) {
-          const fcPath = path.join(projectDir, "freecut-project.json");
+          const fcPath = path.join(targetProjectDir, "freecut-project.json");
           fs.writeFileSync(fcPath, JSON.stringify(timeline || freecutProject, null, 2), "utf-8");
         }
 
         // Update meta.json if provided
         if (meta || properties) {
-          const metaPath = path.join(projectDir, "meta.json");
+          const metaPath = path.join(targetProjectDir, "meta.json");
           let existingMeta = {};
           try {
             if (fs.existsSync(metaPath))
@@ -3043,7 +3076,8 @@ const server = http.createServer(async (req, res) => {
 
         return send(res, 200, {
           success: true,
-          projectId,
+          projectId: returnProjectId,
+          newProjectId: isRef ? returnProjectId : undefined,
           savedAt: Date.now(),
           backupCreated: backupName,
         });
@@ -3382,6 +3416,17 @@ const server = http.createServer(async (req, res) => {
 
         // Always serve the project's real index.html directly from resolvedDir
         if (subPath === "index.html") {
+          const pristineIndex = path.join(resolvedDir, ".pristine_index.html");
+          const isRef =
+            projectId === "default_reference_video_2" ||
+            projectId === "default_reference_video" ||
+            projectId === "job-job_code_1792382768219_mbcw4" ||
+            projectId === "job-job_code_1792219404621_iizjt";
+          if (isRef && fs.existsSync(pristineIndex)) {
+            try {
+              fs.copyFileSync(pristineIndex, path.join(resolvedDir, "index.html"));
+            } catch (e) {}
+          }
           const directIndex = path.join(resolvedDir, "index.html");
           if (fs.existsSync(directIndex)) {
             targetFile = directIndex;
@@ -3454,11 +3499,20 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       if (t.id === 'hyperframes-runtime-composer' || t.tagName === 'SCRIPT' || t.tagName === 'STYLE') return;
+      if (t.id === 'root' || t.id === 'scenes' || t.id === 'composition' || t.id === 'hud' || t.id === 'barTop' || t.id === 'barBot' || t.id === 'flare') {
+        postToEditor({ type: 'HYPERLINK_CANVAS_CLICKED' });
+        return;
+      }
+      var clsStr = typeof t.className === 'string' ? t.className : '';
+      if (clsStr.includes('scene') || clsStr.includes('clip') || clsStr.includes('bg') || clsStr.includes('shade') || clsStr.includes('flare') || clsStr.includes('grain') || clsStr.includes('bar') || clsStr.includes('track') || clsStr.includes('fill') || clsStr.includes('content') || clsStr.includes('center') || clsStr.includes('left')) {
+        postToEditor({ type: 'HYPERLINK_CANVAS_CLICKED' });
+        return;
+      }
 
-      var textEl = t.closest('.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, .hero-headline, .hero-subtitle, .badge-pill, [data-hf-id], h1, h2, h3, h4, h5, h6, p, button, a, img, svg') ||
-        t.closest('span:not(.ch):not(.row)') ||
-        t.closest('span, div') ||
-        (t.innerText && t.innerText.trim() ? t : null);
+      var textEl = t.closest('.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, .hero-headline, .hero-subtitle, .badge-pill, h1, h2, h3, h4, h5, h6, p, button, a, img');
+      if (textEl && (textEl.id === 'root' || textEl.id === 'scenes' || textEl.id === 'composition' || (textEl.classList && (textEl.classList.contains('scene') || textEl.classList.contains('clip') || textEl.classList.contains('bg') || textEl.classList.contains('content') || textEl.classList.contains('center') || textEl.classList.contains('left'))))) {
+        textEl = null;
+      }
 
       if (textEl) {
         e.stopPropagation();
@@ -3531,6 +3585,8 @@ const server = http.createServer(async (req, res) => {
           '.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, .description, .eyebrow, .scene-number, [data-hf-id], h1, h2, h3, h4, p, span.scene-number, button, img:not([hidden]), .product-image, .feature-image'
         );
         candidates.forEach(function(el, idx) {
+          if (el.id === 'root' || el.id === 'scenes' || el.id === 'composition' || el.id === 'hud' || el.id === 'barTop' || el.id === 'barBot' || el.id === 'flare') return;
+          if (el.classList && (el.classList.contains('scene') || el.classList.contains('clip') || el.classList.contains('bg') || el.classList.contains('shade') || el.classList.contains('content') || el.classList.contains('center') || el.classList.contains('left'))) return;
           if (el.tagName !== 'IMG' && el.querySelector('h1, h2, h3, h4, p, .headline, .description')) return;
           var tag = el.tagName ? el.tagName.toLowerCase() : 'div';
           var isImg = tag === 'img';

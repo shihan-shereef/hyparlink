@@ -161,6 +161,8 @@ export function App({ hostSession = null }) {
 
   // Interactive Project Elements State (Headings, Text, Images, Buttons, Backgrounds)
   const [projectElements, setProjectElements] = useState([]);
+  const elementHistoryRef = useRef([]);
+  const isUndoingRef = useRef(false);
   const [selectedElementId, setSelectedElementId] = useState(null);
   const [hoveredElementId, setHoveredElementId] = useState(null);
   const [projectScenes, setProjectScenes] = useState([]);
@@ -1745,7 +1747,16 @@ export function App({ hostSession = null }) {
         }),
       });
       if (res.ok) {
-        notify("Project HTML saved successfully!");
+        const data = await res.json().catch(() => ({}));
+        if (data.newProjectId) {
+          loadedProjectIdRef.current = data.newProjectId;
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.set("project", data.newProjectId);
+          window.history.replaceState({}, "", newUrl.toString());
+          notify("Saved as new project in your projects list!");
+        } else {
+          notify("Project HTML saved successfully!");
+        }
       } else {
         notify("Failed to save project HTML");
       }
@@ -1754,10 +1765,69 @@ export function App({ hostSession = null }) {
     }
   }, [notify]);
 
+  const pushElementHistory = useCallback((currentElements) => {
+    if (isUndoingRef.current || !currentElements || currentElements.length === 0) return;
+    elementHistoryRef.current.push(JSON.parse(JSON.stringify(currentElements)));
+    if (elementHistoryRef.current.length > 50) {
+      elementHistoryRef.current.shift();
+    }
+  }, []);
+
+  const handleSmartUndo = useCallback(() => {
+    pauseTimelineMedia();
+    if (elementHistoryRef.current && elementHistoryRef.current.length > 0) {
+      const prevElements = elementHistoryRef.current.pop();
+      isUndoingRef.current = true;
+      setProjectElements(prevElements);
+
+      // Sync restored elements to live composition iframe DOM
+      try {
+        const iframe = compositionIframeRef.current;
+        const doc = iframe?.contentDocument || iframe?.contentWindow?.document;
+        if (doc) {
+          prevElements.forEach((el) => {
+            const targetEl = doc.querySelector(`[data-hf-id="${el.id}"], #${el.id}`);
+            if (targetEl) {
+              if (el.text !== undefined && targetEl.tagName !== "IMG") {
+                targetEl.textContent = el.text;
+              }
+              if (el.placement) {
+                targetEl.style.position = "absolute";
+                targetEl.style.left = `${el.placement.x}%`;
+                targetEl.style.top = `${el.placement.y}%`;
+                targetEl.style.margin = "0";
+              }
+              if (el.style?.zIndex) {
+                targetEl.style.zIndex = String(el.style.zIndex);
+              }
+            }
+          });
+        }
+      } catch (err) {}
+
+      setTimeout(() => {
+        isUndoingRef.current = false;
+      }, 100);
+      notify("Undid last element change");
+      return;
+    }
+
+    // Only allow visual track undo if there is more than 1 visual clip so the main video is never deleted!
+    if (visualSegments && visualSegments.length > 1) {
+      undo();
+      notify("Undid timeline edit");
+    } else {
+      notify("No earlier changes to undo");
+    }
+  }, [pauseTimelineMedia, undo, visualSegments, notify]);
+
   const updateElement = useCallback((id, changes) => {
     setProjectElements((prev) => {
       const target = prev.find((el) => el.id === id);
       if (target) {
+        if (!isUndoingRef.current && (changes.placement || changes.text !== undefined || changes.style)) {
+          pushElementHistory(prev);
+        }
         if (changes.placement) {
           changes.hasMoved = true;
         }
@@ -1850,6 +1920,12 @@ export function App({ hostSession = null }) {
             }
 
             if (targetEl) {
+              if (targetEl.id === "root" || targetEl.id === "scenes" || targetEl.id === "composition" || targetEl.tagName === "BODY" || targetEl.tagName === "HTML") {
+                return;
+              }
+              if (changes.style?.zIndex) {
+                targetEl.style.zIndex = String(changes.style.zIndex);
+              }
               if (changes.placement) {
                 const pl = changes.placement;
                 targetEl.style.position = "absolute";
@@ -1871,7 +1947,9 @@ export function App({ hostSession = null }) {
                 targetEl.style.left = `${Math.round(targetLeftPx - parentOffsetLeft)}px`;
                 targetEl.style.top = `${Math.round(targetTopPx - parentOffsetTop)}px`;
                 targetEl.style.transform = pl.isTopLeft ? "none" : "translate(-50%, -50%)";
-                targetEl.style.zIndex = "50";
+                if (!changes.style?.zIndex) {
+                  targetEl.style.zIndex = "50";
+                }
 
                 if (pl.width) {
                   targetEl.style.width = typeof pl.width === "number" ? `${pl.width}px` : pl.width;
@@ -1902,7 +1980,9 @@ export function App({ hostSession = null }) {
         }
 
         // Auto-save element placement/position modification to HTML file
-        if (changes.placement && changes.hasMoved) {
+        if (target.id === "root" || target.id === "scenes" || target.id === "composition" || target.tag === "body" || target.tag === "html" || target.tag === "section") {
+          // Do not write position modifications to root or background wrappers
+        } else if (changes.placement && changes.hasMoved) {
           const projectData = loadedProjectDataRef.current;
           const projectId = loadedProjectIdRef.current;
           if (projectData && projectData.files && projectId) {
@@ -1918,12 +1998,17 @@ export function App({ hostSession = null }) {
               }
               if (fileContent && target.id) {
                 const pl = changes.placement;
-                const posStyles = `position: absolute; left: ${pl.x}%; top: ${pl.y}%; margin: 0;${pl.isTopLeft ? "" : " transform: translate(-50%, -50%);"}${pl.width ? ` width: ${pl.width}px;` : ""}`;
+                const zStyle = changes.style?.zIndex ? ` z-index: ${changes.style.zIndex};` : "";
+                const posStyles = `position: absolute; left: ${pl.x}%; top: ${pl.y}%; margin: 0;${pl.isTopLeft ? "" : " transform: translate(-50%, -50%);"}${pl.width ? ` width: ${pl.width}px;` : ""}${zStyle}`;
+                const cleanPos = (s) => (s || "").replace(/(?:position|left|top|margin|transform|width|z-index)\s*:[^;]+;?/gi, "").replace(/;\s*;/g, ";").trim();
                 const tagRegex = new RegExp(`(<[^>]+(?:data-hf-id|id)=["']${target.id}["'][^>]*)>`, "i");
                 if (tagRegex.test(fileContent)) {
                   fileContent = fileContent.replace(tagRegex, (match, openTag) => {
                     if (openTag.includes('style="')) {
-                      return openTag.replace(/style=["']([^"']*)["']/, `style="$1; ${posStyles}"`) + ">";
+                      return openTag.replace(/style=["']([^"']*)["']/, (m, existing) => {
+                        const cleaned = cleanPos(existing);
+                        return `style="${cleaned ? cleaned + '; ' : ''}${posStyles}"`;
+                      }) + ">";
                     } else {
                       return `${openTag} style="${posStyles}">`;
                     }
@@ -1968,6 +2053,43 @@ export function App({ hostSession = null }) {
                       }).catch(() => {});
                     }, 600);
                   }
+                }
+              }
+            } catch (err) {}
+          }
+        }
+
+        // Auto-save z-index modification to the project HTML file
+        if (changes.style?.zIndex && target.id && target.id !== "root" && target.id !== "scenes") {
+          const projectData = loadedProjectDataRef.current;
+          const projectId = loadedProjectIdRef.current;
+          if (projectData && projectData.files && projectId) {
+            try {
+              let targetFile = target.file || "index.html";
+              let fileContent = projectData.files[targetFile];
+              if (fileContent) {
+                const zVal = changes.style.zIndex;
+                const tagRegex = new RegExp(`(<[^>]+(?:data-hf-id|id)=["']${target.id}["'][^>]*)>`, "i");
+                if (tagRegex.test(fileContent)) {
+                  fileContent = fileContent.replace(tagRegex, (match, openTag) => {
+                    if (openTag.includes('style="')) {
+                      const cleaned = openTag.replace(/z-index\s*:[^;]+;?/gi, "").replace(/;\s*;/g, ";");
+                      return cleaned.replace(/style=["']([^"']*)["']/, `style="$1; z-index: ${zVal};"`) + ">";
+                    } else {
+                      return `${openTag} style="z-index: ${zVal};">`;
+                    }
+                  });
+                  projectData.files[targetFile] = fileContent;
+                  if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+                  saveTimeoutRef.current = setTimeout(() => {
+                    fetch(`/editor/project/${encodeURIComponent(projectId)}/save`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        files: { [targetFile]: projectData.files[targetFile] },
+                      }),
+                    }).catch(() => {});
+                  }, 500);
                 }
               }
             } catch (err) {}
@@ -2110,6 +2232,9 @@ export function App({ hostSession = null }) {
 
   const deleteElement = useCallback((id) => {
     setProjectElements((prev) => {
+      if (!isUndoingRef.current && prev && prev.length > 0) {
+        pushElementHistory(prev);
+      }
       const target = prev.find((el) => el.id === id);
       if (target) {
         // Clear text in composition iframe directly
@@ -2211,6 +2336,9 @@ export function App({ hostSession = null }) {
     setProjectElements((prev) => {
       const target = prev.find((el) => el.id === id);
       if (!target) return prev;
+      if (!isUndoingRef.current && prev && prev.length > 0) {
+        pushElementHistory(prev);
+      }
       const newId = `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       const duplicated = {
         ...target,
@@ -2225,9 +2353,15 @@ export function App({ hostSession = null }) {
       setSelectedElementId(newId);
       return [...prev, duplicated];
     });
-  }, []);
+  }, [pushElementHistory]);
 
   const addElement = useCallback((type = "heading", initialProps = {}) => {
+    setProjectElements((prev) => {
+      if (!isUndoingRef.current && prev && prev.length > 0) {
+        pushElementHistory(prev);
+      }
+      return prev;
+    });
     const newId = `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     let newElement = {
       id: newId,
@@ -2882,27 +3016,32 @@ export function App({ hostSession = null }) {
     const loadProjectFromSource = (payload) => {
       let { videoUrl, title, duration, prompt, overlays, projectId } = payload;
       const targetProjId = projectId || payload.projectId || projectParam || "default_reference_video_2";
-      const dur = Number(duration) && Number(duration) > 0 ? Number(duration) : 40;
-      const projectTitle = title || "Project Video";
-      const assetId = "video-source-" + (targetProjId || Date.now());
-
-      // All projects in the editor are HyperFrames HTML compositions.
-      // Always initialize in composition mode so the user can interactively select,
-      // inspect, and edit every element on the live video canvas.
+      const isLondon =
+        targetProjId === "default_reference_video_2" ||
+        targetProjId === "job-job_code_1792382768219_mbcw4" ||
+        (title && title.toLowerCase().includes("london"));
       const isKarnataka =
         targetProjId === "default_reference_video" ||
         targetProjId === "m57372k27qxvfy1z6zzrh37yrh8gs7aj" ||
-        (projectTitle && projectTitle.toLowerCase().includes("karnataka"));
-      const initialThumb = isKarnataka
-        ? `/outputs/repaired_job-job_code_1792219404621_iizjt_1792381910438_thumb.jpg`
-        : `/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142_thumb.jpg`;
-      const initialAssets = [
-        `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-intro.jpg`,
-        `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-coast.jpg`,
-        `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-mountains.jpg`,
-        `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-backwaters.jpg`,
-        `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-culture.jpg`,
-      ];
+        (title && title.toLowerCase().includes("karnataka"));
+      const dur = isLondon ? 60 : (Number(duration) && Number(duration) > 0 ? Number(duration) : (isKarnataka ? 30 : 40));
+      const projectTitle = title || (isLondon ? "London in 3 Days (Reference Video)" : (isKarnataka ? "Karnataka Coorg Tourism (Reference Video)" : "Project Video"));
+      const assetId = "video-source-" + (targetProjId || Date.now());
+
+      const initialThumb = isLondon
+        ? `/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142_thumb.jpg`
+        : `/outputs/repaired_job-job_code_1792219404621_iizjt_1792381910438_thumb.jpg`;
+      const initialAssets = isLondon
+        ? [initialThumb]
+        : isKarnataka
+        ? [
+            `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-intro.jpg`,
+            `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-coast.jpg`,
+            `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-mountains.jpg`,
+            `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-backwaters.jpg`,
+            `/editor/project/${encodeURIComponent(targetProjId)}/raw/assets/kerala-culture.jpg`,
+          ]
+        : [initialThumb];
       const compAsset = {
         assetId,
         id: assetId,
@@ -3043,6 +3182,36 @@ export function App({ hostSession = null }) {
         const payload = event.data.payload;
         if (!payload) return;
 
+        const idLower = (payload.id || "").toLowerCase();
+        const tagLower = (payload.tag || "").toLowerCase();
+        const clsLower = (payload.className || "").toLowerCase();
+        if (
+          idLower === "root" ||
+          idLower === "scenes" ||
+          idLower === "composition" ||
+          idLower === "hud" ||
+          idLower === "bartop" ||
+          idLower === "barbot" ||
+          idLower === "flare" ||
+          tagLower === "body" ||
+          tagLower === "html" ||
+          tagLower === "section" ||
+          tagLower === "main" ||
+          clsLower.includes("scene") ||
+          clsLower.includes("clip") ||
+          clsLower.includes("bg") ||
+          clsLower.includes("shade") ||
+          clsLower.includes("content") ||
+          clsLower.includes("center") ||
+          clsLower.includes("left") ||
+          clsLower.includes("bar") ||
+          clsLower.includes("track") ||
+          clsLower.includes("fill")
+        ) {
+          setSelectedElementId(null);
+          return;
+        }
+
         setProjectElements((prev) => {
           const targetText = (payload.text || "").trim().toLowerCase();
           let match = prev.find((el) => {
@@ -3142,7 +3311,7 @@ export function App({ hostSession = null }) {
         compactRail={compactRail}
         setCompactRail={setCompactRail}
         lastSaved={lastSaved}
-        undo={undo}
+        undo={handleSmartUndo}
         redo={redo}
         ratio={ratio}
         ratioId={ratioId}
@@ -3514,7 +3683,7 @@ export function App({ hostSession = null }) {
         t={t}
         trOption={trOption}
         notify={notify}
-        undo={undo}
+        undo={handleSmartUndo}
         redo={redo}
         handleDeleteTrack={handleDeleteTrack}
         handleDuplicateTrack={handleDuplicateTrack}
