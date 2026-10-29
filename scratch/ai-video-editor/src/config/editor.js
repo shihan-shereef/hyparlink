@@ -239,9 +239,7 @@ export const TOOL_RAIL = [
   { id: "elements", label: "Elements", icon: BoundingBox },
   { id: "media", label: "Media", icon: ImageSquare },
   { id: "caption", label: "Captions", icon: ClosedCaptioning },
-  { id: "smart", label: "Smart", icon: Scan },
   { id: "audio", label: "Audio", icon: MusicNote },
-  { id: "effects", label: "Effects", icon: MagicWand },
   { id: "plugins", label: "Plugins", icon: PlugsConnected },
   { id: "stickers", label: "Stickers", icon: Sticker },
 ];

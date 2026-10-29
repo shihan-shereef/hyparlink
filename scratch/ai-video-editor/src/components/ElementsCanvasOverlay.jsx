@@ -183,12 +183,10 @@ export function ElementsCanvasOverlay({
       const r = targetEl.getBoundingClientRect();
       if (!r || r.width <= 0) return null;
 
-      const padX = 8;
-      const padY = 4;
-      const left = Math.max(0, r.left - padX);
-      const top = Math.max(0, r.top - padY);
-      const width = Math.max(80, r.width + padX * 2);
-      const height = Math.max(30, (r.height > 0 ? r.height : 40) + padY * 2);
+      const left = Math.max(0, r.left);
+      const top = Math.max(0, r.top);
+      const width = Math.max(60, r.width);
+      const height = Math.max(24, r.height > 0 ? r.height : 36);
 
       return {
         leftPercent: (left / 1920) * 100,
@@ -230,8 +228,8 @@ export function ElementsCanvasOverlay({
         hasMoved: true,
         placement: {
           ...dragging.initPlacement,
-          x: Math.round(newX * 10) / 10,
-          y: Math.round(newY * 10) / 10,
+          x: Math.round(newX * 100) / 100,
+          y: Math.round(newY * 100) / 100,
           isTopLeft: dragging.isTopLeft,
         },
       });

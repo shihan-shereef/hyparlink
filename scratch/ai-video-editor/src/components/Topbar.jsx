@@ -249,35 +249,6 @@ export function Topbar({
 
       <div className="topbar-actions">
         {hostService}
-        <nav className="topbar-community-links" aria-label={t("communityLinks", "社区链接")}>
-          <a
-            href={COMMUNITY_LINKS.discord}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={t("discordCommunity", "Discord 社区")}
-            title={t("discordCommunity", "Discord 社区")}
-          >
-            <DiscordLogo size={19} weight="fill" aria-hidden="true" />
-          </a>
-          <a
-            href={COMMUNITY_LINKS.github}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={t("githubRepository", "GitHub 仓库")}
-            title={t("githubRepository", "GitHub 仓库")}
-          >
-            <GithubLogo size={19} weight="fill" aria-hidden="true" />
-          </a>
-          <a
-            href={COMMUNITY_LINKS.x}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={t("xProfile", "X 个人主页")}
-            title={t("xProfile", "X 个人主页")}
-          >
-            <XLogo size={19} weight="fill" aria-hidden="true" />
-          </a>
-        </nav>
         <button className="preview-button" type="button" title={`${t("shortcutPlayPause")} · Space`} onClick={(event) => { handlePlayToggle(); releasePointerActivatedFocus(event); }}>
           {isPlaying ? <Pause size={16} weight="fill" /> : <Play size={16} weight="fill" />}
           <span>{t("preview")}</span>

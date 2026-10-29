@@ -1852,22 +1852,31 @@ export function App({ hostSession = null }) {
             if (targetEl) {
               if (changes.placement) {
                 const pl = changes.placement;
-                const parent = targetEl.offsetParent;
-                const parentIsSceneOrRoot = !parent || parent === doc.body || parent === doc.documentElement || parent.id === "composition" || (parent.classList && parent.classList.contains("scene"));
                 targetEl.style.position = "absolute";
-                if (!parentIsSceneOrRoot) {
-                  const pr = parent.getBoundingClientRect();
-                  const targetLeftPx = (pl.x / 100) * 1920;
-                  const targetTopPx = (pl.y / 100) * 1080;
-                  targetEl.style.left = `${Math.round(targetLeftPx - pr.left)}px`;
-                  targetEl.style.top = `${Math.round(targetTopPx - pr.top)}px`;
-                } else {
-                  if (pl.x !== undefined) targetEl.style.left = `${pl.x}%`;
-                  if (pl.y !== undefined) targetEl.style.top = `${pl.y}%`;
+                targetEl.style.margin = "0";
+                targetEl.style.transition = "none";
+
+                let parentOffsetLeft = 0;
+                let parentOffsetTop = 0;
+                let curr = targetEl.offsetParent;
+                const scene = targetEl.closest(".scene, .ad-scene, section, main, #composition, body");
+                while (curr && curr !== scene && curr !== doc.body && curr !== doc.documentElement && curr.id !== "composition") {
+                  parentOffsetLeft += curr.offsetLeft || 0;
+                  parentOffsetTop += curr.offsetTop || 0;
+                  curr = curr.offsetParent;
                 }
+
+                const targetLeftPx = (pl.x / 100) * 1920;
+                const targetTopPx = (pl.y / 100) * 1080;
+                targetEl.style.left = `${Math.round(targetLeftPx - parentOffsetLeft)}px`;
+                targetEl.style.top = `${Math.round(targetTopPx - parentOffsetTop)}px`;
                 targetEl.style.transform = pl.isTopLeft ? "none" : "translate(-50%, -50%)";
+                targetEl.style.zIndex = "50";
+
                 if (pl.width) {
                   targetEl.style.width = typeof pl.width === "number" ? `${pl.width}px` : pl.width;
+                } else if (!targetEl.style.width && targetEl.offsetWidth > 0) {
+                  targetEl.style.width = `${targetEl.offsetWidth}px`;
                 }
                 if (pl.height && target.tag !== "img") {
                   targetEl.style.height = typeof pl.height === "number" ? `${pl.height}px` : pl.height;
@@ -1909,7 +1918,7 @@ export function App({ hostSession = null }) {
               }
               if (fileContent && target.id) {
                 const pl = changes.placement;
-                const posStyles = `position: absolute; left: ${pl.x}%; top: ${pl.y}%;${pl.isTopLeft ? "" : " transform: translate(-50%, -50%);"}${pl.width ? ` width: ${pl.width}px;` : ""}`;
+                const posStyles = `position: absolute; left: ${pl.x}%; top: ${pl.y}%; margin: 0;${pl.isTopLeft ? "" : " transform: translate(-50%, -50%);"}${pl.width ? ` width: ${pl.width}px;` : ""}`;
                 const tagRegex = new RegExp(`(<[^>]+(?:data-hf-id|id)=["']${target.id}["'][^>]*)>`, "i");
                 if (tagRegex.test(fileContent)) {
                   fileContent = fileContent.replace(tagRegex, (match, openTag) => {
@@ -1930,6 +1939,35 @@ export function App({ hostSession = null }) {
                       }),
                     }).catch(() => {});
                   }, 600);
+                } else if (target.originalText || target.text) {
+                  const targetSearch = (target.originalText || target.text).trim().slice(0, 20);
+                  const escaped = targetSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                  const contentRegex = new RegExp(`(<([a-z0-9]+)[^>]*>)([^<]*${escaped}[^<]*)(<\\/\\2>)`, "i");
+                  if (contentRegex.test(fileContent)) {
+                    fileContent = fileContent.replace(contentRegex, (m, openTag, tagName, inner, closeTag) => {
+                      let newOpen = openTag;
+                      if (!newOpen.includes("data-hf-id")) {
+                        newOpen = newOpen.replace(new RegExp(`^<${tagName}`, "i"), `<${tagName} data-hf-id="${target.id}"`);
+                      }
+                      if (newOpen.includes('style="')) {
+                        newOpen = newOpen.replace(/style=["']([^"']*)["']/, `style="$1; ${posStyles}"`);
+                      } else {
+                        newOpen = newOpen.replace(/>$/, ` style="${posStyles}">`);
+                      }
+                      return `${newOpen}${inner}${closeTag}`;
+                    });
+                    projectData.files[targetFile] = fileContent;
+                    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+                    saveTimeoutRef.current = setTimeout(() => {
+                      fetch(`/editor/project/${encodeURIComponent(projectId)}/save`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          files: { [targetFile]: projectData.files[targetFile] },
+                        }),
+                      }).catch(() => {});
+                    }, 600);
+                  }
                 }
               }
             } catch (err) {}
