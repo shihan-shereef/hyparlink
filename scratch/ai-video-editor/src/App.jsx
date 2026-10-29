@@ -1957,21 +1957,63 @@ export function App({ hostSession = null }) {
                   }
                 }
 
-                // 2. Direct string replacement
-                if (!replaced && currentText && fileContent.includes(currentText)) {
-                  fileContent = fileContent.replace(currentText, newText);
+                // 1b. Precise replacement inside SCENES array if this element maps to a scene field
+                if (!replaced && target.field && target.sceneIndex !== undefined) {
+                  const scenesRegex = /(?:const|let|var)\s+(?:SCENES|scenes)\s*=\s*\[([\s\S]*?)\];/i;
+                  const scenesMatch = fileContent.match(scenesRegex);
+                  if (scenesMatch) {
+                    const block = scenesMatch[1];
+                    const objRegex = /\{[\s\S]*?\}/g;
+                    let curIdx = 0;
+                    let oMatch;
+                    while ((oMatch = objRegex.exec(block)) !== null) {
+                      if (curIdx === target.sceneIndex) {
+                        const sceneStr = oMatch[0];
+                        const safeText = JSON.stringify(newText).slice(1, -1);
+                        const fldRegex = new RegExp(`(${target.field}\\s*:\\s*)(['"\`])(?:(?!\\2)[\\s\\S])*?\\2`, "i");
+                        if (fldRegex.test(sceneStr)) {
+                          const updatedSceneStr = sceneStr.replace(fldRegex, `$1'${safeText}'`);
+                          const updatedBlock = block.slice(0, oMatch.index) + updatedSceneStr + block.slice(oMatch.index + sceneStr.length);
+                          fileContent = fileContent.replace(scenesMatch[0], scenesMatch[0].replace(block, updatedBlock));
+                          replaced = true;
+                        }
+                        break;
+                      }
+                      curIdx++;
+                    }
+                  }
+                }
+
+                // 2. Direct string replacement with safety guards (length >= 3, not DOCTYPE/HTML keywords)
+                const isDangerousShort = !currentText || currentText.trim().length < 3 || /^(html|head|body|script|style|div|span|doctype)$/i.test(currentText.trim());
+                if (!replaced && currentText && !isDangerousShort && fileContent.includes(currentText)) {
+                  const safeNew = newText.replace(/\r\n|\r|\n/g, " ");
+                  fileContent = fileContent.replace(currentText, safeNew);
                   replaced = true;
                 }
 
                 // 3. Fuzzy match across <br> or tags
-                if (!replaced && currentText) {
+                if (!replaced && currentText && !isDangerousShort) {
                   const words = currentText.split(/\s+/).filter(Boolean).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
                   if (words.length > 0) {
                     const fuzzyRegex = new RegExp(words.join("\\s*(?:<[^>]+>)?\\s*"), "i");
                     if (fuzzyRegex.test(fileContent)) {
-                      fileContent = fileContent.replace(fuzzyRegex, newText);
+                      fileContent = fileContent.replace(fuzzyRegex, newText.replace(/\r\n|\r|\n/g, " "));
                       replaced = true;
                     }
+                  }
+                }
+
+                // 4. Guarantee script integrity: check for syntax errors before persisting
+                if (replaced) {
+                  try {
+                    const scripts = [...fileContent.matchAll(/<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/gi)];
+                    for (const s of scripts) {
+                      new Function(s[1]);
+                    }
+                  } catch (syntaxErr) {
+                    console.warn("Syntax check failed on edited file, skipping save to avoid corrupting code:", syntaxErr);
+                    replaced = false;
                   }
                 }
 
