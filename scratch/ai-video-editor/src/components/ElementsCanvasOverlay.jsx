@@ -24,21 +24,31 @@ export function ElementsCanvasOverlay({
   compositionIframeRef = null,
   currentTime = 0,
   selectedElementId = null,
+  selectedElementIds = [],
   hoveredElementId = null,
   onSelectElement,
+  onSelectElements,
   onHoverElement,
   onUpdateElement,
   onDeleteElement,
   onAddElement,
+  onStartMove,
   frameWidth = 1280,
   frameHeight = 720,
   isPlaying = false,
 }) {
   const containerRef = useRef(null);
-  const [dragging, setDragging] = useState(null); // { id, startX, startY, initX, initY, isTopLeft }
-  const [resizing, setResizing] = useState(null); // { id, corner, startX, startY, initWidth, initFontSize }
+  const [dragging, setDragging] = useState(null); // { id, startX, startY, items: [] }
+  const [resizing, setResizing] = useState(null); // { id, corner, startX, startY, initWidth, initHeight, initRawFontSize, initPlacement, initStyle }
   const [inlineEditingId, setInlineEditingId] = useState(null);
   const [contextMenu, setContextMenu] = useState(null); // { x, y, elementId }
+  const [marquee, setMarquee] = useState(null); // { startX, startY, currentX, currentY }
+
+  const selectedSet = new Set(
+    Array.isArray(selectedElementIds) && selectedElementIds.length > 0
+      ? selectedElementIds
+      : selectedElementId ? [selectedElementId] : []
+  );
 
   useEffect(() => {
     const handleCloseMenu = () => setContextMenu(null);
@@ -187,13 +197,29 @@ export function ElementsCanvasOverlay({
 
       if (!targetEl) return null;
 
-      const r = targetEl.getBoundingClientRect();
+      // Measure exact text bounds snug to the sentence (top to bottom, left to right)
+      let r = null;
+      const tagLower = targetEl.tagName ? targetEl.tagName.toLowerCase() : "";
+      if (tagLower !== "img" && tagLower !== "svg" && tagLower !== "video") {
+        try {
+          const ownerDoc = targetEl.ownerDocument || doc;
+          const range = ownerDoc.createRange();
+          range.selectNodeContents(targetEl);
+          const rangeRect = range.getBoundingClientRect();
+          if (rangeRect && rangeRect.width > 0 && rangeRect.height > 0) {
+            r = rangeRect;
+          }
+        } catch (e) {}
+      }
+      if (!r) {
+        r = targetEl.getBoundingClientRect();
+      }
       if (!r || r.width <= 0) return null;
 
-      const left = Math.max(0, r.left);
-      const top = Math.max(0, r.top);
-      const width = Math.max(60, r.width);
-      const height = Math.max(24, r.height > 0 ? r.height : 36);
+      const left = Math.max(0, r.left - 2);
+      const top = Math.max(0, r.top - 2);
+      const width = Math.max(24, r.width + 4);
+      const height = Math.max(16, (r.height > 0 ? r.height : 24) + 4);
 
       return {
         leftPercent: (left / 1920) * 100,
@@ -216,7 +242,7 @@ export function ElementsCanvasOverlay({
     return currentTime >= el.sceneStart && currentTime < end;
   });
 
-  // Handle Dragging / Repositioning
+  // Handle Multi-Element & Single-Element Dragging
   useEffect(() => {
     if (!dragging) return;
 
@@ -227,22 +253,38 @@ export function ElementsCanvasOverlay({
       const deltaX = ((e.clientX - dragging.startX) / rect.width) * 100;
       const deltaY = ((e.clientY - dragging.startY) / rect.height) * 100;
 
-      const newX = Math.max(0, Math.min(100, dragging.initX + deltaX));
-      const newY = Math.max(0, Math.min(100, dragging.initY + deltaY));
+      const items = dragging.items || [{
+        id: dragging.id,
+        initX: dragging.initX,
+        initY: dragging.initY,
+        initPlacement: dragging.initPlacement,
+      }];
 
-      onUpdateElement?.(dragging.id, {
-        isModified: true,
-        hasMoved: true,
-        placement: {
-          ...dragging.initPlacement,
-          x: Math.round(newX * 100) / 100,
-          y: Math.round(newY * 100) / 100,
-          isTopLeft: dragging.isTopLeft,
-        },
+      items.forEach((item) => {
+        const newX = Math.max(0, Math.min(100, item.initX + deltaX));
+        const newY = Math.max(0, Math.min(100, item.initY + deltaY));
+
+        onUpdateElement?.(item.id, {
+          isModified: true,
+          hasMoved: true,
+          isDragging: true,
+          placement: {
+            ...item.initPlacement,
+            x: Math.round(newX * 100) / 100,
+            y: Math.round(newY * 100) / 100,
+            isTopLeft: true,
+          },
+        });
       });
     };
 
     const handlePointerUp = () => {
+      if (dragging) {
+        const items = dragging.items || [{ id: dragging.id }];
+        items.forEach((item) => {
+          onUpdateElement?.(item.id, { isDragging: false });
+        });
+      }
       setDragging(null);
     };
 
@@ -254,28 +296,48 @@ export function ElementsCanvasOverlay({
     };
   }, [dragging, onUpdateElement]);
 
-  // Handle Resizing
+  // Handle Corner Handle Resizing
   useEffect(() => {
     if (!resizing) return;
 
     const handlePointerMove = (e) => {
       const deltaX = e.clientX - resizing.startX;
-      const scaleFactor = 1 + deltaX / (resizing.initWidth || 200);
+      const deltaY = e.clientY - resizing.startY;
+      const corner = resizing.corner || "se";
+
+      let factorX = deltaX;
+      let factorY = deltaY;
+      if (corner.includes("w")) factorX = -deltaX;
+      if (corner.includes("n")) factorY = -deltaY;
+
+      const combinedDelta = (factorX + factorY) / 2;
+      const baseDim = resizing.initWidth || 200;
+      const scaleFactor = Math.max(0.2, (baseDim + combinedDelta * 1.5) / baseDim);
 
       if (resizing.type === "image") {
-        const newWidth = Math.max(40, Math.min(1200, Math.round(resizing.initWidth * scaleFactor)));
+        const newWidth = Math.max(40, Math.min(1920, Math.round(resizing.initWidth * scaleFactor)));
+        const newHeight = Math.max(30, Math.min(1080, Math.round(resizing.initHeight * scaleFactor)));
         onUpdateElement?.(resizing.id, {
-          placement: { ...resizing.initPlacement, width: newWidth },
+          placement: { ...resizing.initPlacement, width: newWidth, height: newHeight },
+          hasMoved: true,
+          isDragging: true,
         });
       } else {
-        const newFontSize = Math.max(12, Math.min(120, Math.round(resizing.initFontSize * scaleFactor)));
+        const newFontSize = Math.max(12, Math.min(160, Math.round(resizing.initRawFontSize * scaleFactor)));
+        const newWidth = Math.max(40, Math.round(resizing.initWidth * scaleFactor));
         onUpdateElement?.(resizing.id, {
           style: { ...resizing.initStyle, fontSize: newFontSize },
+          placement: { ...resizing.initPlacement, width: newWidth },
+          hasMoved: true,
+          isDragging: true,
         });
       }
     };
 
     const handlePointerUp = () => {
+      if (resizing) {
+        onUpdateElement?.(resizing.id, { isDragging: false });
+      }
       setResizing(null);
     };
 
@@ -286,6 +348,57 @@ export function ElementsCanvasOverlay({
       window.removeEventListener("pointerup", handlePointerUp);
     };
   }, [resizing, onUpdateElement]);
+
+  // Handle Marquee Drag Selection on Canvas
+  useEffect(() => {
+    if (!marquee) return;
+
+    const handlePointerMove = (e) => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect || rect.width <= 0 || rect.height <= 0) return;
+
+      const curX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+      const curY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+
+      setMarquee((prev) => (prev ? { ...prev, currentX: curX, currentY: curY } : null));
+
+      const mLeft = Math.min(marquee.startX, curX);
+      const mTop = Math.min(marquee.startY, curY);
+      const mRight = Math.max(marquee.startX, curX);
+      const mBottom = Math.max(marquee.startY, curY);
+
+      const newlySelected = [];
+      visibleElements.forEach((el) => {
+        const dyn = getDynamicPlacement(el);
+        if (!dyn) return;
+        const elLeft = (dyn.leftPercent / 100) * rect.width;
+        const elTop = (dyn.topPercent / 100) * rect.height;
+        const elRight = elLeft + (dyn.widthPercent / 100) * rect.width;
+        const elBottom = elTop + (dyn.heightPercent / 100) * rect.height;
+
+        const intersects = !(elRight < mLeft || elLeft > mRight || elBottom < mTop || elTop > mBottom);
+        if (intersects) {
+          newlySelected.push(el.id);
+        }
+      });
+
+      if (newlySelected.length > 0) {
+        onSelectElements?.(newlySelected);
+        onSelectElement?.(newlySelected[0]);
+      }
+    };
+
+    const handlePointerUp = () => {
+      setMarquee(null);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [marquee, visibleElements, onSelectElement, onSelectElements]);
 
   const handleLayerChange = (elId, action) => {
     const target = elements.find((e) => e.id === elId);
@@ -320,7 +433,7 @@ export function ElementsCanvasOverlay({
       }}
       onPointerDown={(e) => {
         if (e.target === containerRef.current) {
-          // Check if user clicked on any text inside the live iframe
+          // Check if user clicked on any element (text, symbol, image) inside the live iframe
           if (compositionIframeRef?.current) {
             try {
               const iframe = compositionIframeRef.current;
@@ -331,34 +444,104 @@ export function ElementsCanvasOverlay({
                 const clickY = ((e.clientY - rect.top) / rect.height) * 1080;
                 const hits = doc.elementsFromPoint ? doc.elementsFromPoint(clickX, clickY) : [doc.elementFromPoint(clickX, clickY)].filter(Boolean);
 
-                // Ignore decorative overlays, background filters, progress bars, and container elements
                 const isIgnored = (el) => {
                   if (!el || !el.tagName) return true;
                   const tag = el.tagName.toLowerCase();
-                  if (["html", "body", "main", "section", "video"].includes(tag)) return true;
+                  if (["html", "body", "main", "video"].includes(tag)) return true;
                   if (["composition", "root", "scenes", "hud", "barTop", "barBot", "flare"].includes(el.id)) return true;
                   const cls = typeof el.className === "string" ? el.className.toLowerCase() : "";
-                  if (cls.includes("scene") || cls.includes("clip") || cls.includes("bg") || cls.includes("shade") || cls.includes("content") || cls.includes("center") || cls.includes("left")) return true;
-                  if (cls.includes("scene-overlay") || cls.includes("film-grain") || cls.includes("grain") || cls.includes("progress-track") || cls.includes("progress-bar") || cls.includes("composition-root")) return true;
-                  if (cls.includes("gold-line") || cls.includes("flare") || cls.includes("bar") || cls.includes("track") || cls.includes("fill")) return true;
+                  if (cls.includes("grid-overlay") || cls.includes("film-grain") || cls.includes("grain") || cls.includes("scene-background") || cls.includes("bg-") || cls.includes("scene-overlay") || cls.includes("progress-track") || cls.includes("progress-bar") || cls.includes("flare")) return true;
                   return false;
                 };
 
-                // 1. Look for text elements first (h1-h6, p, span, button, a, or class-based text)
+                // Check if any hit matches an already extracted element
+                for (const h of hits) {
+                  if (isIgnored(h)) continue;
+                  const hId = h.getAttribute("data-hf-id") || h.id;
+                  const hText = h.textContent?.trim().toLowerCase();
+                  const hSrc = h.getAttribute("src");
+                  const matched = elements.find((el) => {
+                    if (hId && el.id === hId) return true;
+                    if (hSrc && el.src && (el.src.includes(hSrc) || hSrc.includes(el.src))) return true;
+                    if (hText && el.text) {
+                      const et = el.text.trim().toLowerCase();
+                      return et === hText || et.includes(hText) || hText.includes(et);
+                    }
+                    return false;
+                  });
+                  if (matched) {
+                    e.stopPropagation();
+                    onSelectElement?.(matched.id);
+                    onSelectElements?.([matched.id]);
+                    return;
+                  }
+                }
+
+                // Look for Symbols / Glyphs / Icons
+                let symbolEl = null;
+                for (const h of hits) {
+                  if (isIgnored(h)) continue;
+                  const t = h.tagName.toLowerCase();
+                  const cls = typeof h.className === "string" ? h.className.toLowerCase() : "";
+                  const isSymbol = cls.includes("glyph") || cls.includes("symbol") || cls.includes("icon") || cls.includes("orbit") || cls.includes("visual") || t === "svg";
+                  if (isSymbol) {
+                    symbolEl = h;
+                    break;
+                  }
+                }
+
+                if (symbolEl && onAddElement) {
+                  e.stopPropagation();
+                  const symRect = symbolEl.getBoundingClientRect();
+                  const targetHfId = symbolEl.getAttribute("data-hf-id") || symbolEl.id;
+                  const newId = targetHfId || `el-sym-${Date.now()}`;
+                  if (!symbolEl.getAttribute("data-hf-id")) symbolEl.setAttribute("data-hf-id", newId);
+                  const symText = symbolEl.textContent?.trim() || "◇";
+                  const newEl = {
+                    id: newId,
+                    sceneStart: Math.max(0, currentTime - 1),
+                    sceneDuration: 6,
+                    tag: symbolEl.tagName.toLowerCase(),
+                    type: "symbol",
+                    name: `Symbol: ${symText.slice(0, 15)}`,
+                    text: symText,
+                    originalText: symText,
+                    isModified: false,
+                    style: {
+                      fontSize: 28,
+                      color: "#38bdf8",
+                      textAlign: "center",
+                    },
+                    placement: {
+                      x: symRect ? (symRect.left / 1920) * 100 : (clickX / 1920) * 100,
+                      y: symRect ? (symRect.top / 1080) * 100 : (clickY / 1080) * 100,
+                      width: symRect ? Math.max(30, symRect.width) : 50,
+                      height: symRect ? Math.max(30, symRect.height) : 50,
+                      isTopLeft: true,
+                    },
+                    visible: true,
+                  };
+                  onAddElement(newEl);
+                  onSelectElement?.(newId);
+                  onSelectElements?.([newId]);
+                  return;
+                }
+
+                // Look for text elements (h1-h6, p, span, button, a, or class-based text)
                 let textEl = null;
                 for (const h of hits) {
                   if (isIgnored(h)) continue;
                   const t = h.tagName.toLowerCase();
                   const cls = typeof h.className === "string" ? h.className.toLowerCase() : "";
-                  const isTextTag = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "button", "a"].includes(t);
+                  const isTextTag = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "button", "a", "div"].includes(t);
                   const isTextCls = cls.includes("headline") || cls.includes("title") || cls.includes("description") || cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("scene-number") || cls.includes("num") || cls.includes("pill");
-                  if ((isTextTag || isTextCls) && h.textContent && h.textContent.trim().length > 0 && h.textContent.trim().length < 200) {
+                  if ((isTextTag || isTextCls) && h.textContent && h.textContent.trim().length > 0 && h.textContent.trim().length < 300) {
                     textEl = h;
                     break;
                   }
                 }
 
-                // 2. If no direct text element, check for image element
+                // Check for image element
                 let imgEl = null;
                 if (!textEl) {
                   for (const h of hits) {
@@ -371,113 +554,81 @@ export function ElementsCanvasOverlay({
                 }
 
                 // Handle Image selection
-                if (imgEl) {
+                if (imgEl && onAddElement) {
+                  e.stopPropagation();
                   const targetSrc = imgEl.getAttribute("src") || "";
                   const targetHfId = imgEl.getAttribute("data-hf-id") || imgEl.id;
-                  const matchedImg = elements.find((el) => {
-                    if (el.type === "image" || el.tag === "img") {
-                      if (targetHfId && el.id === targetHfId) return true;
-                      if (targetSrc && el.src && (el.src.includes(targetSrc) || targetSrc.includes(el.src))) return true;
-                    }
-                    return false;
-                  });
-                  if (matchedImg) {
-                    e.stopPropagation();
-                    onSelectElement?.(matchedImg.id);
-                    return;
-                  }
-                  if (onAddElement) {
-                    e.stopPropagation();
-                    const imgRect = imgEl.getBoundingClientRect();
-                    const newId = targetHfId || `el-img-${Date.now()}`;
-                    if (!imgEl.getAttribute("data-hf-id")) imgEl.setAttribute("data-hf-id", newId);
-                    const newEl = {
-                      id: newId,
-                      sceneStart: Math.max(0, currentTime - 1),
-                      sceneDuration: 6,
-                      tag: "img",
-                      type: "image",
-                      name: `Image: ${imgEl.alt || "Visual"}`,
-                      src: targetSrc,
-                      isModified: false,
-                      style: { objectFit: "contain" },
-                      placement: {
-                        x: (imgRect.left / 1920) * 100,
-                        y: (imgRect.top / 1080) * 100,
-                        width: imgRect.width || 300,
-                        height: imgRect.height || 200,
-                        isTopLeft: true,
-                      },
-                      visible: true,
-                    };
-                    onAddElement(newEl);
-                    onSelectElement?.(newId);
-                    return;
-                  }
+                  const imgRect = imgEl.getBoundingClientRect();
+                  const newId = targetHfId || `el-img-${Date.now()}`;
+                  if (!imgEl.getAttribute("data-hf-id")) imgEl.setAttribute("data-hf-id", newId);
+                  const newEl = {
+                    id: newId,
+                    sceneStart: Math.max(0, currentTime - 1),
+                    sceneDuration: 6,
+                    tag: "img",
+                    type: "image",
+                    name: `Image: ${imgEl.alt || "Visual"}`,
+                    src: targetSrc,
+                    isModified: false,
+                    style: { objectFit: "contain" },
+                    placement: {
+                      x: (imgRect.left / 1920) * 100,
+                      y: (imgRect.top / 1080) * 100,
+                      width: imgRect.width || 300,
+                      height: imgRect.height || 200,
+                      isTopLeft: true,
+                    },
+                    visible: true,
+                  };
+                  onAddElement(newEl);
+                  onSelectElement?.(newId);
+                  onSelectElements?.([newId]);
+                  return;
                 }
 
                 // Handle Text selection
-                if (textEl && textEl.textContent && textEl.textContent.trim().length > 0) {
+                if (textEl && textEl.textContent && textEl.textContent.trim().length > 0 && onAddElement) {
                   const clickedText = textEl.textContent.trim();
                   const targetHfId = textEl.getAttribute("data-hf-id") || textEl.id;
-
-                  // Find matching element from projectElements
-                  const matched = elements.find((el) => {
-                    if (targetHfId && el.id === targetHfId) return true;
-                    if (!el.text) return false;
-                    const a = el.text.trim().toLowerCase();
-                    const b = clickedText.toLowerCase();
-                    return a === b || a.includes(b) || b.includes(a);
-                  });
-
-                  if (matched) {
-                    e.stopPropagation();
-                    onSelectElement?.(matched.id);
-                    return;
-                  }
-
-                  // Only register leaf text elements (never containers or div wrappers)
                   const tag = textEl.tagName ? textEl.tagName.toLowerCase() : "p";
-                  const isLeafText = tag !== "div" && !textEl.querySelector("p, h1, h2, h3, h4, h5, h6, span, div") && clickedText.length < 150;
-                  if (onAddElement && isLeafText) {
-                    e.stopPropagation();
-                    const newId = targetHfId || `el-detected-${Date.now()}`;
-                    if (!textEl.getAttribute("data-hf-id")) textEl.setAttribute("data-hf-id", newId);
-                    const cls = typeof textEl.className === "string" ? textEl.className.toLowerCase() : "";
-                    const isH = tag.startsWith("h") || cls.includes("headline") || cls.includes("title");
-                    const isPill = cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("scene-number") || cls.includes("badge");
-                    const newType = isH ? "heading" : isPill ? "badge" : "text";
-                    const friendlyLabel = isH ? "Title" : isPill ? "Badge" : "Text";
-                    const tRect = textEl.getBoundingClientRect();
-                    const newEl = {
-                      id: newId,
-                      sceneStart: Math.max(0, currentTime - 1),
-                      sceneDuration: 6,
-                      tag,
-                      type: newType,
-                      name: `${friendlyLabel}: ${clickedText.slice(0, 20)}`,
-                      text: clickedText,
-                      originalText: clickedText,
-                      isModified: false,
-                      style: {
-                        fontFamily: isH ? "Georgia, 'Times New Roman', serif" : "'Inter', sans-serif",
-                        fontSize: isH ? 48 : 24,
-                        color: "#ffffff",
-                        textAlign: "left",
-                      },
-                      placement: {
-                        x: tRect ? (tRect.left / 1920) * 100 : (clickX / 1920) * 100,
-                        y: tRect ? (tRect.top / 1080) * 100 : (clickY / 1080) * 100,
-                        width: tRect ? Math.max(100, tRect.width) : 400,
-                        height: tRect ? Math.max(30, tRect.height) : 60,
-                        isTopLeft: true,
-                      },
-                      visible: true,
-                    };
-                    onAddElement(newEl);
-                    onSelectElement?.(newId);
-                    return;
-                  }
+                  e.stopPropagation();
+                  const newId = targetHfId || `el-detected-${Date.now()}`;
+                  if (!textEl.getAttribute("data-hf-id")) textEl.setAttribute("data-hf-id", newId);
+                  const cls = typeof textEl.className === "string" ? textEl.className.toLowerCase() : "";
+                  const isH = tag.startsWith("h") || cls.includes("headline") || cls.includes("title");
+                  const isPill = cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("scene-number") || cls.includes("badge");
+                  const newType = isH ? "heading" : isPill ? "badge" : "text";
+                  const friendlyLabel = isH ? "Title" : isPill ? "Badge" : "Text";
+                  const tRect = textEl.getBoundingClientRect();
+                  const newEl = {
+                    id: newId,
+                    sceneStart: Math.max(0, currentTime - 1),
+                    sceneDuration: 6,
+                    tag,
+                    type: newType,
+                    name: `${friendlyLabel}: ${clickedText.slice(0, 20)}`,
+                    text: clickedText,
+                    originalText: clickedText,
+                    isModified: false,
+                    style: {
+                      fontFamily: isH ? "Georgia, 'Times New Roman', serif" : "'Inter', sans-serif",
+                      fontSize: isH ? 48 : 24,
+                      color: "#ffffff",
+                      textAlign: "left",
+                    },
+                    placement: {
+                      x: tRect ? (tRect.left / 1920) * 100 : (clickX / 1920) * 100,
+                      y: tRect ? (tRect.top / 1080) * 100 : (clickY / 1080) * 100,
+                      width: tRect ? Math.max(60, tRect.width) : 300,
+                      height: tRect ? Math.max(24, tRect.height) : 40,
+                      isTopLeft: true,
+                    },
+                    visible: true,
+                  };
+                  onAddElement(newEl);
+                  onSelectElement?.(newId);
+                  onSelectElements?.([newId]);
+                  return;
                 }
               }
             } catch (err) {
@@ -485,20 +636,24 @@ export function ElementsCanvasOverlay({
             }
           }
 
-          // Clicking empty canvas deselects element
+          // Clicking empty canvas: start rubber-band / marquee drag selection
+          const rect = containerRef.current.getBoundingClientRect();
+          const sx = Math.max(0, e.clientX - rect.left);
+          const sy = Math.max(0, e.clientY - rect.top);
+          setMarquee({ startX: sx, startY: sy, currentX: sx, currentY: sy });
           onSelectElement?.(null);
+          onSelectElements?.([]);
           setInlineEditingId(null);
         }
       }}
     >
       {visibleElements.map((el) => {
-        const isSelected = el.id === selectedElementId;
+        const isSelected = selectedSet.has(el.id);
         const isHovered = el.id === hoveredElementId;
-        const dynamic = !el.hasMoved ? getDynamicPlacement(el) : null;
+        const dynamic = getDynamicPlacement(el);
 
-        const posX = el.placement?.x ?? 50;
-        const posY = el.placement?.y ?? 50;
-        const isTopLeft = dynamic ? true : Boolean(el.placement?.isTopLeft);
+        const posX = dynamic ? dynamic.leftPercent : (el.placement?.x ?? 50);
+        const posY = dynamic ? dynamic.topPercent : (el.placement?.y ?? 50);
 
         const isHeading = el.type === "heading" || el.tag === "h1" || el.tag === "h2" || el.tag === "h3";
         const isImage = el.type === "image" || el.tag === "img";
@@ -512,15 +667,14 @@ export function ElementsCanvasOverlay({
         const textAlign = el.style?.textAlign || (isHeading ? "center" : "left");
         const opacity = el.style?.opacity ?? 1;
 
-        const boxLeft = dynamic ? `${dynamic.leftPercent}%` : `${posX}%`;
-        const boxTop = dynamic ? `${dynamic.topPercent}%` : `${posY}%`;
-        const boxWidth = dynamic
-          ? `${dynamic.widthPercent}%`
-          : (el.placement?.width ? `${Math.min(95, (el.placement.width / 1920) * 100)}%` : "auto");
-        const boxHeight = dynamic
-          ? `${dynamic.heightPercent}%`
-          : (el.placement?.height ? `${Math.min(95, (el.placement.height / 1080) * 100)}%` : "auto");
-        const boxTransform = isTopLeft ? "none" : "translate(-50%, -50%)";
+        const boxLeft = `${posX}%`;
+        const boxTop = `${posY}%`;
+        const boxWidth = isImage
+          ? (el.placement?.width ? `${Math.min(95, (el.placement.width / 1920) * 100)}%` : (dynamic ? `${dynamic.widthPercent}%` : "auto"))
+          : (dynamic ? `${dynamic.widthPercent}%` : "fit-content");
+        const boxHeight = isImage
+          ? (el.placement?.height ? `${Math.min(95, (el.placement.height / 1080) * 100)}%` : (dynamic ? `${dynamic.heightPercent}%` : "auto"))
+          : (dynamic ? `${dynamic.heightPercent}%` : "auto");
 
         return (
           <React.Fragment key={el.id}>
@@ -532,15 +686,35 @@ export function ElementsCanvasOverlay({
                 if (inlineEditingId === el.id) return;
                 e.stopPropagation();
                 onSelectElement?.(el.id);
-                // Start drag
+                const isMulti = selectedSet.has(el.id) && selectedSet.size > 1;
+                if (!isMulti) {
+                  onSelectElements?.([el.id]);
+                }
+                onStartMove?.();
+
+                const itemsToMove = isMulti
+                  ? Array.from(selectedSet).map((id) => {
+                      const itemEl = elements.find((x) => x.id === id);
+                      const dyn = itemEl ? getDynamicPlacement(itemEl) : null;
+                      return {
+                        id,
+                        initX: dyn ? dyn.leftPercent : (itemEl?.placement?.x ?? 50),
+                        initY: dyn ? dyn.topPercent : (itemEl?.placement?.y ?? 50),
+                        initPlacement: itemEl?.placement || {},
+                      };
+                    })
+                  : [{
+                      id: el.id,
+                      initX: dynamic ? dynamic.leftPercent : posX,
+                      initY: dynamic ? dynamic.topPercent : posY,
+                      initPlacement: el.placement || {},
+                    }];
+
                 setDragging({
                   id: el.id,
                   startX: e.clientX,
                   startY: e.clientY,
-                  initX: dynamic ? dynamic.leftPercent : posX,
-                  initY: dynamic ? dynamic.topPercent : posY,
-                  isTopLeft,
-                  initPlacement: el.placement || {},
+                  items: itemsToMove,
                 });
               }}
               onDoubleClick={(e) => {
@@ -554,11 +728,11 @@ export function ElementsCanvasOverlay({
                 e.stopPropagation();
                 onSelectElement?.(el.id);
                 const rect = containerRef.current?.getBoundingClientRect();
-                const posX = e.clientX - (rect?.left || 0);
-                const posY = e.clientY - (rect?.top || 0);
+                const pX = e.clientX - (rect?.left || 0);
+                const pY = e.clientY - (rect?.top || 0);
                 setContextMenu({
-                  x: Math.min(posX, (rect?.width || 800) - 180),
-                  y: Math.min(posY, (rect?.height || 500) - 220),
+                  x: Math.min(pX, (rect?.width || 800) - 180),
+                  y: Math.min(pY, (rect?.height || 500) - 220),
                   elementId: el.id,
                 });
               }}
@@ -567,9 +741,10 @@ export function ElementsCanvasOverlay({
                 left: boxLeft,
                 top: boxTop,
                 width: boxWidth,
-                minWidth: "80px",
-                minHeight: boxHeight && boxHeight !== "auto" ? boxHeight : "32px",
-                transform: boxTransform,
+                height: boxHeight,
+                minWidth: "auto",
+                minHeight: "auto",
+                transform: "none",
                 cursor: isSelected ? "move" : "pointer",
                 userSelect: "none",
                 pointerEvents: "auto",
@@ -582,13 +757,13 @@ export function ElementsCanvasOverlay({
                   : isHovered
                   ? "2px dashed #00f0ff"
                   : "none",
-                outlineOffset: "4px",
+                outlineOffset: "3px",
                 boxShadow: isSelected
                   ? "0 0 16px rgba(56, 189, 248, 0.6), inset 0 0 0 1px rgba(255,255,255,0.4)"
                   : isHovered
                   ? "0 0 12px rgba(0, 240, 255, 0.4)"
                   : "none",
-                borderRadius: "4px",
+                borderRadius: "3px",
                 padding: "0px",
                 transition: isSelected || dragging ? "none" : "outline 0.15s ease, box-shadow 0.15s ease",
               }}
@@ -825,14 +1000,17 @@ export function ElementsCanvasOverlay({
                     key={corner}
                     onPointerDown={(e) => {
                       e.stopPropagation();
+                      onStartMove?.();
+                      const dyn = getDynamicPlacement(el);
                       setResizing({
                         id: el.id,
                         corner,
                         type: isImage ? "image" : "text",
                         startX: e.clientX,
                         startY: e.clientY,
-                        initWidth: el.placement?.width || 200,
-                        initFontSize: fontSize,
+                        initWidth: dyn?.widthPx || el.placement?.width || 200,
+                        initHeight: dyn?.heightPx || el.placement?.height || 60,
+                        initRawFontSize: rawFontSize,
                         initPlacement: el.placement || {},
                         initStyle: el.style || {},
                       });
@@ -847,7 +1025,7 @@ export function ElementsCanvasOverlay({
                       top: corner.includes("n") ? "-6px" : "calc(100% - 4px)",
                       left: corner.includes("w") ? "-6px" : "calc(100% - 4px)",
                       cursor: corner === "nw" || corner === "se" ? "nwse-resize" : "nesw-resize",
-                      zIndex: 35,
+                      zIndex: 45,
                     }}
                   />
                 ))}
@@ -857,6 +1035,24 @@ export function ElementsCanvasOverlay({
         </React.Fragment>
       );
     })}
+
+      {/* Marquee Drag Selection Box */}
+      {marquee && (
+        <div
+          style={{
+            position: "absolute",
+            left: `${Math.min(marquee.startX, marquee.currentX)}px`,
+            top: `${Math.min(marquee.startY, marquee.currentY)}px`,
+            width: `${Math.abs(marquee.currentX - marquee.startX)}px`,
+            height: `${Math.abs(marquee.currentY - marquee.startY)}px`,
+            border: "1.5px dashed #38bdf8",
+            backgroundColor: "rgba(56, 189, 248, 0.15)",
+            pointerEvents: "none",
+            zIndex: 50,
+          }}
+        />
+      )}
+
       {contextMenu && (
         <div
           onPointerDown={(e) => e.stopPropagation()}

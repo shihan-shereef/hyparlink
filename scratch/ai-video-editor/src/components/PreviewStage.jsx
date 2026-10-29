@@ -179,12 +179,15 @@ export function PreviewStage({
   onAddTextSegment,
   projectElements = [],
   selectedElementId = null,
+  selectedElementIds = [],
   hoveredElementId = null,
   onSelectElement,
+  onSelectElements,
   onHoverElement,
   onUpdateElement,
   onDeleteElement,
   onAddProjectElement,
+  onStartMove,
   selectedSticker,
   stickers = [],
   selectedStickerId = "",
@@ -1302,12 +1305,15 @@ export function PreviewStage({
                 compositionIframeRef={compositionIframeRef}
                 currentTime={currentTime}
                 selectedElementId={selectedElementId}
+                selectedElementIds={selectedElementIds}
                 hoveredElementId={hoveredElementId}
                 onSelectElement={onSelectElement}
+                onSelectElements={onSelectElements}
                 onHoverElement={onHoverElement}
                 onUpdateElement={onUpdateElement}
                 onDeleteElement={onDeleteElement}
                 onAddElement={onAddProjectElement}
+                onStartMove={onStartMove}
                 frameWidth={frameWidth}
                 frameHeight={frameHeight}
                 isPlaying={isPlaying}

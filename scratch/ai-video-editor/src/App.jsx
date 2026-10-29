@@ -164,6 +164,7 @@ export function App({ hostSession = null }) {
   const elementHistoryRef = useRef([]);
   const isUndoingRef = useRef(false);
   const [selectedElementId, setSelectedElementId] = useState(null);
+  const [selectedElementIds, setSelectedElementIds] = useState([]);
   const [hoveredElementId, setHoveredElementId] = useState(null);
   const [projectScenes, setProjectScenes] = useState([]);
   const [compositionUrl, setCompositionUrl] = useState(null);
@@ -171,6 +172,12 @@ export function App({ hostSession = null }) {
   const loadedProjectDataRef = useRef(null);
   const loadedProjectIdRef = useRef(null);
   const saveTimeoutRef = useRef(null);
+
+  const handleStartMove = useCallback(() => {
+    if (!isUndoingRef.current && projectElements && projectElements.length > 0) {
+      pushElementHistory(projectElements);
+    }
+  }, [projectElements, pushElementHistory]);
   const {
     captionPlacement, captionPosition, captionSegments, captionSize, captionStyle,
     captionStylePresetId, captionStylePresets,
@@ -1780,10 +1787,14 @@ export function App({ hostSession = null }) {
       isUndoingRef.current = true;
       setProjectElements(prevElements);
 
-      // Sync restored elements to live composition iframe DOM
+      // Sync restored elements to live composition iframe DOM and project HTML
       try {
         const iframe = compositionIframeRef.current;
         const doc = iframe?.contentDocument || iframe?.contentWindow?.document;
+        const projectData = loadedProjectDataRef.current;
+        const projectId = loadedProjectIdRef.current;
+        let filesModified = false;
+
         if (doc) {
           prevElements.forEach((el) => {
             const targetEl = doc.querySelector(`[data-hf-id="${el.id}"], #${el.id}`);
@@ -1791,19 +1802,72 @@ export function App({ hostSession = null }) {
               if (el.text !== undefined && targetEl.tagName !== "IMG") {
                 targetEl.textContent = el.text;
               }
-              if (el.placement) {
+              if (el.hasMoved && el.placement) {
                 targetEl.style.position = "absolute";
                 targetEl.style.left = `${el.placement.x}%`;
                 targetEl.style.top = `${el.placement.y}%`;
                 targetEl.style.margin = "0";
+                targetEl.style.transform = "none";
+              } else {
+                targetEl.style.position = "";
+                targetEl.style.left = "";
+                targetEl.style.top = "";
+                targetEl.style.margin = "";
+                targetEl.style.transform = "";
               }
               if (el.style?.zIndex) {
                 targetEl.style.zIndex = String(el.style.zIndex);
               }
+              if (el.style?.fontSize) {
+                targetEl.style.fontSize = typeof el.style.fontSize === "number" ? `${el.style.fontSize}px` : el.style.fontSize;
+              }
+            }
+
+            // Sync back to project file
+            if (projectData && projectData.files && projectId && el.id) {
+              const targetFile = el.file || "index.html";
+              let fileContent = projectData.files[targetFile];
+              if (fileContent) {
+                const tagRegex = new RegExp(`(<[^>]+(?:data-hf-id|id)=["']${el.id}["'][^>]*)>`, "i");
+                if (tagRegex.test(fileContent)) {
+                  fileContent = fileContent.replace(tagRegex, (match, openTag) => {
+                    const cleanPos = (s) => (s || "").replace(/(?:position|left|top|margin|transform|width|z-index)\s*:[^;]+;?/gi, "").replace(/;\s*;/g, ";").trim();
+                    if (openTag.includes('style="')) {
+                      return openTag.replace(/style=["']([^"']*)["']/, (m, existing) => {
+                        const cleaned = cleanPos(existing);
+                        if (el.hasMoved && el.placement) {
+                          const isImg = el.tag === "img" || el.type === "image";
+                          const widthStyle = isImg && el.placement.width ? ` width: ${el.placement.width}px;` : " width: fit-content; max-width: 90%;";
+                          const posStyles = `position: absolute; left: ${el.placement.x}%; top: ${el.placement.y}%; margin: 0; transform: none;${widthStyle}`;
+                          return `style="${cleaned ? cleaned + '; ' : ''}${posStyles}"`;
+                        } else {
+                          return cleaned ? `style="${cleaned}"` : "";
+                        }
+                      }) + ">";
+                    } else if (el.hasMoved && el.placement) {
+                      const posStyles = `position: absolute; left: ${el.placement.x}%; top: ${el.placement.y}%; margin: 0; transform: none; width: fit-content; max-width: 90%;`;
+                      return `${openTag} style="${posStyles}">`;
+                    }
+                    return openTag + ">";
+                  });
+                  projectData.files[targetFile] = fileContent;
+                  filesModified = true;
+                }
+              }
             }
           });
         }
-      } catch (err) {}
+
+        if (filesModified && projectData && projectId) {
+          fetch(`/editor/project/${encodeURIComponent(projectId)}/save`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ files: projectData.files }),
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.warn("Error during smart undo:", err);
+      }
 
       setTimeout(() => {
         isUndoingRef.current = false;
@@ -1825,7 +1889,7 @@ export function App({ hostSession = null }) {
     setProjectElements((prev) => {
       const target = prev.find((el) => el.id === id);
       if (target) {
-        if (!isUndoingRef.current && (changes.placement || changes.text !== undefined || changes.style)) {
+        if (!isUndoingRef.current && !changes.isDragging && (changes.text !== undefined || changes.style?.zIndex)) {
           pushElementHistory(prev);
         }
         if (changes.placement) {
@@ -1999,7 +2063,9 @@ export function App({ hostSession = null }) {
               if (fileContent && target.id) {
                 const pl = changes.placement;
                 const zStyle = changes.style?.zIndex ? ` z-index: ${changes.style.zIndex};` : "";
-                const posStyles = `position: absolute; left: ${pl.x}%; top: ${pl.y}%; margin: 0;${pl.isTopLeft ? "" : " transform: translate(-50%, -50%);"}${pl.width ? ` width: ${pl.width}px;` : ""}${zStyle}`;
+                const isImg = target.tag === "img" || target.type === "image";
+                const widthStyle = isImg && pl.width ? ` width: ${pl.width}px;` : " width: fit-content; max-width: 90%;";
+                const posStyles = `position: absolute; left: ${pl.x}%; top: ${pl.y}%; margin: 0; transform: none;${widthStyle}${zStyle}`;
                 const cleanPos = (s) => (s || "").replace(/(?:position|left|top|margin|transform|width|z-index)\s*:[^;]+;?/gi, "").replace(/;\s*;/g, ";").trim();
                 const tagRegex = new RegExp(`(<[^>]+(?:data-hf-id|id)=["']${target.id}["'][^>]*)>`, "i");
                 if (tagRegex.test(fileContent)) {
@@ -2035,7 +2101,10 @@ export function App({ hostSession = null }) {
                         newOpen = newOpen.replace(new RegExp(`^<${tagName}`, "i"), `<${tagName} data-hf-id="${target.id}"`);
                       }
                       if (newOpen.includes('style="')) {
-                        newOpen = newOpen.replace(/style=["']([^"']*)["']/, `style="$1; ${posStyles}"`);
+                        newOpen = newOpen.replace(/style=["']([^"']*)["']/, (m2, existing) => {
+                          const cleaned = cleanPos(existing);
+                          return `style="${cleaned ? cleaned + '; ' : ''}${posStyles}"`;
+                        });
                       } else {
                         newOpen = newOpen.replace(/>$/, ` style="${posStyles}">`);
                       }
@@ -2725,9 +2794,9 @@ export function App({ hostSession = null }) {
                 });
               });
 
-              // Query all textual elements in this scene
+              // Query all textual and symbol elements in this scene
               const textNodes = sceneEl.querySelectorAll(
-                "h1, h2, h3, h4, p, .headline, .title, .mega, .big, .description, .sub, .subtitle, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, button, a"
+                "h1, h2, h3, h4, p, .headline, .title, .mega, .big, .description, .sub, .subtitle, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, button, a, .glyph-row, .glyph, .symbol, .icon, svg"
               );
 
               const seenTexts = new Set();
@@ -2747,7 +2816,12 @@ export function App({ hostSession = null }) {
                 let fontSize = 24;
                 let fontWeight = 400;
 
-                if (tag === "h1" || tag === "h2" || tag === "h3" || cls.includes("headline") || cls.includes("title") || cls.includes("mega") || cls.includes("big")) {
+                const isSymbol = cls.includes("glyph") || cls.includes("symbol") || cls.includes("icon") || tag === "svg";
+                if (isSymbol) {
+                  field = "symbol";
+                  type = "symbol";
+                  fontSize = 28;
+                } else if (tag === "h1" || tag === "h2" || tag === "h3" || cls.includes("headline") || cls.includes("title") || cls.includes("mega") || cls.includes("big")) {
                   field = "title";
                   type = "heading";
                   fontSize = tag === "h1" ? 64 : 48;
@@ -2777,16 +2851,7 @@ export function App({ hostSession = null }) {
                 }
 
                 const realId = node.getAttribute("data-hf-id") || node.id || `el-${scId}-${field}-${nodeIdx}`;
-                let placement = { x: 9, y: 50, width: 500, height: 60, isTopLeft: true };
-                if (field === "eyebrow") {
-                  placement = { x: 9, y: 48, width: 600, height: 40, isTopLeft: true };
-                } else if (field === "title") {
-                  placement = { x: 9, y: 56, width: 850, height: 160, isTopLeft: true };
-                } else if (field === "description") {
-                  placement = { x: 9, y: 76, width: 750, height: 80, isTopLeft: true };
-                } else if (field === "number") {
-                  placement = { x: 88, y: 88, width: 120, height: 40, isTopLeft: false };
-                }
+                const placement = { x: 9, y: 50, isTopLeft: true };
 
                 extracted.push({
                   id: realId,
@@ -3502,15 +3567,19 @@ export function App({ hostSession = null }) {
           compositionUrl={compositionUrl}
           compositionIframeRef={compositionIframeRef}
           selectedElementId={selectedElementId}
+          selectedElementIds={selectedElementIds}
           hoveredElementId={hoveredElementId}
           onSelectElement={(id) => {
             setSelectedElementId(id);
+            setSelectedElementIds(id ? [id] : []);
             if (id) setActiveTool("elements");
           }}
+          onSelectElements={setSelectedElementIds}
           onHoverElement={setHoveredElementId}
           onUpdateElement={updateElement}
           onDeleteElement={deleteElement}
           onAddProjectElement={addElement}
+          onStartMove={handleStartMove}
         />
 
         <VoicePanel
