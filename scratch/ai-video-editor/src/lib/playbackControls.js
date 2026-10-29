@@ -104,6 +104,15 @@ export function createPlaybackControls(deps) {
         requestTimelineMediaPlay(video);
       }
     }
+    if (deps.compositionIframeRef?.current?.contentWindow) {
+      try {
+        deps.compositionIframeRef.current.contentWindow.postMessage({
+          type: "HYPERLINK_SEEK",
+          time: clamped,
+          isPlaying: shouldPlay,
+        }, "*");
+      } catch (e) {}
+    }
   };
   const getTimelineTimeFromClientX = (clientX) => {
     const rect = deps.trackScrollRef.current?.getBoundingClientRect(); const duration = deps.timelineDurationRef.current;
@@ -212,9 +221,18 @@ export function createPlaybackControls(deps) {
       deps.currentTimeRef.current = pausedTime;
       deps.setCurrentTime(pausedTime);
       deps.setIsPlaying(false);
+      if (deps.compositionIframeRef?.current?.contentWindow) {
+        try {
+          deps.compositionIframeRef.current.contentWindow.postMessage({
+            type: "HYPERLINK_PAUSE",
+            time: pausedTime,
+          }, "*");
+        } catch (e) {}
+      }
       return;
     }
-    if (!deps.canPreview) return void deps.notify("请先上传图片/视频素材、生成配音或上传背景音乐");
+    const canPlay = deps.canPreview || Boolean(deps.compositionUrl) || deps.previewVisualType === "composition";
+    if (!canPlay) return void deps.notify("请先上传图片/视频素材、生成配音或上传背景音乐");
     if (deps.currentTimeRef.current >= deps.estimatedDuration - 0.02) seekTo(0);
     const timelineTime = deps.currentTimeRef.current;
     const playIf = (media, ready) => ready ? requestTimelineMediaPlay(media) : media?.pause();
@@ -243,6 +261,14 @@ export function createPlaybackControls(deps) {
     if (video && deps.previewVisualType === "video") {
       syncPreviewVideoTime(timelineTime, { immediate: true });
       playIf(video, true);
+    }
+    if (deps.compositionIframeRef?.current?.contentWindow) {
+      try {
+        deps.compositionIframeRef.current.contentWindow.postMessage({
+          type: "HYPERLINK_PLAY",
+          time: timelineTime,
+        }, "*");
+      } catch (e) {}
     }
     deps.setIsPlaying(true);
   };

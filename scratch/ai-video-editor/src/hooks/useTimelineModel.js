@@ -242,7 +242,10 @@ export function useTimelineModel(d) {
     d.visualSegments.findIndex((segment) => segment.id === d.selectedVisualSegmentId),
   );
   const hasPlayableVisualTimeline = Boolean(
-    previewVisualSrc && d.trackVisibility.image && d.imageDuration > 0,
+    (previewVisualSrc && d.trackVisibility.image && d.imageDuration > 0) ||
+    d.compositionUrl ||
+    d.visualType === "composition" ||
+    (d.visualSegments && d.visualSegments.length > 0)
   );
   const hasPlayableAudioTimeline = Boolean(
     (filterTimedSegmentsByLaneVisibility(d.audioSegments, d.trackVisibility).length && audioBlob && audioUrl) ||
@@ -252,7 +255,7 @@ export function useTimelineModel(d) {
 
   return {
     activePreviewFilter, audioBlob, audioDuration, audioUrl, canPreview:
-      hasPlayableVisualTimeline || hasPlayableAudioTimeline,
+      hasPlayableVisualTimeline || hasPlayableAudioTimeline || Boolean(d.compositionUrl),
     captionDuration, captionTargetDuration, captionTimeline, currentCaption, currentCaptions,
     currentCaptionSegment, currentSegmentIndex, currentStickerSegment,
     currentStickerSegmentIndex, currentVisualRange, currentVisualSegment,

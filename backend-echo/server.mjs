@@ -3506,33 +3506,49 @@ const server = http.createServer(async (req, res) => {
     // Attach picker to main root document
     attachElementPicker(document, window);
 
+    function stopAllAutoplay(doc) {
+      if (!doc) return;
+      var media = doc.querySelectorAll('video, audio');
+      media.forEach(function(m) {
+        m.removeAttribute('autoplay');
+        m.autoplay = false;
+        m.pause();
+        m.currentTime = 0;
+      });
+    }
+    stopAllAutoplay(document);
+
     setTimeout(function() {
       try {
         var scanned = [];
         var seen = new Set();
-        var allScenes = Array.from(document.querySelectorAll('.scene'));
+        var allScenes = Array.from(document.querySelectorAll('.scene, .ad-scene, section[data-start]'));
         var perSceneDur = allScenes.length > 0 ? (40 / allScenes.length) : 8;
 
         var candidates = document.querySelectorAll(
-          '.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, .description, .eyebrow, .scene-number, [data-hf-id], h1, h2, h3, h4, p, span.scene-number, button'
+          '.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, .description, .eyebrow, .scene-number, [data-hf-id], h1, h2, h3, h4, p, span.scene-number, button, img:not([hidden]), .product-image, .feature-image'
         );
         candidates.forEach(function(el, idx) {
-          if (el.querySelector('h1, h2, h3, h4, p, .headline, .description')) return;
-          var txt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-          if (!txt || txt.length < 1 || seen.has(txt)) return;
-          seen.add(txt);
+          if (el.tagName !== 'IMG' && el.querySelector('h1, h2, h3, h4, p, .headline, .description')) return;
           var tag = el.tagName ? el.tagName.toLowerCase() : 'div';
-          var isH = tag.startsWith('h') || (el.className && (String(el.className).includes('title') || String(el.className).includes('headline') || String(el.className).includes('mega') || String(el.className).includes('big')));
-          var isEyebrow = el.className && (String(el.className).includes('eyebrow') || String(el.className).includes('kicker'));
-          var isNum = el.className && (String(el.className).includes('scene-number') || String(el.className).includes('num'));
+          var isImg = tag === 'img';
+          var txt = isImg
+            ? (el.getAttribute('alt') || el.getAttribute('src')?.split('/').pop()?.split('?')[0] || 'Image')
+            : (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+          if (!txt || txt.length < 1 || seen.has(txt + '-' + tag)) return;
+          seen.add(txt + '-' + tag);
+
+          var isH = !isImg && (tag.startsWith('h') || (el.className && (String(el.className).includes('title') || String(el.className).includes('headline') || String(el.className).includes('mega') || String(el.className).includes('big'))));
+          var isEyebrow = !isImg && el.className && (String(el.className).includes('eyebrow') || String(el.className).includes('kicker'));
+          var isNum = !isImg && el.className && (String(el.className).includes('scene-number') || String(el.className).includes('num'));
           var comp = window.getComputedStyle(el);
           var rect = el.getBoundingClientRect();
           var id = el.id || el.getAttribute('data-hf-id');
           if (!id) {
-            id = 'live-el-' + idx + '-' + Math.abs(txt.split('').reduce(function(a,b){a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
+            id = (isImg ? 'img-' : 'live-el-') + idx + '-' + Math.abs(txt.split('').reduce(function(a,b){a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
             el.setAttribute('data-hf-id', id);
           }
-          var scEl = el.closest('.scene');
+          var scEl = el.closest('.scene, .ad-scene, section');
           var scIdx = scEl ? allScenes.indexOf(scEl) : 0;
           if (scIdx < 0) scIdx = 0;
           var scStart = scIdx * perSceneDur;
@@ -3545,10 +3561,11 @@ const server = http.createServer(async (req, res) => {
             sceneStart: scStart,
             sceneDuration: scDur,
             tag: tag,
-            type: isH ? 'heading' : (isEyebrow || isNum ? 'badge' : (tag === 'button' ? 'button' : 'text')),
-            name: (isH ? 'Title: ' : isEyebrow ? 'Eyebrow: ' : 'Text: ') + txt.slice(0, 24),
+            type: isImg ? 'image' : (isH ? 'heading' : (isEyebrow || isNum ? 'badge' : (tag === 'button' ? 'button' : 'text'))),
+            name: (isImg ? 'Image: ' : (isH ? 'Title: ' : (isEyebrow ? 'Eyebrow: ' : 'Text: '))) + txt.slice(0, 24),
             text: txt,
             originalText: txt,
+            src: isImg ? el.getAttribute('src') : undefined,
             isModified: false,
             style: {
               fontFamily: comp ? comp.fontFamily : 'Inter',
@@ -3560,8 +3577,8 @@ const server = http.createServer(async (req, res) => {
             placement: {
               x: rect && rect.width > 0 ? Math.max(0, Math.min(95, (rect.left / 1920) * 100)) : (isH ? 9 : 9),
               y: rect && rect.height > 0 ? Math.max(0, Math.min(95, (rect.top / 1080) * 100)) : (isH ? 55 : 48),
-              width: rect && rect.width > 0 ? Math.max(80, rect.width) : (isH ? 800 : 500),
-              height: rect && rect.height > 0 ? Math.max(30, rect.height) : (isH ? 160 : 40),
+              width: rect && rect.width > 0 ? Math.max(80, rect.width) : (isH ? 800 : (isImg ? 400 : 500)),
+              height: rect && rect.height > 0 ? Math.max(30, rect.height) : (isH ? 160 : (isImg ? 300 : 40)),
               isTopLeft: true
             },
             visible: true
@@ -3678,21 +3695,52 @@ const server = http.createServer(async (req, res) => {
         var isPlaying = Boolean(ev.data.isPlaying);
         forEachTimeline(function(tl) {
           if (typeof tl.seek === 'function') {
-            if (typeof tl.pause === 'function') tl.pause();
             tl.seek(t, false);
+            if (isPlaying) {
+              if (typeof tl.play === 'function') tl.play();
+            } else {
+              if (typeof tl.pause === 'function') tl.pause();
+            }
           }
         });
 
-        // Frame-accurate scene visibility for native HTML scene compositions (e.g. Kerala, Delhi, Coorg)
-        var scenes = document.querySelectorAll('.scene');
+        // Seek custom composition runners
+        if (typeof window.seekNikeAdvertisement === 'function') {
+          try { window.seekNikeAdvertisement(t); } catch(e) {}
+        }
+        if (typeof window.seekMacBookAd === 'function') {
+          try { window.seekMacBookAd(t); } catch(e) {}
+        }
+        if (typeof window.showSceneAt === 'function') {
+          try { window.showSceneAt(t); } catch(e) {}
+        }
+
+        // Frame-accurate scene visibility for native HTML scene compositions (e.g. Kerala, Delhi, Coorg, Nike)
+        var scenes = document.querySelectorAll('.scene, .ad-scene, section[data-start], section[data-scene]');
         if (scenes.length > 0) {
-          var sceneDur = 40 / scenes.length;
-          var activeIdx = Math.min(scenes.length - 1, Math.max(0, Math.floor(t / sceneDur)));
           scenes.forEach(function(s, idx) {
-            if (idx === activeIdx) {
+            var st = parseFloat(s.getAttribute('data-start'));
+            var d = parseFloat(s.getAttribute('data-duration'));
+            var active = false;
+            if (!isNaN(st) && !isNaN(d) && d > 0) {
+              active = (t >= st && t < st + d);
+            } else {
+              var sceneDur = 40 / scenes.length;
+              var activeIdx = Math.min(scenes.length - 1, Math.max(0, Math.floor(t / sceneDur)));
+              active = (idx === activeIdx);
+            }
+            if (active) {
               s.classList.add('active');
+              s.classList.add('is-active');
+              s.setAttribute('aria-hidden', 'false');
+              s.style.opacity = '1';
+              s.style.visibility = 'visible';
             } else {
               s.classList.remove('active');
+              s.classList.remove('is-active');
+              s.setAttribute('aria-hidden', 'true');
+              s.style.opacity = '0';
+              s.style.visibility = 'hidden';
             }
           });
         }
@@ -3717,14 +3765,22 @@ const server = http.createServer(async (req, res) => {
               if (subWin.__timelines) {
                 Object.values(subWin.__timelines).forEach(function(s) {
                   if (s && typeof s.seek === 'function') {
-                    if (typeof s.pause === 'function') s.pause();
                     s.seek(sceneT, false);
+                    if (isPlaying) {
+                      if (typeof s.play === 'function') s.play();
+                    } else {
+                      if (typeof s.pause === 'function') s.pause();
+                    }
                   }
                 });
               }
               if (subWin.tl && typeof subWin.tl.seek === 'function') {
-                if (typeof subWin.tl.pause === 'function') subWin.tl.pause();
                 subWin.tl.seek(sceneT, false);
+                if (isPlaying) {
+                  if (typeof subWin.tl.play === 'function') subWin.tl.play();
+                } else {
+                  if (typeof subWin.tl.pause === 'function') subWin.tl.pause();
+                }
               }
             }
           });
@@ -3735,7 +3791,7 @@ const server = http.createServer(async (req, res) => {
         vids.forEach(function(v) {
           var vStart = parseFloat(v.getAttribute('data-start') || '0');
           var vTime = Math.max(0, t - vStart);
-          var driftThreshold = isPlaying ? 0.4 : 0.05;
+          var driftThreshold = isPlaying ? 0.35 : 0.05;
           if (Math.abs(v.currentTime - vTime) > driftThreshold) {
             v.currentTime = vTime;
           }
@@ -3748,10 +3804,8 @@ const server = http.createServer(async (req, res) => {
       } else if (ev.data.type === 'HYPERLINK_PLAY') {
         var t = Number(ev.data.time) || 0;
         forEachTimeline(function(tl) {
-          if (typeof tl.seek === 'function') {
-            if (typeof tl.pause === 'function') tl.pause();
-            tl.seek(t, false);
-          }
+          if (typeof tl.seek === 'function') tl.seek(t, false);
+          if (typeof tl.play === 'function') tl.play();
         });
         sceneHosts.forEach(function(h) {
           var subIfr = h.querySelector('iframe');
@@ -3761,17 +3815,18 @@ const server = http.createServer(async (req, res) => {
         });
         var playVids = document.querySelectorAll('video');
         playVids.forEach(function(v) {
+          var vStart = parseFloat(v.getAttribute('data-start') || '0');
+          var vTime = Math.max(0, t - vStart);
+          if (Math.abs(v.currentTime - vTime) > 0.3) {
+            v.currentTime = vTime;
+          }
           if (v.paused) v.play().catch(function(){});
         });
       } else if (ev.data.type === 'HYPERLINK_PAUSE') {
         var t = Number(ev.data.time) || 0;
         forEachTimeline(function(tl) {
-          if (typeof tl.pause === 'function') {
-            tl.pause();
-          }
-          if (typeof tl.seek === 'function') {
-            tl.seek(t, false);
-          }
+          if (typeof tl.pause === 'function') tl.pause();
+          if (typeof tl.seek === 'function') tl.seek(t, false);
         });
         sceneHosts.forEach(function(h) {
           var subIfr = h.querySelector('iframe');
@@ -3782,6 +3837,11 @@ const server = http.createServer(async (req, res) => {
         var pauseVids = document.querySelectorAll('video');
         pauseVids.forEach(function(v) {
           if (!v.paused) v.pause();
+          var vStart = parseFloat(v.getAttribute('data-start') || '0');
+          var vTime = Math.max(0, t - vStart);
+          if (Math.abs(v.currentTime - vTime) > 0.05) {
+            v.currentTime = vTime;
+          }
         });
       } else if (ev.data.type === 'HYPERLINK_ELEMENT_UPDATE') {
         var p = ev.data.payload;
@@ -3793,9 +3853,14 @@ const server = http.createServer(async (req, res) => {
         }
         if (targets.length === 0 && (p.originalText || p.text)) {
           var searchTxt = (p.originalText || p.text).trim();
-          var allNodes = document.querySelectorAll('.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, [data-hf-id], h1, h2, h3, h4, p, span, button');
+          var allNodes = document.querySelectorAll('.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, [data-hf-id], h1, h2, h3, h4, p, span, button, img');
           for (var i = 0; i < allNodes.length; i++) {
-            if ((allNodes[i].innerText || allNodes[i].textContent || '').trim() === searchTxt) {
+            if (allNodes[i].tagName === 'IMG') {
+              if (allNodes[i].getAttribute('alt') === searchTxt || (allNodes[i].src && allNodes[i].src.includes(searchTxt))) {
+                targets.push(allNodes[i]);
+                break;
+              }
+            } else if ((allNodes[i].innerText || allNodes[i].textContent || '').trim() === searchTxt) {
               targets.push(allNodes[i]);
               break;
             }
@@ -3812,9 +3877,14 @@ const server = http.createServer(async (req, res) => {
             var inSub = sIfr.contentDocument.getElementById(p.id) || sIfr.contentDocument.querySelector('[data-hf-id="' + p.id + '"]');
             if (inSub) targets.push(inSub);
             if (!inSub && (p.originalText || p.text)) {
-              var subNodes = sIfr.contentDocument.querySelectorAll('.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, [data-hf-id], h1, h2, h3, h4, p, span, button');
+              var subNodes = sIfr.contentDocument.querySelectorAll('.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, [data-hf-id], h1, h2, h3, h4, p, span, button, img');
               for (var j = 0; j < subNodes.length; j++) {
-                if ((subNodes[j].innerText || subNodes[j].textContent || '').trim() === (p.originalText || p.text).trim()) {
+                if (subNodes[j].tagName === 'IMG') {
+                  if (subNodes[j].getAttribute('alt') === (p.originalText || p.text).trim()) {
+                    targets.push(subNodes[j]);
+                    break;
+                  }
+                } else if ((subNodes[j].innerText || subNodes[j].textContent || '').trim() === (p.originalText || p.text).trim()) {
                   targets.push(subNodes[j]);
                   break;
                 }
@@ -3823,7 +3893,24 @@ const server = http.createServer(async (req, res) => {
           }
         });
         targets.forEach(function(el) {
-          if (p.text !== undefined) {
+          if (p.placement) {
+            var pl = p.placement;
+            el.style.position = 'absolute';
+            if (pl.x !== undefined) el.style.left = pl.x + '%';
+            if (pl.y !== undefined) el.style.top = pl.y + '%';
+            if (pl.isTopLeft) {
+              el.style.transform = 'none';
+            } else {
+              el.style.transform = 'translate(-50%, -50%)';
+            }
+            if (pl.width) {
+              el.style.width = typeof pl.width === 'number' ? pl.width + 'px' : pl.width;
+            }
+            if (pl.height && el.tagName.toLowerCase() !== 'img') {
+              el.style.height = typeof pl.height === 'number' ? pl.height + 'px' : pl.height;
+            }
+          }
+          if (p.text !== undefined && el.tagName.toLowerCase() !== 'img') {
             if (typeof window.words === 'function' && (el.classList.contains('title') || el.classList.contains('big'))) {
               el.innerHTML = window.words(p.text);
             } else if (typeof window.split === 'function' && el.classList.contains('mega')) {

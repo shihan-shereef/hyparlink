@@ -328,9 +328,24 @@ export function PreviewStage({
         if (win.master && !tls.includes(win.master)) tls.push(win.master);
         tls.forEach((tl) => {
           if (!tl || typeof tl.seek !== "function") return;
-          if (typeof tl.pause === "function") tl.pause();
           tl.seek(currentTime, false);
+          if (isPlaying) {
+            if (typeof tl.play === "function") tl.play();
+          } else {
+            if (typeof tl.pause === "function") tl.pause();
+          }
         });
+
+        // Seek custom composition runners
+        if (typeof win.seekNikeAdvertisement === "function") {
+          try { win.seekNikeAdvertisement(currentTime); } catch(e) {}
+        }
+        if (typeof win.seekMacBookAd === "function") {
+          try { win.seekMacBookAd(currentTime); } catch(e) {}
+        }
+        if (typeof win.showSceneAt === "function") {
+          try { win.showSceneAt(currentTime); } catch(e) {}
+        }
 
         // Always dispatch postMessage to ensure seamless sync even across origins/nested frames
         win.postMessage({
@@ -341,6 +356,8 @@ export function PreviewStage({
 
         if (!isPlaying) {
           win.postMessage({ type: "HYPERLINK_PAUSE", time: currentTime }, "*");
+        } else {
+          win.postMessage({ type: "HYPERLINK_PLAY", time: currentTime }, "*");
         }
       }
     } catch {

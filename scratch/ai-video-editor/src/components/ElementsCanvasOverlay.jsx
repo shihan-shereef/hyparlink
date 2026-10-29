@@ -41,58 +41,75 @@ export function ElementsCanvasOverlay({
         }
       } catch (err) {}
 
-      // 1. Try matching by sceneIndex or sceneId
-      let sceneEl = null;
-      if (el.sceneIndex !== undefined) {
-        sceneEl = doc.getElementById(`sc${el.sceneIndex}`) ||
-                  doc.querySelector(`[data-scene="${el.sceneIndex + 1}"]`) ||
-                  doc.getElementById(`scene${el.sceneIndex + 1}`) ||
-                  doc.getElementById(`scene-0${el.sceneIndex + 1}`) ||
-                  doc.getElementById(`scene-${el.sceneIndex + 1}`) ||
-                  doc.querySelectorAll(".scene")[el.sceneIndex];
-      }
-      if (!sceneEl && el.sceneId) {
-        sceneEl = doc.getElementById(el.sceneId) ||
-                  doc.querySelector(`[data-scene="${el.sceneId}"]`) ||
-                  doc.querySelector(`[data-composition-id="${el.sceneId}"]`);
+      // 0. Priority: Direct match by data-hf-id or id in any document
+      if (el.id) {
+        for (const currentDoc of docsToCheck) {
+          const direct = currentDoc.querySelector(`[data-hf-id="${el.id}"], #${el.id}`);
+          if (direct) {
+            targetEl = direct;
+            break;
+          }
+        }
       }
 
-      if (sceneEl) {
-        let searchContexts = [sceneEl];
-        const innerIfr = sceneEl.querySelector("iframe");
-        if (innerIfr) {
-          const sd = innerIfr.contentDocument || innerIfr.contentWindow?.document;
-          if (sd) searchContexts.unshift(sd);
+      // 1. Try matching by sceneIndex or sceneId
+      if (!targetEl) {
+        let sceneEl = null;
+        if (el.sceneIndex !== undefined) {
+          sceneEl = doc.getElementById(`sc${el.sceneIndex}`) ||
+                    doc.querySelector(`[data-scene="${el.sceneIndex + 1}"]`) ||
+                    doc.getElementById(`scene${el.sceneIndex + 1}`) ||
+                    doc.getElementById(`scene-0${el.sceneIndex + 1}`) ||
+                    doc.getElementById(`scene-${el.sceneIndex + 1}`) ||
+                    doc.querySelectorAll(".scene, .ad-scene, section")[el.sceneIndex];
+        }
+        if (!sceneEl && el.sceneId) {
+          sceneEl = doc.getElementById(el.sceneId) ||
+                    doc.querySelector(`[data-scene="${el.sceneId}"]`) ||
+                    doc.querySelector(`[data-composition-id="${el.sceneId}"]`);
         }
 
-        for (const ctx of searchContexts) {
-          if (el.field === "title" || el.tag === "h1" || el.tag === "h2" || el.tag === "h3" || el.type === "heading") {
-            targetEl = ctx.querySelector(".headline, .hero-headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
-          } else if (el.field === "sub" || el.field === "subtitle" || el.field === "description" || el.tag === "p" || el.type === "text") {
-            targetEl = ctx.querySelector(".description, .hero-subtitle, .sub.sb, .sub, p");
-          } else if (el.field === "kicker" || el.field === "eyebrow") {
-            targetEl = ctx.querySelector(".eyebrow, .kicker.k, .kicker");
-          } else if (el.field === "time" || el.field === "badge" || el.tag === "pill") {
-            targetEl = ctx.querySelector(".pill.k, .pill.k2, .badge-pill, .pill, .scene-number, .date, .corner-mark, .bottom-label");
-          } else if (el.field === "n" || el.field === "number" || el.tag === "num") {
-            targetEl = ctx.querySelector(".num.nm, .num, .scene-number");
-          } else if (el.field === "cta" || el.type === "button") {
-            targetEl = ctx.querySelector(".pill.k2, .pill, button, .cta, a.btn, a");
+        if (sceneEl) {
+          let searchContexts = [sceneEl];
+          const innerIfr = sceneEl.querySelector("iframe");
+          if (innerIfr) {
+            const sd = innerIfr.contentDocument || innerIfr.contentWindow?.document;
+            if (sd) searchContexts.unshift(sd);
           }
-          if (targetEl) break;
+
+          for (const ctx of searchContexts) {
+            if (el.type === "image" || el.tag === "img") {
+              targetEl = ctx.querySelector("img, .product-image, .feature-image, .scene-background");
+            } else if (el.field === "title" || el.tag === "h1" || el.tag === "h2" || el.tag === "h3" || el.type === "heading") {
+              targetEl = ctx.querySelector(".headline, .hero-headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
+            } else if (el.field === "sub" || el.field === "subtitle" || el.field === "description" || el.tag === "p" || el.type === "text") {
+              targetEl = ctx.querySelector(".description, .hero-subtitle, .sub.sb, .sub, p");
+            } else if (el.field === "kicker" || el.field === "eyebrow") {
+              targetEl = ctx.querySelector(".eyebrow, .kicker.k, .kicker");
+            } else if (el.field === "time" || el.field === "badge" || el.tag === "pill") {
+              targetEl = ctx.querySelector(".pill.k, .pill.k2, .badge-pill, .pill, .scene-number, .date, .corner-mark, .bottom-label");
+            } else if (el.field === "n" || el.field === "number" || el.tag === "num") {
+              targetEl = ctx.querySelector(".num.nm, .num, .scene-number");
+            } else if (el.field === "cta" || el.type === "button") {
+              targetEl = ctx.querySelector(".pill.k2, .pill, button, .cta, a.btn, a");
+            }
+            if (targetEl) break;
+          }
         }
       }
 
       // 2. If not found in specific scene, check active/visible scene in all documents
       if (!targetEl) {
         for (const currentDoc of docsToCheck) {
-          const scenes = currentDoc.querySelectorAll(".scene, [data-composition-id], section");
+          const scenes = currentDoc.querySelectorAll(".scene, .ad-scene, [data-composition-id], section");
           for (const scene of scenes) {
             const win = currentDoc.defaultView || iframe.contentWindow;
             const style = win?.getComputedStyle(scene);
             if (!style || style.display !== "none") {
               let candidate = null;
-              if (el.field === "title" || el.tag === "h1" || el.type === "heading") {
+              if (el.type === "image" || el.tag === "img") {
+                candidate = scene.querySelector("img, .product-image, .feature-image, .scene-background");
+              } else if (el.field === "title" || el.tag === "h1" || el.type === "heading") {
                 candidate = scene.querySelector(".headline, .hero-headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
               } else if (el.field === "sub" || el.field === "description" || el.tag === "p") {
                 candidate = scene.querySelector(".description, .hero-subtitle, .sub.sb, .sub, p");
@@ -108,6 +125,18 @@ export function ElementsCanvasOverlay({
             }
           }
           if (targetEl) break;
+        }
+      }
+
+      // 2b. Fallback image search across documents
+      if (!targetEl && (el.type === "image" || el.tag === "img")) {
+        for (const currentDoc of docsToCheck) {
+          const imgs = currentDoc.querySelectorAll("img:not([hidden]), .product-image, .feature-image");
+          if (imgs.length > 0) {
+            const idx = el.sceneIndex !== undefined ? Math.min(imgs.length - 1, el.sceneIndex) : 0;
+            targetEl = imgs[idx];
+            break;
+          }
         }
       }
 
@@ -259,6 +288,55 @@ export function ElementsCanvasOverlay({
                 const hit = doc.elementFromPoint(clickX, clickY);
 
                 if (hit) {
+                  const imgEl = hit.closest("img, .product-image, .feature-image, .scene-background") || (hit.tagName === "IMG" ? hit : null);
+                  if (imgEl) {
+                    const matchedImg = elements.find((el) => {
+                      if (el.type === "image" || el.tag === "img") {
+                        if (imgEl.id && el.id === imgEl.id) return true;
+                        if (imgEl.getAttribute("data-hf-id") && el.id === imgEl.getAttribute("data-hf-id")) return true;
+                        const src = imgEl.getAttribute("src");
+                        if (src && el.src && (el.src.includes(src) || src.includes(el.src))) return true;
+                        return true;
+                      }
+                      return false;
+                    });
+                    if (matchedImg) {
+                      e.stopPropagation();
+                      onSelectElement?.(matchedImg.id);
+                      return;
+                    }
+                    if (onAddElement) {
+                      e.stopPropagation();
+                      const imgRect = imgEl.getBoundingClientRect();
+                      const newId = imgEl.getAttribute("data-hf-id") || imgEl.id || `el-img-${Date.now()}`;
+                      imgEl.setAttribute("data-hf-id", newId);
+                      const newEl = {
+                        id: newId,
+                        sceneStart: Math.max(0, currentTime - 1),
+                        sceneDuration: 6,
+                        tag: "img",
+                        type: "image",
+                        name: `Image: ${imgEl.alt || "Visual"}`,
+                        src: imgEl.getAttribute("src") || "",
+                        isModified: false,
+                        style: {
+                          objectFit: "contain",
+                        },
+                        placement: {
+                          x: (imgRect.left / 1920) * 100,
+                          y: (imgRect.top / 1080) * 100,
+                          width: imgRect.width || 300,
+                          height: imgRect.height || 200,
+                          isTopLeft: true,
+                        },
+                        visible: true,
+                      };
+                      onAddElement(newEl);
+                      onSelectElement?.(newId);
+                      return;
+                    }
+                  }
+
                   const textEl = hit.closest("h1, h2, h3, h4, p, span, .headline, .title, .mega, .big, .description, .sub, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, button, a") ||
                     (hit.textContent?.trim() ? hit : null);
 
