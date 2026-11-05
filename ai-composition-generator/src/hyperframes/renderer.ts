@@ -2,6 +2,7 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
 import { EnvironmentChecker } from "../system/environment-checker.js";
 
 const execAsync = promisify(exec);
@@ -89,7 +90,9 @@ export class Renderer {
     const envPath = `${ffmpegDir}:${process.env.PATH || ""}`;
     const hasLocalHf = await fs.access("/usr/local/bin/hyperframes").then(() => true).catch(() => false);
     const hfBin = hasLocalHf ? "/usr/local/bin/hyperframes" : "npx --yes hyperframes@0.8.139";
-    const command = `${hfBin} render ${resFlag ? resFlag + " " : ""}--format ${format} -o "${outputPath}"`;
+    const cpus = os.cpus()?.length || 4;
+    const workerCount = Math.max(2, Math.min(4, cpus - 1));
+    const command = `${hfBin} render ${resFlag ? resFlag + " " : ""}--format ${format} --no-low-memory-mode --workers ${workerCount} -o "${outputPath}"`;
 
     console.log(`[Renderer] Render started...`);
     console.log(`[Renderer] Command: ${command}`);
@@ -101,8 +104,9 @@ export class Renderer {
         env: {
           ...process.env,
           PATH: envPath,
+          PRODUCER_LOW_MEMORY_MODE: "false",
         },
-        timeout: 600000, // 10 minutes timeout for rendering long compositions (60s - 90s)
+        timeout: 1800000, // 30 minutes timeout for rendering long compositions (60s - 120s)
       });
 
       const combined = stdout + "\n" + stderr;

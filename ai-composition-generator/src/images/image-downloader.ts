@@ -154,6 +154,27 @@ export class ImageDownloader {
       fs.writeFileSync(destPath, buffer);
       console.log(`[ImageDownloader] Saved ${destFilename} (${(buffer.length / 1024).toFixed(1)} KB, format: ${detectedMime})`);
 
+      // If downloaded image is large (> 1.2 MB), scale down to max 1920px with ffmpeg to dramatically accelerate Chrome render speeds
+      if (buffer.length > 1.2 * 1024 * 1024) {
+        try {
+          const tempResized = destPath + ".opt.jpg";
+          const { execSync } = await import("node:child_process");
+          execSync(
+            `ffmpeg -y -i "${destPath}" -vf "scale='min(1920,iw)':-2" -vframes 1 -q:v 3 "${tempResized}"`,
+            { stdio: "ignore", timeout: 15000 },
+          );
+          if (fs.existsSync(tempResized) && fs.statSync(tempResized).size > 1000) {
+            fs.renameSync(tempResized, destPath);
+            const newSize = fs.statSync(destPath).size;
+            console.log(
+              `[ImageDownloader] Optimized ${destFilename} with ffmpeg: ${(buffer.length / 1024).toFixed(1)} KB -> ${(newSize / 1024).toFixed(1)} KB`,
+            );
+          }
+        } catch (resizeErr: any) {
+          console.warn(`[ImageDownloader] Image optimization notice: ${resizeErr.message}`);
+        }
+      }
+
       candidate.localPath = destPath;
       candidate.downloadedBytes = buffer.length;
 
