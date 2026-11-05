@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 const statusBadges: Record<string, { label: string; className: string }> = {
@@ -59,9 +59,16 @@ const statusBadges: Record<string, { label: string; className: string }> = {
 
 export default function ProjectsPage() {
   const router = useRouter();
+  const user = useQuery(api.users.getUser);
   const { current, workspaces, select } = useWorkspace();
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [activeTab, setActiveTab] = useState<"active" | "trash">("active");
+
+  useEffect(() => {
+    if (user === null) {
+      router.push("/login");
+    }
+  }, [user, router]);
 
   const effectiveWs = current || (workspaces && workspaces[0]?._id) || undefined;
 

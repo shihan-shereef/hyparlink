@@ -40,7 +40,6 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           })
           .finally(() => setEnsuring(false));
       }
-      setCurrent((prev) => prev || ("mh76mnv9k6dbe50rbwc0jsqpzd8grsqj" as Id<"workspaces">));
       return;
     }
     setCurrent((prev) => {
@@ -50,8 +49,13 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           ? window.localStorage.getItem("ws")
           : null;
       const match = workspaces.find((w) => w._id === saved);
-      const primaryMatch = workspaces.find((w) => w._id === "mh76mnv9k6dbe50rbwc0jsqpzd8grsqj");
-      return match?._id ?? primaryMatch?._id ?? workspaces[0]?._id ?? ("mh76mnv9k6dbe50rbwc0jsqpzd8grsqj" as Id<"workspaces">);
+      const owned = workspaces.find((w) => w.role === "owner");
+      const fallback = owned?._id ?? workspaces[0]?._id ?? null;
+      const chosen = match?._id ?? fallback;
+      if (typeof window !== "undefined" && chosen) {
+        window.localStorage.setItem("ws", chosen);
+      }
+      return chosen;
     });
   }, [workspaces, ensure, ensuring]);
 

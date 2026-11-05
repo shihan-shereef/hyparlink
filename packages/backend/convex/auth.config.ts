@@ -7,5 +7,9 @@ export default {
         "http://127.0.0.1:3211",
       applicationID: "convex",
     },
+    {
+      domain: "http://127.0.0.1:3211",
+      applicationID: "convex",
+    },
   ],
 };

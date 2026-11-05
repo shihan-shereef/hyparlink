@@ -567,8 +567,9 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                 var heading = raw.closest ? raw.closest('h1, h2, h3, h4, h5, h6') : null;
                 var paragraph = raw.closest ? raw.closest('p.description, p.eyebrow, p') : null;
                 var label = raw.closest ? raw.closest('.chapter-label, .corner-label, .badge-pill, .scene-number') : null;
+                var img = raw.closest ? raw.closest('img, video, svg, .product-image, .feature-image, .img') : null;
 
-                target = heading || paragraph || label || raw;
+                target = heading || paragraph || label || img || raw;
               }
 
               // If clicked on an overlay or empty background space, find element under click point
@@ -591,7 +592,11 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                   if (p) { target = p; break; }
 
                   var t = el.tagName.toLowerCase();
-                  if (['h1','h2','h3','h4','h5','h6','p','span','a','button','label','em','strong','b','i'].indexOf(t) !== -1) {
+                  if (t === 'img' || t === 'video' || t === 'svg' || (el.classList && (el.classList.contains('product-image') || el.classList.contains('feature-image') || el.classList.contains('img')))) {
+                    target = el;
+                    break;
+                  }
+                  if (['h1','h2','h3','h4','h5','h6','p','span','a','button','label','em','strong','b','i','div'].indexOf(t) !== -1) {
                     if (el.innerText && el.innerText.trim().length > 0) {
                       target = el;
                       break;

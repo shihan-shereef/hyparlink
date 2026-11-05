@@ -20,12 +20,10 @@ const isPublicRoute = createRouteMatcher([
   "/audio(.*)",
   "/api(.*)",
   "/ai(.*)",
-  "/assets(.*)",
-  "/editor(.*)",
-  "/:locale/editor(.*)",
+  "/editor/session(.*)",
+  "/editor/project(.*)",
   "/backend-api(.*)",
   "/convex(.*)",
-  "/freecut(.*)",
   "/monitoring(.*)",
   "/studio(.*)",
   "/studio-proxy(.*)",
@@ -42,12 +40,6 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
     ) {
       return;
     }
-    if (
-      pathname.startsWith("/editor") ||
-      /^\/(en|fr|es)\/editor/.test(pathname)
-    ) {
-      return I18nMiddleware(request);
-    }
     return;
   }
 
@@ -63,7 +55,7 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
       const token = await convexAuth.getToken();
       if (token && typeof token === "string") {
         const parts = token.split(".");
-        if (parts.length === 3) {
+        if (parts.length === 3 && parts[1]) {
           const payload = JSON.parse(
             Buffer.from(parts[1], "base64").toString("utf-8"),
           );
@@ -79,10 +71,18 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
 
   const isSignIn = isSignInPage(request);
   if (isSignIn) {
-    if (authenticated) {
+    const isExplicitSignOutOrSwitch =
+      request.nextUrl.searchParams.has("switch") ||
+      request.nextUrl.searchParams.has("logout");
+    if (authenticated && !isExplicitSignOutOrSwitch) {
       return nextjsMiddlewareRedirect(request, "/");
     }
-    return I18nMiddleware(request);
+    const response = I18nMiddleware(request);
+    if (isExplicitSignOutOrSwitch) {
+      response.cookies.delete("__convexAuthJWT");
+      response.cookies.delete("__convexAuthRefreshToken");
+    }
+    return response;
   }
 
   if (!authenticated) {

@@ -125,6 +125,134 @@ export class DesignValidator {
       }
     }
 
+    // Ensure fixed 1920x1080 viewport meta tag is present in index.html
+    if (!indexHtmlUpdated.includes('name="viewport"')) {
+      indexHtmlUpdated = indexHtmlUpdated.replace("<head>", `<head>\n  <meta name="viewport" content="width=${width}, height=${height}">`);
+      repairedCount++;
+    } else {
+      const currentViewport = indexHtmlUpdated.match(/<meta\s+name=["']viewport["'][^>]*>/i);
+      if (currentViewport && !currentViewport[0].includes(`width=${width}`)) {
+        indexHtmlUpdated = indexHtmlUpdated.replace(currentViewport[0], `<meta name="viewport" content="width=${width}, height=${height}">`);
+        repairedCount++;
+      }
+    }
+
+    // Clean any repeated broken positioning or duplicate semicolons from prior auto-saves
+    if (indexHtmlUpdated.includes('style="') || indexHtmlUpdated.includes("style='")) {
+      const origHtml = indexHtmlUpdated;
+      indexHtmlUpdated = indexHtmlUpdated.replace(/(<([a-z0-9_-]+)\b[^>]*\bstyle=(["'])([\s\S]*?)\3[^>]*>)/gi, (fullTag, m1, tag, q, styleStr) => {
+        const isWrapper = ["section", "body", "html", "main"].includes(tag.toLowerCase()) ||
+                          fullTag.includes("scene-background") ||
+                          fullTag.includes('id="root"') ||
+                          fullTag.includes('id="scenes"') ||
+                          fullTag.includes('id="composition"');
+        const parts = styleStr.split(";").map((s: string) => s.trim()).filter(Boolean);
+        const propMap = new Map<string, string>();
+        for (const part of parts) {
+          const colonIdx = part.indexOf(":");
+          if (colonIdx !== -1) {
+            const key = part.slice(0, colonIdx).trim().toLowerCase();
+            const val = part.slice(colonIdx + 1).trim();
+            if (isWrapper && (key === "position" || key === "left" || key === "top" || key === "width" || key === "height" || key === "transform" || key === "margin")) {
+              continue;
+            }
+            propMap.set(key, val);
+          }
+        }
+        const cleaned = Array.from(propMap.entries()).map(([k, v]) => `${k}: ${v}`).join("; ");
+        if (cleaned) {
+          return fullTag.replace(`style=${q}${styleStr}${q}`, `style=${q}${cleaned}${q}`);
+        } else {
+          return fullTag.replace(new RegExp(`\\s*style=${q}${styleStr.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}${q}`), "");
+        }
+      });
+      if (indexHtmlUpdated !== origHtml) {
+        repairedCount++;
+      }
+    }
+
+    // Ensure all visible content elements in index.html have unique data-hf-id for direct canvas editing
+    const contentTagsToId = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "img", "button", "a", "strong", "span"];
+    for (const tag of contentTagsToId) {
+      const tagRegex = new RegExp(`<${tag}\\b(?![^>]*\\b(?:data-hf-id|id)=)([^>]*?)>`, "gi");
+      if (tagRegex.test(indexHtmlUpdated)) {
+        let tagCount = 0;
+        indexHtmlUpdated = indexHtmlUpdated.replace(tagRegex, (match, attrs) => {
+          tagCount++;
+          const genId = "hf-" + Math.random().toString(36).substring(2, 6);
+          return `<${tag} data-hf-id="${genId}"${attrs}>`;
+        });
+        if (tagCount > 0) {
+          repairedCount += tagCount;
+        }
+      }
+    }
+
+    // Standardize styles.css if present in project directory
+    const stylesPath = path.join(projectDir, "styles.css");
+    try {
+      const stylesExists = await fs.stat(stylesPath).then(() => true).catch(() => false);
+      if (stylesExists) {
+        let stylesContent = await fs.readFile(stylesPath, "utf-8");
+        let stylesModified = false;
+
+        // 1. Standardize html, body to fixed canvas resolution (1920x1080)
+        if (stylesContent.includes("html, body") || stylesContent.includes("body, html")) {
+          const bodyRegex = /(html,\s*body|body,\s*html)\s*\{([^}]*)\}/i;
+          const match = stylesContent.match(bodyRegex);
+          if (match) {
+            let bodyRules = match[2];
+            if (bodyRules.includes("width: 100%") || bodyRules.includes("height: 100%")) {
+              bodyRules = bodyRules.replace(/width:\s*100%;?/gi, `width: ${width}px;`)
+                                   .replace(/height:\s*100%;?/gi, `height: ${height}px;`);
+              stylesContent = stylesContent.replace(match[0], `${match[1]} {${bodyRules}}`);
+              stylesModified = true;
+            }
+          }
+        }
+
+        // 2. Standardize scene / root wrappers (#root, #ollastar-ad, main, .ad-scene, .scene)
+        if (stylesContent.includes(".ad-scene") || stylesContent.includes(".scene")) {
+          stylesContent = stylesContent.replace(/(\.ad-scene|\.scene)\s*\{([^}]*)\}/gi, (m, sel, rules) => {
+            let newRules = rules;
+            if (!newRules.includes(`width: ${width}px`)) {
+              newRules = ` width: ${width}px; height: ${height}px;` + newRules;
+            }
+            return `${sel} {${newRules}}`;
+          });
+          stylesModified = true;
+        }
+
+        // 3. Convert responsive clamp(...) with vw/vh into fixed pixel sizes for consistent editing
+        if (/clamp\([^)]*v[wh][^)]*\)/i.test(stylesContent)) {
+          stylesContent = stylesContent.replace(/clamp\(\s*(\d+)px\s*,\s*[\d.]+v[wh]\s*,\s*(\d+)px\s*\)/gi, (m, minStr, maxStr) => {
+            const minPx = parseInt(minStr, 10);
+            const maxPx = parseInt(maxStr, 10);
+            const targetPx = Math.round(minPx + (maxPx - minPx) * 0.75);
+            return `${targetPx}px`;
+          });
+          stylesModified = true;
+        }
+
+        // 4. Ensure images have object-fit: contain and pointer-events: auto
+        if (!stylesContent.includes("pointer-events: auto")) {
+          stylesContent += `\nimg, .product-image, .feature-image { object-fit: contain; pointer-events: auto; }\n`;
+          stylesModified = true;
+        }
+
+        if (stylesModified) {
+          await fs.writeFile(stylesPath, stylesContent, "utf-8");
+          repairedCount++;
+          issues.push({
+            type: "repaired",
+            code: "STYLES_STANDARDIZED_FOR_EDITING",
+            file: "styles.css",
+            message: "Standardized styles.css to fixed 1920x1080 canvas and pixel typography for interactive editor.",
+          });
+        }
+      }
+    } catch {}
+
     // 3. Inspect hosted scenes in index.html & ensure id attributes exist
     const sceneRegex =
       /<div([^>]+data-composition-id=["']([^"']+)["'][^>]+data-composition-src=["']([^"']+)["'][^>]+data-start=["']([\d.]+)["'][^>]+data-duration=["']([\d.]+)["'][^>]*)>/gi;
@@ -631,6 +759,9 @@ export class DesignValidator {
             /<(h[1-6]|p|span|a|button|label|li|strong|b|em|i|small|sub|sup|blockquote|q)\b([^>]*?)>/gi,
             (match, tag, attrs) => {
               let newAttrs = attrs;
+              if (!/data-hf-id=|id=/i.test(newAttrs)) {
+                newAttrs += ` data-hf-id="hf-${Math.random().toString(36).substring(2, 6)}"`;
+              }
               if (!/data-layout-allow-overlap=/i.test(newAttrs)) {
                 newAttrs += ' data-layout-allow-overlap="true"';
               }
@@ -673,6 +804,9 @@ export class DesignValidator {
             /<(img|video|canvas)\b([^>]*?)>/gi,
             (match, tag, attrs) => {
               let newAttrs = attrs;
+              if (!/data-hf-id=|id=/i.test(newAttrs)) {
+                newAttrs += ` data-hf-id="hf-${Math.random().toString(36).substring(2, 6)}"`;
+              }
               if (!/data-layout-allow-overlap=/i.test(newAttrs)) {
                 newAttrs += ' data-layout-allow-overlap="true"';
               }

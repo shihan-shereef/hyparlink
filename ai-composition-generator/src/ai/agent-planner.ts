@@ -224,14 +224,20 @@ ${options.script ? `USER SCRIPT: "${options.script}"` : ""}
 ${options.assets && options.assets.length > 0 ? `ATTACHED ASSETS: ${options.assets.map((a: any) => a.name || a.originalFilename).join(", ")}` : ""}
 ${options.avatarId ? `PRESENTER AVATAR ID: ${options.avatarId} (Voice: ${options.voiceId || "default"})` : ""}`;
 
-        const raw = await provider.complete(
-          [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          0.2,
-          options.model,
+        const timeoutPromise = new Promise<string>((_, reject) =>
+          setTimeout(() => reject(new Error("LLM planning timeout (10s)")), 10000)
         );
+        const raw = await Promise.race([
+          provider.complete(
+            [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            0.2,
+            options.model,
+          ),
+          timeoutPromise,
+        ]);
 
         const parsed = this.cleanAndParseJson(raw);
         if (parsed && Array.isArray(parsed.scenes) && parsed.scenes.length > 0) {
@@ -265,13 +271,19 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
 
         const userPrompt = `CURRENT PLAN:\n${JSON.stringify(currentPlan, null, 2)}\n\nUSER REVISION REQUEST: "${feedback}"\n\nPlease output the revised plan JSON.`;
 
-        const raw = await provider.complete(
-          [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          0.2,
+        const timeoutPromise = new Promise<string>((_, reject) =>
+          setTimeout(() => reject(new Error("LLM revision timeout (8s)")), 8000)
         );
+        const raw = await Promise.race([
+          provider.complete(
+            [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            0.2,
+          ),
+          timeoutPromise,
+        ]);
 
         const parsed = this.cleanAndParseJson(raw);
         if (parsed && Array.isArray(parsed.scenes) && parsed.scenes.length > 0) {
@@ -476,7 +488,7 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
     };
   }
 
-  private static synthesizeBespokePlan(
+  public static synthesizeBespokePlan(
     planId: string,
     mode: "plan" | "autopilot",
     prompt: string,

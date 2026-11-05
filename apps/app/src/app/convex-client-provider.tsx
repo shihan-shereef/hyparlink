@@ -41,11 +41,17 @@ function getConvexUrl(): string {
       return `http://${window.location.hostname}:3210`;
     }
 
-    // When accessed through public tunnel (HTTPS), proxy through Nginx /convex route
-    return `${window.location.origin}/convex`;
+    // When accessed through public tunnel (HTTPS), connect directly to the WebSocket-enabled Convex tunnel
+    return (
+      process.env.NEXT_PUBLIC_CONVEX_URL ||
+      "https://upgrade-decent-diabetes-availability.trycloudflare.com"
+    );
   }
 
-  return process.env.NEXT_PUBLIC_CONVEX_URL || "http://127.0.0.1:3210";
+  return (
+    process.env.NEXT_PUBLIC_CONVEX_URL ||
+    "https://upgrade-decent-diabetes-availability.trycloudflare.com"
+  );
 }
 
 const convex = new ConvexReactClient(getConvexUrl(), {

@@ -1,6 +1,6 @@
 import { requestLatestVideoFrame } from "../lib/videoFrameSync.js";
 import { useRelightCompare } from "../lib/videoRelighting.js";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CaretDown,
@@ -235,6 +235,13 @@ export function PreviewStage({
   latestPlaybackRef.current = { isPlaying, trackVisibility };
   const [decodedFrameRevision, setDecodedFrameRevision] = useState(0);
   const [isFocusPreviewOpen, setIsFocusPreviewOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.__openFocusPreview = () => setIsFocusPreviewOpen(true);
+      window.__closeFocusPreview = () => setIsFocusPreviewOpen(false);
+      window.__isFocusPreviewOpen = isFocusPreviewOpen;
+    }
+  }, [isFocusPreviewOpen]);
   const [focusPreviewFrameSize, setFocusPreviewFrameSize] = useState({ width: 0, height: 0 });
   const [previewRatioWidth, previewRatioHeight] = String(previewRatio).split("/").map((value) => Number(value.trim()));
   const previewRatioValue = previewRatioWidth > 0 && previewRatioHeight > 0 ? previewRatioWidth / previewRatioHeight : 16 / 9;
@@ -317,56 +324,97 @@ export function PreviewStage({
     opacity: visualTransform.opacity * visualAnimation.opacity,
   };
 
-  // Live HyperFrames GSAP Composition Synchronization
-  useEffect(() => {
-    if (!compositionUrl || !compositionIframeRef?.current) return;
+  // Live HyperFrames GSAP Composition Synchronization Helper
+  const syncCompositionIframe = useCallback((targetTime = currentTime, playing = isPlaying) => {
+    if (!compositionIframeRef?.current) return;
     try {
       const win = compositionIframeRef.current.contentWindow;
-      if (win) {
-        // Direct control of any window.__timelines, win.tl, or win.master
-        const tls = win.__timelines ? Object.values(win.__timelines) : [];
-        if (win.keralaTourismTimeline && !tls.includes(win.keralaTourismTimeline)) tls.push(win.keralaTourismTimeline);
-        if (win.timeline && !tls.includes(win.timeline)) tls.push(win.timeline);
-        if (win.tl && !tls.includes(win.tl)) tls.push(win.tl);
-        if (win.master && !tls.includes(win.master)) tls.push(win.master);
-        tls.forEach((tl) => {
-          if (!tl || typeof tl.seek !== "function") return;
-          tl.seek(currentTime, false);
-          if (isPlaying) {
-            if (typeof tl.play === "function") tl.play();
-          } else {
-            if (typeof tl.pause === "function") tl.pause();
-          }
-        });
+      if (!win) return;
 
-        // Seek custom composition runners
-        if (typeof win.seekNikeAdvertisement === "function") {
-          try { win.seekNikeAdvertisement(currentTime); } catch(e) {}
-        }
-        if (typeof win.seekMacBookAd === "function") {
-          try { win.seekMacBookAd(currentTime); } catch(e) {}
-        }
-        if (typeof win.showSceneAt === "function") {
-          try { win.showSceneAt(currentTime); } catch(e) {}
-        }
-
-        // Always dispatch postMessage to ensure seamless sync even across origins/nested frames
-        win.postMessage({
-          type: "HYPERLINK_SEEK",
-          time: currentTime,
-          isPlaying: isPlaying,
-        }, "*");
-
-        if (!isPlaying) {
-          win.postMessage({ type: "HYPERLINK_PAUSE", time: currentTime }, "*");
+      // Direct control of any window.__timelines, win.tl, or win.master
+      const tls = win.__timelines ? Object.values(win.__timelines) : [];
+      if (win.keralaTourismTimeline && !tls.includes(win.keralaTourismTimeline)) tls.push(win.keralaTourismTimeline);
+      if (win.timeline && !tls.includes(win.timeline)) tls.push(win.timeline);
+      if (win.tl && !tls.includes(win.tl)) tls.push(win.tl);
+      if (win.master && !tls.includes(win.master)) tls.push(win.master);
+      tls.forEach((tl) => {
+        if (!tl || typeof tl.seek !== "function") return;
+        tl.seek(targetTime, false);
+        if (playing) {
+          if (typeof tl.play === "function") tl.play();
         } else {
-          win.postMessage({ type: "HYPERLINK_PLAY", time: currentTime }, "*");
+          if (typeof tl.pause === "function") tl.pause();
         }
+      });
+
+      // Seek custom composition runners
+      if (typeof win.seekNikeAdvertisement === "function") {
+        try { win.seekNikeAdvertisement(targetTime); } catch(e) {}
+      }
+      if (typeof win.seekMacBookAd === "function") {
+        try { win.seekMacBookAd(targetTime); } catch(e) {}
+      }
+      if (typeof win.showSceneAt === "function") {
+        try { win.showSceneAt(targetTime); } catch(e) {}
+      }
+
+      // Explicitly activate scene in iframe DOM for paused/headless seeking states
+      try {
+        const doc = win.document;
+        if (doc) {
+          const allScenes = Array.from(doc.querySelectorAll(".scene, .ad-scene, section[id]"));
+          if (allScenes.length > 0) {
+            const videoScenes = win.VIDEO?.scenes;
+            allScenes.forEach((sc, idx) => {
+              let start = Number(sc.getAttribute("data-start"));
+              let dur = Number(sc.getAttribute("data-duration"));
+              if (Array.isArray(videoScenes) && videoScenes[idx]) {
+                start = videoScenes[idx].start;
+                dur = videoScenes[idx].end - videoScenes[idx].start;
+              } else if (isNaN(start) || isNaN(dur)) {
+                const perDur = (estimatedDuration || 40) / allScenes.length;
+                start = idx * perDur;
+                dur = perDur;
+              }
+              const isActive = targetTime >= (start - 0.1) && (targetTime < (start + dur - 0.05) || idx === allScenes.length - 1);
+              if (isActive) {
+                sc.classList.add("active");
+                sc.style.opacity = "1";
+                sc.style.visibility = "visible";
+              } else {
+                sc.classList.remove("active");
+                sc.style.opacity = "";
+                sc.style.visibility = "";
+              }
+            });
+          }
+        }
+      } catch (err) {}
+
+      // Always dispatch postMessage to ensure seamless sync even across origins/nested frames
+      win.postMessage({
+        type: "HYPERLINK_SEEK",
+        time: targetTime,
+        isPlaying: playing,
+      }, "*");
+
+      if (!playing) {
+        win.postMessage({ type: "HYPERLINK_PAUSE", time: targetTime }, "*");
+      } else {
+        win.postMessage({ type: "HYPERLINK_PLAY", time: targetTime }, "*");
       }
     } catch {
       // Safe no-op
     }
-  }, [currentTime, isPlaying, compositionUrl, compositionIframeRef]);
+  }, [currentTime, isPlaying, compositionIframeRef, estimatedDuration]);
+
+  // Live HyperFrames GSAP Composition Synchronization
+  useEffect(() => {
+    if (!compositionUrl) return;
+    syncCompositionIframe(currentTime, isPlaying);
+    const timer = setTimeout(() => syncCompositionIframe(currentTime, isPlaying), 60);
+    return () => clearTimeout(timer);
+  }, [currentTime, isPlaying, compositionUrl, isFocusPreviewOpen, syncCompositionIframe]);
   const visualContentBox = activeObjectFit === "contain"
     ? getVisualFitRect(
         { width: visualEffects?.width, height: visualEffects?.height },
@@ -841,6 +889,13 @@ export function PreviewStage({
                     className="preview-composition-iframe"
                     src={compositionUrl}
                     title="Live Video Composition"
+                    onLoad={() => {
+                      // Entering/leaving the focus portal remounts the iframe from scratch.
+                      // Restore the composition playhead and scene visibility immediately!
+                      syncCompositionIframe(currentTime, isPlaying);
+                      setTimeout(() => syncCompositionIframe(currentTime, isPlaying), 60);
+                      setTimeout(() => syncCompositionIframe(currentTime, isPlaying), 200);
+                    }}
                     style={{
                       position: "absolute",
                       top: 0,

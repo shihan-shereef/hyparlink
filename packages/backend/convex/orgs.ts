@@ -8,7 +8,53 @@ import { bump } from "./counters";
 import { requireDevSeed } from "./devGuard";
 import { notify } from "./notifications";
 
+import { formatUserName } from "./users";
+
 type Role = "owner" | "admin" | "member";
+
+const DEFAULT_LONDON_VIDEO_URL = "/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142.mp4";
+const DEFAULT_LONDON_THUMB_URL = "/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142_thumb.jpg";
+
+export async function ensureLondonDemoInWorkspace(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  userId?: Id<"users">,
+) {
+  const existing = await ctx.db
+    .query("projects")
+    .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+    .filter((q) =>
+      q.or(
+        q.eq(q.field("outputUrl"), DEFAULT_LONDON_VIDEO_URL),
+        q.eq(q.field("name"), "London in 3 Days (Reference Video)"),
+      ),
+    )
+    .first();
+
+  if (!existing) {
+    const now = Date.now();
+    await ctx.db.insert("projects", {
+      workspaceId,
+      userId: userId ?? ("default_user" as Id<"users">),
+      name: "London in 3 Days (Reference Video)",
+      description: "Default reference travel composition video",
+      prompt: "A cinematic 60s travel showcase of London featuring iconic landmarks, royal palaces, Thames views, and modern city energy.",
+      status: "completed",
+      duration: 60,
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      hyperframesVersion: "0.8.139",
+      outputUrl: DEFAULT_LONDON_VIDEO_URL,
+      thumbnailUrl: DEFAULT_LONDON_THUMB_URL,
+      cdnUrl: DEFAULT_LONDON_VIDEO_URL,
+      storageUrl: DEFAULT_LONDON_VIDEO_URL,
+      validationStatus: "PASSED",
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+}
 
 async function membership(
   ctx: QueryCtx,
@@ -21,18 +67,7 @@ async function membership(
       q.eq("userId", userId).eq("workspaceId", workspaceId),
     )
     .unique();
-  if (m) return m;
-
-  if (workspaceId === ("mh76mnv9k6dbe50rbwc0jsqpzd8grsqj" as Id<"workspaces">)) {
-    return {
-      _id: "m_primary_fallback" as any,
-      workspaceId,
-      userId,
-      role: "owner" as Role,
-      createdAt: Date.now(),
-    };
-  }
-  return null;
+  return m;
 }
 
 export async function requireRole(
@@ -42,7 +77,20 @@ export async function requireRole(
   roles: Role[],
 ) {
   const m = await membership(ctx, userId, workspaceId);
-  if (!m || !roles.includes(m.role as Role)) throw new ConvexError("Forbidden");
+  if (!m || !roles.includes(m.role as Role)) {
+    const ws = await ctx.db.get(workspaceId);
+    if (ws && ws.ownerId === userId) {
+      return {
+        _id: "synthetic" as any,
+        _creationTime: ws.createdAt,
+        workspaceId,
+        userId,
+        role: "owner",
+        createdAt: ws.createdAt,
+      };
+    }
+    throw new ConvexError("Forbidden");
+  }
   return m;
 }
 
@@ -73,6 +121,7 @@ async function createWorkspaceImpl(
   });
   await audit(ctx, workspaceId, userId, "workspace.create", { name });
   await bump(ctx, workspaceId, "members", 1);
+  await ensureLondonDemoInWorkspace(ctx, workspaceId, userId);
   return workspaceId;
 }
 
@@ -100,12 +149,45 @@ export const ensureWorkspace = mutation({
     if (!userId) {
       return null;
     }
-    const existing = await ctx.db
+    const user = await ctx.db.get(userId);
+    const cleanName = formatUserName(user);
+
+    // If user has generic or missing name, update it
+    if (!user?.name || user.name === "User") {
+      await ctx.db.patch(userId, { name: cleanName });
+    }
+
+    // Check if user already owns a workspace
+    const ownedMember = await ctx.db
       .query("members")
       .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.eq(q.field("role"), "owner"))
       .first();
-    if (existing) return existing.workspaceId;
-    return createWorkspaceImpl(ctx, userId, "Personal");
+
+    let targetWorkspaceId: Id<"workspaces">;
+
+    if (ownedMember) {
+      targetWorkspaceId = ownedMember.workspaceId;
+      const ws = await ctx.db.get(targetWorkspaceId);
+      if (ws && (ws.name === "Personal" || ws.name === "User" || ws.name === "My Workspace")) {
+        await ctx.db.patch(targetWorkspaceId, { name: `${cleanName}'s Workspace` });
+      }
+    } else {
+      const anyMember = await ctx.db
+        .query("members")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .first();
+
+      if (anyMember) {
+        targetWorkspaceId = anyMember.workspaceId;
+      } else {
+        const defaultWsName = `${cleanName}'s Workspace`;
+        targetWorkspaceId = await createWorkspaceImpl(ctx, userId, defaultWsName);
+      }
+    }
+
+    await ensureLondonDemoInWorkspace(ctx, targetWorkspaceId, userId);
+    return targetWorkspaceId;
   },
 });
 
@@ -120,21 +202,93 @@ export const myWorkspaces = query({
       .query("members")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
-    const out = [];
-    for (const m of mems) {
-      const ws = await ctx.db.get(m.workspaceId);
-      if (ws) out.push({ ...ws, role: m.role });
+
+    const workspaces = await Promise.all(
+      mems.map(async (m) => {
+        const ws = await ctx.db.get(m.workspaceId);
+        return ws ? { ...ws, role: m.role } : null;
+      }),
+    );
+
+    const out = workspaces.filter(Boolean) as any[];
+
+    if (out.length === 0) {
+      const owned = await ctx.db
+        .query("workspaces")
+        .filter((q) => q.eq(q.field("ownerId"), userId))
+        .take(5);
+      for (const w of owned) {
+        out.push({ ...w, role: "owner" });
+      }
     }
-    const primaryWsId = "mh76mnv9k6dbe50rbwc0jsqpzd8grsqj" as Id<"workspaces">;
-    if (!out.some((w) => w._id === primaryWsId)) {
-      try {
-        const primaryWs = await ctx.db.get(primaryWsId);
-        if (primaryWs) {
-          out.unshift({ ...primaryWs, name: primaryWs.name || "Primary Workspace (60 Videos)", role: "owner" });
-        }
-      } catch (err) {}
-    }
+
+    out.sort((a, b) => {
+      if (a.role === "owner" && b.role !== "owner") return -1;
+      if (b.role === "owner" && a.role !== "owner") return 1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
     return out;
+  },
+});
+
+export const migrateAllUsersAndWorkspaces = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    const updatedUsers = [];
+
+    for (const u of users) {
+      const formatted = formatUserName(u);
+      if (u.name !== formatted) {
+        await ctx.db.patch(u._id, { name: formatted });
+        updatedUsers.push({ email: u.email, oldName: u.name, newName: formatted });
+      }
+
+      // Find if this user has an owned workspace
+      let owned = await ctx.db
+        .query("members")
+        .withIndex("by_user", (q) => q.eq("userId", u._id))
+        .filter((q) => q.eq(q.field("role"), "owner"))
+        .first();
+
+      let targetWsId: Id<"workspaces">;
+
+      if (!owned) {
+        // Create an owned workspace for this user
+        const wsName = `${formatted}'s Workspace`;
+        targetWsId = await createWorkspaceImpl(ctx, u._id, wsName);
+      } else {
+        targetWsId = owned.workspaceId;
+        const ws = await ctx.db.get(targetWsId);
+        if (ws && (ws.name === "Personal" || ws.name === "User" || ws.name === "My Workspace")) {
+          await ctx.db.patch(targetWsId, { name: `${formatted}'s Workspace` });
+        }
+      }
+
+      // Ensure London demo project exists in their workspace
+      await ensureLondonDemoInWorkspace(ctx, targetWsId, u._id);
+
+      // If this user was accidentally added as non-owner member of mh76mnv9k6dbe50rbwc0jsqpzd8grsqj, remove that extra membership so they only see their workspace
+      const strayMems = await ctx.db
+        .query("members")
+        .withIndex("by_user", (q) => q.eq("userId", u._id))
+        .filter((q) => q.and(
+          q.eq(q.field("workspaceId"), "mh76mnv9k6dbe50rbwc0jsqpzd8grsqj" as Id<"workspaces">),
+          q.neq(q.field("role"), "owner")
+        ))
+        .collect();
+      for (const sm of strayMems) {
+        await ctx.db.delete(sm._id);
+      }
+    }
+
+    // Also ensure all workspaces have London demo project
+    const allWorkspaces = await ctx.db.query("workspaces").collect();
+    for (const ws of allWorkspaces) {
+      await ensureLondonDemoInWorkspace(ctx, ws._id, ws.ownerId);
+    }
+
+    return { success: true, updatedUsersCount: updatedUsers.length, totalUsers: users.length };
   },
 });
 

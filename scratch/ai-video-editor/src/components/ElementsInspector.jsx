@@ -68,10 +68,11 @@ export function ElementsInspector({
     setCollapsedCategories((prev) => ({ ...prev, [cat]: !prev[cat] }));
   };
 
-  const selectedElement = elements.find((el) => el.id === selectedElementId);
+  const elementList = Array.isArray(elements) ? elements : [];
+  const selectedElement = elementList.find((el) => el.id === selectedElementId);
 
   // Filter elements by scene if selected
-  const filteredElements = elements.filter((el) => {
+  const filteredElements = elementList.filter((el) => {
     if (filterScene === "all") return true;
     return el.sceneId === filterScene;
   });
@@ -205,12 +206,12 @@ export function ElementsInspector({
 
         {/* Scene filter pills */}
         {scenes && scenes.length > 0 && (
-          <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "2px" }}>
+          <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "4px" }}>
             <button
               type="button"
               onClick={() => setFilterScene("all")}
               style={{
-                padding: "3px 8px",
+                padding: "4px 10px",
                 borderRadius: "12px",
                 fontSize: "11px",
                 fontWeight: 600,
@@ -219,6 +220,7 @@ export function ElementsInspector({
                 background: filterScene === "all" ? "#38bdf8" : "rgba(255,255,255,0.06)",
                 color: filterScene === "all" ? "#0f172a" : "#94a3b8",
                 whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
             >
               All Scenes
@@ -229,12 +231,12 @@ export function ElementsInspector({
                 type="button"
                 onClick={() => {
                   setFilterScene(sc.id || `scene-${i + 1}`);
-                  if (typeof onSeekTo === "function") {
+                  if (typeof onSeekTo === "function" && sc.start !== undefined) {
                     onSeekTo(sc.start);
                   }
                 }}
                 style={{
-                  padding: "3px 8px",
+                  padding: "4px 10px",
                   borderRadius: "12px",
                   fontSize: "11px",
                   fontWeight: 600,
@@ -243,6 +245,7 @@ export function ElementsInspector({
                   background: filterScene === (sc.id || `scene-${i + 1}`) ? "#38bdf8" : "rgba(255,255,255,0.06)",
                   color: filterScene === (sc.id || `scene-${i + 1}`) ? "#0f172a" : "#94a3b8",
                   whiteSpace: "nowrap",
+                  flexShrink: 0,
                 }}
               >
                 Scene {i + 1}

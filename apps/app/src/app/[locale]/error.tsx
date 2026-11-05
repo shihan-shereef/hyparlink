@@ -20,17 +20,22 @@ export default function ErrorBoundary({
       </h1>
       <p className="max-w-md text-sm text-primary/60">
         An unexpected error occurred. You can try again, or head back to the
-        dashboard.
+        projects dashboard.
       </p>
-      <div className="flex gap-2">
+      {error?.message && (
+        <p className="max-w-md rounded-md bg-muted/50 p-2.5 font-mono text-xs text-destructive break-words">
+          {error.message}
+        </p>
+      )}
+      <div className="flex gap-2 mt-2">
         <Button onClick={() => reset()}>Try again</Button>
         <Button
           variant="outline"
           onClick={() => {
-            window.location.href = "/";
+            window.location.href = "/projects";
           }}
         >
-          Go home
+          Go to Projects
         </Button>
       </div>
     </div>

@@ -18,6 +18,7 @@ import { DetailRestorationDialog } from "./components/DetailRestorationDialog.js
 import { SmartDenoiseDialog } from "./components/SmartDenoiseDialog.jsx";
 import { WebMcpReview, WebMcpAiStatus } from "./components/WebMcpReview.jsx";
 import ProjectImportOverlay from "./components/ProjectImportOverlay.jsx";
+import { findLiveElementInDoc } from "./components/ElementsCanvasOverlay.jsx";
 import {
   canShowFirstVisualGuide,
   FIRST_VISUAL_GUIDE_MOBILE_QUERY,
@@ -109,6 +110,14 @@ import { getVisualPropertyTabIds } from "./lib/visualPropertyTabs.js";
 import { applyTimelineRipple } from "./lib/timelineRipple.js";
 import { COMPACT_WORKSPACE_QUERY } from "./config/editor.js";
 
+function getSafeClassName(el) {
+  if (!el) return "";
+  if (typeof el.className === "string") return el.className;
+  if (typeof el.className === "object" && el.className?.baseVal) return el.className.baseVal;
+  if (typeof el.getAttribute === "function") return el.getAttribute("class") || "";
+  return "";
+}
+
 export function App({ hostSession = null }) {
   const [uiLanguage, setUiLanguage] = useState(() => getStoredLanguage() || "en");
   const [mobilePanel, setMobilePanel] = useState("");
@@ -172,12 +181,6 @@ export function App({ hostSession = null }) {
   const loadedProjectDataRef = useRef(null);
   const loadedProjectIdRef = useRef(null);
   const saveTimeoutRef = useRef(null);
-
-  const handleStartMove = useCallback(() => {
-    if (!isUndoingRef.current && projectElements && projectElements.length > 0) {
-      pushElementHistory(projectElements);
-    }
-  }, [projectElements, pushElementHistory]);
   const {
     captionPlacement, captionPosition, captionSegments, captionSize, captionStyle,
     captionStylePresetId, captionStylePresets,
@@ -303,7 +306,7 @@ export function App({ hostSession = null }) {
     addVoiceProfile, removeVoiceProfile, selectedVoiceProfileId, setSelectedVoiceProfileId,
     toggleVoiceProfileFavorite, voiceProfiles,
   } = useVoiceProfiles({ favoriteVoiceIds, setFavoriteVoiceIds, notify, t });
-  const selectedVoiceProfile = voiceProfiles.find((profile) => profile.id === selectedVoiceProfileId) ?? null;
+  const selectedVoiceProfile = voiceProfiles?.find((profile) => profile.id === selectedVoiceProfileId) ?? null;
   const handleCancelExport = () => {
     const controller = exportAbortControllerRef.current;
     if (!controller || controller.signal.aborted) return;
@@ -394,7 +397,7 @@ export function App({ hostSession = null }) {
   }, [estimatedDuration, setCurrentTime, setTimelineHorizon, setTimelineZoom, trackScrollRef]);
   const previewFrameSize = usePreviewFrameSize(previewShellRef, ratio, compactRail);
   const selectedVisualSegment = visualSegments[selectedVisualSegmentIndex] ?? previewVisualSegment ?? null;
-  const selectedVisualOverlay = visualOverlaySegments.find((item) => item.id === selectedVisualOverlayId) ?? null;
+  const selectedVisualOverlay = visualOverlaySegments?.find((item) => item.id === selectedVisualOverlayId) ?? null;
   const selectedEffectSegment = selectedTrack === "overlay" && selectedVisualOverlay
     ? selectedVisualOverlay
     : selectedVisualSegment;
@@ -740,7 +743,7 @@ export function App({ hostSession = null }) {
     setScript, setSelectedSegmentId, setSelectedTrack,
     setVisionRecords, t, trackLocks,
   });
-  const captionVisualTarget = selectedCaptionSegment && getVisualSegmentTimeline(visualSegments).find(range => selectedCaptionSegment.start >= range.start - 0.000001 && selectedCaptionSegment.end <= range.end + 0.000001);
+  const captionVisualTarget = selectedCaptionSegment && (getVisualSegmentTimeline(visualSegments) || []).find(range => selectedCaptionSegment.start >= range.start - 0.000001 && selectedCaptionSegment.end <= range.end + 0.000001);
   const toggleCaptionVisualLink = () => {
     if (!selectedCaptionSegment || trackLocks.caption) return;
     const id=selectedCaptionSegment.id, owner=captionVisualTarget?.id;
@@ -753,7 +756,7 @@ export function App({ hostSession = null }) {
   };
   const makeTimedVisualAssociation = (segment, setter, locked) => {
     if (!segment) return null;
-    const owner=getVisualSegmentTimeline(visualSegments).find(range=>segment.start>=range.start-0.000001 && segment.start+segment.duration<=range.end+0.000001);
+    const owner=(getVisualSegmentTimeline(visualSegments) || []).find(range=>segment.start>=range.start-0.000001 && segment.start+segment.duration<=range.end+0.000001);
     return {linked:Boolean(segment.visualSegmentId),disabled:Boolean(locked||(!segment.visualSegmentId&&!owner)),toggle:()=>{
       if(locked||(!segment.visualSegmentId&&!owner))return;
       setter(current=>current.map(item=>{if(item.id!==segment.id)return item;const {visualSegmentId:previous,...rest}=item;return previous?rest:{...item,visualSegmentId:owner.id};}));
@@ -796,7 +799,7 @@ export function App({ hostSession = null }) {
     if (trackLocks.source || trackLocks.audio || trackLocks[`audio-${lane}`] || trackLocks.image) return false;
     if (!(sourceAudioBlob instanceof Blob)) return false;
     const linkedPiece = sourceAudioLinked && segmentId !== "source-audio"
-      ? linkedSourceAudioSegments.find((segment) => segment.id === segmentId) ?? null
+      ? linkedSourceAudioSegments?.find((segment) => segment.id === segmentId) ?? null
       : null;
     const playbackRate = Math.max(0.25, Math.min(4, Number(linkedPiece?.playbackRate) || 1));
     const duration = Math.max(0, Number(linkedPiece?.duration ?? sourceAudioDuration) || 0);
@@ -900,8 +903,8 @@ export function App({ hostSession = null }) {
   const { separateAudioClipVocals, separateSourceVocals, vocalSeparationJob } = useVocalSeparation({
     sourceAudioBlob, sourceAudioName, replaceAudio, replaceSourceAudio, replaceMusic, notify, t,
   });
-  const selectedSourceAudioPiece = linkedSourceAudioSegments.find((segment) => segment.id === selectedSourceAudioSegmentId) ?? null;
-  const selectedMusicSegment = musicSegments.find((segment) => segment.id === selectedMusicSegmentId) ?? null;
+  const selectedSourceAudioPiece = linkedSourceAudioSegments?.find((segment) => segment.id === selectedSourceAudioSegmentId) ?? null;
+  const selectedMusicSegment = musicSegments?.find((segment) => segment.id === selectedMusicSegmentId) ?? null;
   useEffect(() => {
     if (selectedMusicSegmentId && !selectedMusicSegment) setSelectedMusicSegmentId("");
   }, [selectedMusicSegment, selectedMusicSegmentId]);
@@ -953,7 +956,7 @@ export function App({ hostSession = null }) {
     setSelectedStickerId, setSelectedStickerSegmentId, setSelectedTrack,
     setStickerSegments, stickerSegments, t, timelineDurationRef, trackLocks, visualSegments,
   });
-  const selectedStickerSegment = stickerSegments.find((segment) => segment.id === selectedStickerSegmentId) ?? currentStickerSegment;
+  const selectedStickerSegment = stickerSegments?.find((segment) => segment.id === selectedStickerSegmentId) ?? currentStickerSegment;
   const stickerVisualAssociation = makeTimedVisualAssociation(selectedStickerSegment,setStickerSegments,trackLocks.sticker);
   useEffect(() => {
     const normalized = normalizeTimedSegmentIds(stickerSegments, "sticker");
@@ -1016,7 +1019,7 @@ export function App({ hostSession = null }) {
   };
   const applyVoiceColorToSelectedAudio = ({ blob, decoded, profileName, segment }) => {
     const url = URL.createObjectURL(blob); imageUrlRefs.current.add(url);
-    const target = audioSegments.find((item) => item.id === segment.id);
+    const target = audioSegments?.find((item) => item.id === segment.id);
     const targetTrack = segment.track || (target ? "audio" : selectedTrack);
     if (targetTrack === "audio") {
       if (!target) { URL.revokeObjectURL(url); imageUrlRefs.current.delete(url); notify(t("audioClipMissing")); return false; }
@@ -1049,7 +1052,7 @@ export function App({ hostSession = null }) {
     return true;
   };
   const restoreSelectedAudioVoiceColor = (segment) => {
-    const target = audioSegments.find((item) => item.id === segment.id);
+    const target = audioSegments?.find((item) => item.id === segment.id);
     const targetTrack = segment.track || (target ? "audio" : selectedTrack);
     if (targetTrack === "audio") {
       if (!target?.voiceColorOriginalBlob) return false;
@@ -1114,7 +1117,7 @@ export function App({ hostSession = null }) {
       if (patch.blob instanceof Blob) {
         const lane = getSourceProcessingLane(audioSegments, trackLocks);
         if (lane === null) return false;
-        const piece = linkedSourceAudioSegments.find(item => item.id === id);
+        const piece = linkedSourceAudioSegments?.find(item => item.id === id);
         return moveSourceAudioToAudioLane({ segmentId: id, start: piece?.start ?? sourceAudioStart, lane, processingPatch: patch });
       }
       if (Number.isFinite(patch.volume)) {
@@ -1208,6 +1211,11 @@ export function App({ hostSession = null }) {
     timelineDurationRef, trackScrollRef, trackVisibility, visualSegments, visualTimeline, previewVisualSegment,
     visualPlaybackLastUpdateRef, visualPlaybackStartedAtRef, visualPlaybackStartTimeRef,
   });
+  if (typeof window !== "undefined") {
+    window.__seekTo = seekTo;
+    window.__currentTime = currentTime;
+    window.__projectElements = projectElements;
+  }
   const pauseForTimelineEdit = () => {
     if (!isPlaying) return;
     pauseTimelineMedia();
@@ -1314,7 +1322,7 @@ export function App({ hostSession = null }) {
   };
   const updateSelectedVisualOverlay = (transform) => updateVisualOverlayById(selectedVisualOverlayId, transform);
   const updateSelectedVisualOverlayEffects = (change) => {
-    const overlay = visualOverlaySegments.find((item) => item.id === selectedVisualOverlayId);
+    const overlay = visualOverlaySegments?.find((item) => item.id === selectedVisualOverlayId);
     if (!overlay || trackLocks.overlay) return;
     setVisualOverlaySegments((items) => items.map((item) => {
       if (item.id !== overlay.id) return item;
@@ -1496,7 +1504,7 @@ export function App({ hostSession = null }) {
     checkpointHistory();
     // Reordering existing media keeps the reviewed canvas ratio. Auto-detection
     // remains available when the user uploads a new first source later.
-    const ratioSource = nextVisuals.find((clip) => clip.width > 0 && clip.height > 0);
+    const ratioSource = nextVisuals?.find((clip) => clip.width > 0 && clip.height > 0);
     if (ratioSource) autoRatioSourceKeyRef.current = `${ratioSource.assetId || ratioSource.id}:${ratioSource.width}x${ratioSource.height}`;
     pauseTimelineMedia();
     setIsPlaying(false);
@@ -1780,6 +1788,12 @@ export function App({ hostSession = null }) {
     }
   }, []);
 
+  const handleStartMove = useCallback(() => {
+    if (!isUndoingRef.current && projectElements && projectElements.length > 0) {
+      pushElementHistory(projectElements);
+    }
+  }, [projectElements, pushElementHistory]);
+
   const handleSmartUndo = useCallback(() => {
     pauseTimelineMedia();
     if (elementHistoryRef.current && elementHistoryRef.current.length > 0) {
@@ -1797,9 +1811,9 @@ export function App({ hostSession = null }) {
 
         if (doc) {
           prevElements.forEach((el) => {
-            const targetEl = doc.querySelector(`[data-hf-id="${el.id}"], #${el.id}`);
+            const targetEl = findLiveElementInDoc(doc, el);
             if (targetEl) {
-              if (el.text !== undefined && targetEl.tagName !== "IMG") {
+              if (el.text !== undefined && targetEl.tagName !== "IMG" && targetEl.tagName !== "SVG") {
                 targetEl.textContent = el.text;
               }
               if (el.hasMoved && el.placement) {
@@ -1807,13 +1821,22 @@ export function App({ hostSession = null }) {
                 targetEl.style.left = `${el.placement.x}%`;
                 targetEl.style.top = `${el.placement.y}%`;
                 targetEl.style.margin = "0";
-                targetEl.style.transform = "none";
+                targetEl.style.transform = el.placement.isTopLeft ? "none" : "translate(-50%, -50%)";
               } else {
                 targetEl.style.position = "";
                 targetEl.style.left = "";
                 targetEl.style.top = "";
                 targetEl.style.margin = "";
                 targetEl.style.transform = "";
+                targetEl.style.width = "";
+                targetEl.style.height = "";
+
+                // Remove layout spacer if any was inserted for this element
+                const parent = targetEl.parentNode;
+                if (parent) {
+                  const spacer = parent.querySelector(`[data-hf-spacer-for="${el.id}"]`);
+                  if (spacer) spacer.remove();
+                }
               }
               if (el.style?.zIndex) {
                 targetEl.style.zIndex = String(el.style.zIndex);
@@ -1828,15 +1851,17 @@ export function App({ hostSession = null }) {
               const targetFile = el.file || "index.html";
               let fileContent = projectData.files[targetFile];
               if (fileContent) {
+                // Remove layout spacer for this element from project file
+                fileContent = fileContent.replace(new RegExp(`<div[^>]*data-hf-spacer-for=["']${el.id}["'][^>]*><\\/div>`, "gi"), "");
                 const tagRegex = new RegExp(`(<[^>]+(?:data-hf-id|id)=["']${el.id}["'][^>]*)>`, "i");
                 if (tagRegex.test(fileContent)) {
                   fileContent = fileContent.replace(tagRegex, (match, openTag) => {
-                    const cleanPos = (s) => (s || "").replace(/(?:position|left|top|margin|transform|width|z-index)\s*:[^;]+;?/gi, "").replace(/;\s*;/g, ";").trim();
+                    const cleanPos = (s) => (s || "").replace(/(?:position|left|top|margin|transform|width|height|z-index)\s*:[^;]+;?/gi, "").replace(/;\s*;/g, ";").trim();
                     if (openTag.includes('style="')) {
                       return openTag.replace(/style=["']([^"']*)["']/, (m, existing) => {
                         const cleaned = cleanPos(existing);
                         if (el.hasMoved && el.placement) {
-                          const isImg = el.tag === "img" || el.type === "image";
+                          const isImg = el.tag === "img" || el.type === "image" || el.tag === "svg";
                           const widthStyle = isImg && el.placement.width ? ` width: ${el.placement.width}px;` : " width: fit-content; max-width: 90%;";
                           const posStyles = `position: absolute; left: ${el.placement.x}%; top: ${el.placement.y}%; margin: 0; transform: none;${widthStyle}`;
                           return `style="${cleaned ? cleaned + '; ' : ''}${posStyles}"`;
@@ -1887,10 +1912,11 @@ export function App({ hostSession = null }) {
 
   const updateElement = useCallback((id, changes) => {
     setProjectElements((prev) => {
-      const target = prev.find((el) => el.id === id);
+      const currentPrev = Array.isArray(prev) ? prev : [];
+      const target = currentPrev.find((el) => el.id === id);
       if (target) {
         if (!isUndoingRef.current && !changes.isDragging && (changes.text !== undefined || changes.style?.zIndex)) {
-          pushElementHistory(prev);
+          pushElementHistory(currentPrev);
         }
         if (changes.placement) {
           changes.hasMoved = true;
@@ -1923,108 +1949,86 @@ export function App({ hostSession = null }) {
           try {
             const win = compositionIframeRef.current.contentWindow;
             const doc = win.document;
-            let targetEl = null;
-
-            // 1. Direct match by data-hf-id or id
-            if (target.id) {
-              targetEl = doc.querySelector(`[data-hf-id="${target.id}"], #${target.id}`);
-              if (!targetEl) {
-                const subIframes = doc.querySelectorAll("iframe");
-                for (const sub of subIframes) {
-                  try {
-                    const subDoc = sub.contentDocument || sub.contentWindow?.document;
-                    if (subDoc) {
-                      targetEl = subDoc.querySelector(`[data-hf-id="${target.id}"], #${target.id}`);
-                      if (targetEl) break;
-                    }
-                  } catch (e) {}
-                }
-              }
-            }
-
-            // 1b. Image match by src or tag
-            if (!targetEl && (target.type === "image" || target.tag === "img")) {
-              targetEl = doc.querySelector("img, .product-image, .feature-image, .scene-background");
-            }
-
-            if (!targetEl && target.sceneIndex !== undefined) {
-              const sceneEl = doc.getElementById(`sc${target.sceneIndex}`) ||
-                              doc.querySelector(`[data-scene="${target.sceneIndex + 1}"]`) ||
-                              doc.getElementById(`scene${target.sceneIndex + 1}`) ||
-                              doc.querySelectorAll(".scene, .ad-scene, section")[target.sceneIndex];
-              if (sceneEl) {
-                if (target.type === "image" || target.tag === "img") {
-                  targetEl = sceneEl.querySelector("img, .product-image, .feature-image, .scene-background");
-                } else if (target.field === "title" || target.tag === "h1" || target.tag === "h2" || target.tag === "h3" || target.type === "heading") {
-                  targetEl = sceneEl.querySelector(".headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
-                } else if (target.field === "sub" || target.field === "subtitle" || target.field === "description" || target.tag === "p" || target.type === "text") {
-                  targetEl = sceneEl.querySelector(".description, .sub.sb, .sub, p");
-                } else if (target.field === "kicker" || target.field === "eyebrow") {
-                  targetEl = sceneEl.querySelector(".eyebrow, .kicker.k, .kicker");
-                } else if (target.field === "time" || target.field === "badge" || target.tag === "pill") {
-                  targetEl = sceneEl.querySelector(".pill.k, .pill.k2, .pill, .scene-number, .date, .corner-mark, .bottom-label");
-                } else if (target.field === "n" || target.tag === "num") {
-                  targetEl = sceneEl.querySelector(".num.nm, .num, .scene-number");
-                }
-              }
-            }
-
-            // Fallback match by current text content
-            if (!targetEl && (target.currentSavedText || target.text)) {
-              const needle = (target.currentSavedText || target.text).trim().slice(0, 15);
-              if (needle.length >= 2) {
-                const candidates = doc.querySelectorAll(".headline, .title, .mega, .big, .description, .sub, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, h1, h2, h3, h4, p, span, button");
-                for (const cand of candidates) {
-                  if (cand.textContent && cand.textContent.includes(needle)) {
-                    targetEl = cand;
-                    break;
-                  }
-                }
-              }
-            }
+            const targetEl = findLiveElementInDoc(doc, target);
 
             if (targetEl) {
               if (targetEl.id === "root" || targetEl.id === "scenes" || targetEl.id === "composition" || targetEl.tagName === "BODY" || targetEl.tagName === "HTML") {
-                return;
+                return currentPrev;
+              }
+              if (target.id && !targetEl.getAttribute("data-hf-id")) {
+                targetEl.setAttribute("data-hf-id", target.id);
               }
               if (changes.style?.zIndex) {
                 targetEl.style.zIndex = String(changes.style.zIndex);
               }
-              if (changes.placement) {
+              if (changes.placement && changes.hasMoved) {
                 const pl = changes.placement;
+
+                // Insert layout spacer in parent if not already present to prevent sibling shift
+                const parent = targetEl.parentNode;
+                if (parent && !parent.querySelector(`[data-hf-spacer-for="${target.id}"]`)) {
+                  const spacer = doc.createElement("div");
+                  spacer.setAttribute("data-hf-spacer-for", target.id);
+                  spacer.className = "hf-layout-spacer";
+                  spacer.style.width = `${targetEl.offsetWidth || 100}px`;
+                  spacer.style.height = `${targetEl.offsetHeight || 50}px`;
+                  spacer.style.pointerEvents = "none";
+                  spacer.style.visibility = "hidden";
+                  spacer.style.flexShrink = "0";
+                  const comp = win.getComputedStyle(targetEl);
+                  spacer.style.margin = comp.margin;
+                  spacer.style.display = comp.display === "inline" ? "inline-block" : comp.display;
+                  parent.insertBefore(spacer, targetEl);
+                }
+
                 targetEl.style.position = "absolute";
                 targetEl.style.margin = "0";
                 targetEl.style.transition = "none";
 
+                const docW = doc.documentElement?.clientWidth || 1920;
+                const docH = doc.documentElement?.clientHeight || 1080;
+
                 let parentOffsetLeft = 0;
                 let parentOffsetTop = 0;
                 let curr = targetEl.offsetParent;
-                const scene = targetEl.closest(".scene, .ad-scene, section, main, #composition, body");
-                while (curr && curr !== scene && curr !== doc.body && curr !== doc.documentElement && curr.id !== "composition") {
+                const scene = targetEl.closest(".scene, .ad-scene, section, main, #composition, #root, body");
+                while (curr && curr !== scene && curr !== doc.body && curr !== doc.documentElement && curr.id !== "composition" && curr.id !== "root") {
                   parentOffsetLeft += curr.offsetLeft || 0;
                   parentOffsetTop += curr.offsetTop || 0;
                   curr = curr.offsetParent;
                 }
 
-                const targetLeftPx = (pl.x / 100) * 1920;
-                const targetTopPx = (pl.y / 100) * 1080;
-                targetEl.style.left = `${Math.round(targetLeftPx - parentOffsetLeft)}px`;
-                targetEl.style.top = `${Math.round(targetTopPx - parentOffsetTop)}px`;
+                if (typeof pl.x === "number" && !isNaN(pl.x)) {
+                  const targetLeftPx = (pl.x / 100) * docW;
+                  targetEl.style.left = `${Math.round(targetLeftPx - parentOffsetLeft)}px`;
+                }
+                if (typeof pl.y === "number" && !isNaN(pl.y)) {
+                  const targetTopPx = (pl.y / 100) * docH;
+                  targetEl.style.top = `${Math.round(targetTopPx - parentOffsetTop)}px`;
+                }
                 targetEl.style.transform = pl.isTopLeft ? "none" : "translate(-50%, -50%)";
                 if (!changes.style?.zIndex) {
                   targetEl.style.zIndex = "50";
                 }
 
-                if (pl.width) {
-                  targetEl.style.width = typeof pl.width === "number" ? `${pl.width}px` : pl.width;
-                } else if (!targetEl.style.width && targetEl.offsetWidth > 0) {
-                  targetEl.style.width = `${targetEl.offsetWidth}px`;
-                }
-                if (pl.height && target.tag !== "img") {
-                  targetEl.style.height = typeof pl.height === "number" ? `${pl.height}px` : pl.height;
+                const isImg = target.tag === "img" || target.type === "image" || target.tag === "svg";
+                if (isImg) {
+                  targetEl.style.maxWidth = "none";
+                  targetEl.style.maxHeight = "none";
+                  targetEl.style.animation = "none";
+                  targetEl.style.objectFit = "contain";
+                  if (pl.width) targetEl.style.width = typeof pl.width === "number" ? `${pl.width}px` : pl.width;
+                  if (pl.height) targetEl.style.height = typeof pl.height === "number" ? `${pl.height}px` : pl.height;
+                } else {
+                  if (typeof pl.width === "number" && pl.width > 0) {
+                    targetEl.style.width = `${pl.width}px`;
+                  } else {
+                    targetEl.style.width = "fit-content";
+                    targetEl.style.maxWidth = "95%";
+                  }
                 }
               }
-              if (changes.text !== undefined && target.tag !== "img") {
+              if (changes.text !== undefined && target.tag !== "img" && target.tag !== "svg") {
                 if (target.field === "title" || target.tag === "h1") {
                   targetEl.innerHTML = typeof win.words === "function" ? win.words(changes.text) : (typeof win.split === "function" ? win.split(changes.text) : changes.text);
                 } else {
@@ -2034,7 +2038,15 @@ export function App({ hostSession = null }) {
               if (changes.style) {
                 if (changes.style.fontFamily) targetEl.style.fontFamily = changes.style.fontFamily;
                 if (changes.style.color) targetEl.style.color = changes.style.color;
-                if (changes.style.fontSize) targetEl.style.fontSize = typeof changes.style.fontSize === "number" ? changes.style.fontSize + "px" : changes.style.fontSize;
+                if (changes.style.fontSize) {
+                  const fsStr = typeof changes.style.fontSize === "number" ? changes.style.fontSize + "px" : changes.style.fontSize;
+                  targetEl.style.fontSize = fsStr;
+                  targetEl.style.lineHeight = "1.1";
+                  const subSpans = targetEl.querySelectorAll("span, .accent, .ch, .w, .row, .lyric");
+                  subSpans.forEach((s) => {
+                    s.style.fontSize = "inherit";
+                  });
+                }
                 if (changes.style.textAlign) targetEl.style.textAlign = changes.style.textAlign;
               }
             }
@@ -2044,9 +2056,11 @@ export function App({ hostSession = null }) {
         }
 
         // Auto-save element placement/position modification to HTML file
-        if (target.id === "root" || target.id === "scenes" || target.id === "composition" || target.tag === "body" || target.tag === "html" || target.tag === "section") {
-          // Do not write position modifications to root or background wrappers
-        } else if (changes.placement && changes.hasMoved) {
+        const isWrapperElement = target.id === "root" || target.id === "scenes" || target.id === "composition" ||
+          target.tag === "body" || target.tag === "html" || target.tag === "section" ||
+          target.type === "section" || (target.tag === "div" && (target.id?.includes("scene-background") || target.name?.toLowerCase().includes("scene-background")));
+
+        if (!isWrapperElement && changes.placement && changes.hasMoved) {
           const projectData = loadedProjectDataRef.current;
           const projectId = loadedProjectIdRef.current;
           if (projectData && projectData.files && projectId) {
@@ -2062,11 +2076,16 @@ export function App({ hostSession = null }) {
               }
               if (fileContent && target.id) {
                 const pl = changes.placement;
-                const zStyle = changes.style?.zIndex ? ` z-index: ${changes.style.zIndex};` : "";
+                const plX = (typeof pl.x === "number" && !isNaN(pl.x)) ? pl.x : 0;
+                const plY = (typeof pl.y === "number" && !isNaN(pl.y)) ? pl.y : 0;
                 const isImg = target.tag === "img" || target.type === "image";
-                const widthStyle = isImg && pl.width ? ` width: ${pl.width}px;` : " width: fit-content; max-width: 90%;";
-                const posStyles = `position: absolute; left: ${pl.x}%; top: ${pl.y}%; margin: 0; transform: none;${widthStyle}${zStyle}`;
-                const cleanPos = (s) => (s || "").replace(/(?:position|left|top|margin|transform|width|z-index)\s*:[^;]+;?/gi, "").replace(/;\s*;/g, ";").trim();
+                const zStyle = changes.style?.zIndex ? ` z-index: ${changes.style.zIndex};` : "";
+                const fontStyle = (!isImg && (changes.style?.fontSize || target.style?.fontSize)) ? ` font-size: ${changes.style?.fontSize || target.style?.fontSize}px;` : "";
+                const heightStyle = isImg && pl.height ? ` height: ${pl.height}px; max-height: none;` : "";
+                const widthStyle = isImg && pl.width ? ` width: ${pl.width}px; max-width: none;` : " width: fit-content; max-width: 90%;";
+                const animStyle = isImg ? " animation: none;" : "";
+                const posStyles = `position: absolute; left: ${plX}%; top: ${plY}%; margin: 0; transform: none;${widthStyle}${heightStyle}${fontStyle}${zStyle}${animStyle}`;
+                const cleanPos = (s) => (s || "").replace(/(?:position|left|top|margin|transform|width|height|max-width|max-height|z-index|animation)\s*:[^;]+;?/gi, "").replace(/;+/g, ";").replace(/^;\s*/, "").replace(/;\s*$/, "").trim();
                 const tagRegex = new RegExp(`(<[^>]+(?:data-hf-id|id)=["']${target.id}["'][^>]*)>`, "i");
                 if (tagRegex.test(fileContent)) {
                   fileContent = fileContent.replace(tagRegex, (match, openTag) => {
@@ -2289,7 +2308,7 @@ export function App({ hostSession = null }) {
         }
       }
 
-      return prev.map((el) => {
+      return currentPrev.map((el) => {
         if (el.id !== id) return el;
         const updated = { ...el, ...changes };
         if (changes.style) updated.style = { ...el.style, ...changes.style };
@@ -2301,10 +2320,11 @@ export function App({ hostSession = null }) {
 
   const deleteElement = useCallback((id) => {
     setProjectElements((prev) => {
-      if (!isUndoingRef.current && prev && prev.length > 0) {
-        pushElementHistory(prev);
+      const currentPrev = Array.isArray(prev) ? prev : [];
+      if (!isUndoingRef.current && currentPrev.length > 0) {
+        pushElementHistory(currentPrev);
       }
-      const target = prev.find((el) => el.id === id);
+      const target = currentPrev.find((el) => el.id === id);
       if (target) {
         // Clear text in composition iframe directly
         if (compositionIframeRef.current?.contentWindow) {
@@ -2401,12 +2421,26 @@ export function App({ hostSession = null }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedElementId, deleteElement]);
 
+  // Clear selected element if scrubbing out of its scene time window
+  useEffect(() => {
+    if (!selectedElementId) return;
+    const selectedEl = projectElements?.find((el) => el.id === selectedElementId);
+    if (selectedEl && !selectedEl.isGlobal && selectedEl.sceneStart !== undefined && selectedEl.sceneDuration !== undefined) {
+      const inWindow = currentTime >= (selectedEl.sceneStart - 0.35) && currentTime <= (selectedEl.sceneStart + selectedEl.sceneDuration + 0.35);
+      if (!inWindow) {
+        setSelectedElementId(null);
+        setSelectedElementIds([]);
+      }
+    }
+  }, [currentTime, selectedElementId, projectElements]);
+
   const duplicateElement = useCallback((id) => {
     setProjectElements((prev) => {
-      const target = prev.find((el) => el.id === id);
-      if (!target) return prev;
-      if (!isUndoingRef.current && prev && prev.length > 0) {
-        pushElementHistory(prev);
+      const currentPrev = Array.isArray(prev) ? prev : [];
+      const target = currentPrev.find((el) => el.id === id);
+      if (!target) return currentPrev;
+      if (!isUndoingRef.current && currentPrev.length > 0) {
+        pushElementHistory(currentPrev);
       }
       const newId = `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       const duplicated = {
@@ -2420,7 +2454,7 @@ export function App({ hostSession = null }) {
         },
       };
       setSelectedElementId(newId);
-      return [...prev, duplicated];
+      return [...currentPrev, duplicated];
     });
   }, [pushElementHistory]);
 
@@ -2432,10 +2466,13 @@ export function App({ hostSession = null }) {
       return prev;
     });
     const newId = `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const activeSc = projectScenes?.find((s) => currentTime >= s.start && currentTime < (s.start + (s.duration || s.dur || 4)));
+    const targetStart = activeSc ? activeSc.start : (currentTime || 0);
+    const targetDur = activeSc ? (activeSc.duration || activeSc.dur || 4) : 4;
     let newElement = {
       id: newId,
-      sceneStart: 0,
-      sceneDuration: 40,
+      sceneStart: targetStart,
+      sceneDuration: targetDur,
       visible: true,
       ...initialProps,
     };
@@ -2510,6 +2547,19 @@ export function App({ hostSession = null }) {
   const autoLoadedVideoRef = useRef(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    const decodeHtmlEntities = (str) => {
+      if (!str || typeof str !== "string") return str || "";
+      return str
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&#x27;/g, "'")
+        .replace(/&#x2F;/g, "/");
+    };
 
     const extractElementsFromProject = (data, dur, fallbackTitle, fallbackPrompt) => {
       const extracted = [];
@@ -2717,29 +2767,30 @@ export function App({ hostSession = null }) {
                   visible: true,
                 });
               }
-            });
 
-            // HUD overlay item (e.g. London, 3D · 2N)
-            extracted.push({
-              id: "el-hud-label",
-              sceneId: "global-hud",
-              sceneStart: 0,
-              sceneDuration: totalDur,
-              field: "hudLabel",
-              tag: "hud",
-              type: "badge",
-              name: "HUD: London",
-              text: "London",
-              originalText: "London",
-              isModified: false,
-              style: {
-                fontFamily: "'Inter', sans-serif",
-                fontSize: 20,
-                color: "#f6efe3",
-                letterSpacing: "0.3em",
-              },
-              placement: { x: 10, y: 92, width: 140, height: 30, isTopLeft: true },
-              visible: true,
+              // Scene Image / Skyline / Graphic
+              const visualName = s.skyline ? `Skyline (${s.skyline})` : (s.img ? `Photo: ${s.img.split('/').pop()}` : `Scene Visual (${idx + 1})`);
+              extracted.push({
+                id: `el-${scId}-visual`,
+                sceneId: scId,
+                sceneIndex: idx,
+                field: "image",
+                tag: s.img ? "img" : "svg",
+                type: "image",
+                name: `Graphic: ${visualName}`,
+                src: s.img || "",
+                text: s.skyline || "",
+                sceneStart: scStart,
+                sceneDuration: scDur,
+                isModified: false,
+                style: { objectFit: "contain" },
+                placement: isIntro
+                  ? { x: 50, y: 72, width: 1400, height: 400, isTopLeft: false }
+                  : isStop
+                  ? { x: 68, y: 50, width: 700, height: 500, isTopLeft: false }
+                  : { x: 50, y: 70, width: 1200, height: 380, isTopLeft: false },
+                visible: true,
+              });
             });
 
             return extracted;
@@ -2760,11 +2811,33 @@ export function App({ hostSession = null }) {
             const perSceneDur = totalDur / sceneSections.length;
             let runningStart = 0;
 
+            // Check script.js or indexHtml for exact scene timelines (e.g. s1..s9)
+            let scriptScenes = null;
+            try {
+              const scriptText = data?.files?.["script.js"] || indexHtml || "";
+              const scMatch = scriptText.match(/(?:const|let|var)\s+(?:CONFIG|VIDEO|PROJECT)\s*=\s*\{[\s\S]*?scenes\s*:\s*(\[\s*\{[\s\S]*?\}\s*\])/i) ||
+                scriptText.match(/scenes\s*:\s*(\[\s*\{[\s\S]*?\}\s*\])/i);
+              if (scMatch) {
+                scriptScenes = new Function("return " + scMatch[1])();
+              }
+            } catch (e) {}
+
             sceneSections.forEach((sceneEl, idx) => {
-              const scStart = Number(sceneEl.getAttribute("data-start")) || runningStart;
-              const scDur = Number(sceneEl.getAttribute("data-duration")) || perSceneDur;
+              const seenTexts = new Set();
+              const secId = sceneEl.id || `s${idx + 1}`;
+              const scriptScene = Array.isArray(scriptScenes) ? (scriptScenes.find((s) => s.id === secId) || scriptScenes[idx]) : null;
+              const backendScene = Array.isArray(data?.scenes) ? (data.scenes.find((s) => s.id === secId || s.id === `scene_${sceneEl.getAttribute("data-hf-id")}`) || data.scenes[idx]) : null;
+
+              const scStart = scriptScene && typeof scriptScene.start === "number" ? scriptScene.start :
+                backendScene && typeof backendScene.start === "number" ? backendScene.start :
+                (Number(sceneEl.getAttribute("data-start")) || runningStart);
+
+              const scDur = scriptScene && typeof scriptScene.end === "number" && scriptScene.end > scriptScene.start ? (scriptScene.end - scriptScene.start) :
+                backendScene && typeof backendScene.duration === "number" ? backendScene.duration :
+                (Number(sceneEl.getAttribute("data-duration")) || perSceneDur);
+
               runningStart = scStart + scDur;
-              const scId = sceneEl.id || `scene-${idx + 1}`;
+              const scId = backendScene?.id || sceneEl.id || `scene-${idx + 1}`;
 
               // Query all image elements in this scene
               const imgNodes = sceneEl.querySelectorAll("img:not([hidden]), .product-image, .feature-image");
@@ -2794,64 +2867,100 @@ export function App({ hostSession = null }) {
                 });
               });
 
-              // Query all textual and symbol elements in this scene
+              // Query all textual, illustration and symbol elements in this scene
               const textNodes = sceneEl.querySelectorAll(
-                "h1, h2, h3, h4, p, .headline, .title, .mega, .big, .description, .sub, .subtitle, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, button, a, .glyph-row, .glyph, .symbol, .icon, svg"
+                "h1, h2, h3, h4, h5, h6, p, .headline, .title, .mega, .big, .description, .sub, .subtitle, .eyebrow, .kicker, .label, .caption, .panel, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, button, a, .glyph-row, .glyph, .symbol, .icon, svg, .visual, .note, .tag, .stat, .badge, .card, .spear, [class*='spear'], [class*='arrow'], .battleline, .rule, .map, div[style*='font'], div[style*='position'], div[style*='position:absolute']"
               );
 
-              const seenTexts = new Set();
               textNodes.forEach((node, nodeIdx) => {
                 // Avoid capturing parent elements whose text is already captured by children
-                if (node.querySelector("h1, h2, h3, p, .headline, .description")) return;
-
-                const rawText = node.textContent?.replace(/\s+/g, " ").trim();
-                if (!rawText || seenTexts.has(rawText)) return;
-                seenTexts.add(rawText);
+                if (node.querySelector("h1, h2, h3, h4, h5, h6, p, .headline, .title, .description")) return;
 
                 const tag = node.tagName.toLowerCase();
-                const cls = (node.className || "").toLowerCase();
+                const cls = getSafeClassName(node).toLowerCase();
+                const isIllustration = cls.includes("spear") || cls.includes("arrow") || cls.includes("battleline") || cls.includes("rule") || cls.includes("map") || cls.includes("visual") || tag === "svg";
+
+                const rawText = decodeHtmlEntities(node.textContent?.replace(/\s+/g, " ").trim() || "");
+                if (!isIllustration && (!rawText || seenTexts.has(rawText))) return;
+                if (rawText) seenTexts.add(rawText);
 
                 let field = "text";
                 let type = "text";
                 let fontSize = 24;
                 let fontWeight = 400;
 
-                const isSymbol = cls.includes("glyph") || cls.includes("symbol") || cls.includes("icon") || tag === "svg";
-                if (isSymbol) {
+                const isSymbol = cls.includes("glyph") || cls.includes("symbol") || cls.includes("icon");
+                if (isIllustration) {
+                  field = "illustration";
+                  type = "image";
+                  fontSize = 28;
+                } else if (isSymbol) {
                   field = "symbol";
                   type = "symbol";
                   fontSize = 28;
                 } else if (tag === "h1" || tag === "h2" || tag === "h3" || cls.includes("headline") || cls.includes("title") || cls.includes("mega") || cls.includes("big")) {
                   field = "title";
                   type = "heading";
-                  fontSize = tag === "h1" ? 64 : 48;
+                  fontSize = tag === "h1" ? 64 : tag === "h2" ? 48 : 36;
                   fontWeight = 700;
                 } else if (cls.includes("description") || cls.includes("sub") || tag === "p") {
                   field = "description";
                   type = "text";
-                  fontSize = 24;
+                  fontSize = 22;
                   fontWeight = 300;
-                } else if (cls.includes("eyebrow") || cls.includes("kicker")) {
+                } else if (cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("label")) {
                   field = "eyebrow";
                   type = "badge";
-                  fontSize = 20;
+                  fontSize = 18;
                   fontWeight = 600;
+                } else if (cls.includes("caption")) {
+                  field = "caption";
+                  type = "text";
+                  fontSize = 14;
+                  fontWeight = 400;
                 } else if (cls.includes("scene-number") || cls.includes("num") || cls.includes("number")) {
                   field = "number";
                   type = "badge";
                   fontSize = 18;
-                } else if (cls.includes("corner-mark") || cls.includes("date") || cls.includes("bottom-label") || cls.includes("pill") || cls.includes("badge")) {
+                } else if (cls.includes("corner-mark") || cls.includes("date") || cls.includes("bottom-label") || cls.includes("pill") || cls.includes("badge") || cls.includes("tag")) {
                   field = "badge";
                   type = "badge";
                   fontSize = 16;
+                } else if (cls.includes("note")) {
+                  field = "note";
+                  type = "text";
+                  fontSize = 18;
+                  fontWeight = 300;
                 } else if (tag === "button" || cls.includes("cta") || cls.includes("btn")) {
                   field = "button";
                   type = "button";
                   fontSize = 18;
+                } else if (tag === "div" && rawText.length > 0) {
+                  field = "heading";
+                  type = "heading";
+                  fontSize = 36;
+                  fontWeight = 700;
                 }
 
                 const realId = node.getAttribute("data-hf-id") || node.id || `el-${scId}-${field}-${nodeIdx}`;
-                const placement = { x: 9, y: 50, isTopLeft: true };
+                const label = isIllustration
+                  ? (cls.includes("spear") ? `Spear (${cls.includes("left") ? "Left" : "Right"})` : cls.includes("battleline") ? "Battleline" : cls.includes("rule") ? "Accent Rule" : "Illustration Graphic")
+                  : rawText.slice(0, 24);
+
+                let placement = { x: 10, y: 50, width: 320, height: 50, isTopLeft: true };
+                if (isIllustration) {
+                  placement = {
+                    x: cls.includes("left") ? 15 : cls.includes("right") ? 68 : 50,
+                    y: 50,
+                    width: 280,
+                    height: 160,
+                    isTopLeft: true,
+                  };
+                } else if (node.style?.right) {
+                  placement = { x: 75, y: 34, width: 220, height: 60, isTopLeft: true };
+                } else if (node.style?.left) {
+                  placement = { x: 12, y: 34, width: 220, height: 60, isTopLeft: true };
+                }
 
                 extracted.push({
                   id: realId,
@@ -2860,14 +2969,14 @@ export function App({ hostSession = null }) {
                   field,
                   tag,
                   type,
-                  name: `${field.toUpperCase()}: ${rawText.slice(0, 20)}`,
-                  text: rawText,
-                  originalText: rawText,
+                  name: `${isIllustration ? "Graphic" : field.toUpperCase()}: ${decodeHtmlEntities(label)}`,
+                  text: rawText || label,
+                  originalText: rawText || label,
                   sceneStart: scStart,
                   sceneDuration: scDur,
                   isModified: false,
                   style: {
-                    fontFamily: (field === "title" || tag === "h1") ? "Georgia, 'Times New Roman', serif" : "'Inter', sans-serif",
+                    fontFamily: (field === "title" || tag === "h1" || tag === "div") ? "Georgia, 'Times New Roman', serif" : "'Inter', sans-serif",
                     fontSize,
                     fontWeight,
                     color: field === "eyebrow" ? "#d8bd72" : "#ffffff",
@@ -2876,6 +2985,79 @@ export function App({ hostSession = null }) {
                   placement,
                   visible: true,
                 });
+              });
+
+              // Query child SVG graphic shapes with data-hf-id (e.g. Boat, Spear, Shield)
+              const svgNodes = sceneEl.querySelectorAll("svg");
+              svgNodes.forEach((svgEl, sIdx) => {
+                const shapeNodes = svgEl.querySelectorAll("path[data-hf-id], circle[data-hf-id], rect[data-hf-id], polygon[data-hf-id], g[data-hf-id]");
+                shapeNodes.forEach((shape, shIdx) => {
+                  const shapeId = shape.getAttribute("data-hf-id") || `el-${scId}-shape-${sIdx}-${shIdx}`;
+                  if (extracted.some((e) => e.id === shapeId)) return;
+                  const d = shape.getAttribute("d") || "";
+                  const stroke = shape.getAttribute("stroke") || "";
+                  const fill = shape.getAttribute("fill") || "";
+                  const cls = (typeof shape.className === "string" ? shape.className : "").toLowerCase();
+                  let shapeName = "Shape";
+                  if (cls.includes("ship") || d.includes("155 L240")) shapeName = "Ship";
+                  else if (cls.includes("spear") || d.includes("310 45")) shapeName = "Spear";
+                  else if (cls.includes("shield") || d.includes("400 70")) shapeName = "Shield";
+                  else if (shape.tagName.toLowerCase() === "circle") shapeName = "Orb";
+                  else shapeName = `Graphic (${shape.tagName.toLowerCase()})`;
+
+                  extracted.push({
+                    id: shapeId,
+                    sceneId: scId,
+                    sceneIndex: idx,
+                    field: "illustration",
+                    tag: shape.tagName.toLowerCase(),
+                    type: "image",
+                    name: `Graphic: ${shapeName}`,
+                    text: shapeName,
+                    originalText: shapeName,
+                    sceneStart: scStart,
+                    sceneDuration: scDur,
+                    isModified: false,
+                    style: {
+                      color: stroke || fill || "#54eaff",
+                    },
+                    placement: { x: 65 + (shIdx % 3) * 10, y: 65, width: 90, height: 90, isTopLeft: true },
+                    visible: true,
+                  });
+                });
+              });
+            });
+
+            // Query global elements outside scene sections (e.g. topbar, headers, watermarks)
+            const globalSeenTexts = new Set();
+            const globalNodes = Array.from(doc.querySelectorAll(".topbar span, .topbar div, .topbar p, .header span, .header div, #film > .caption, #film > .kicker, .hud span"));
+            globalNodes.forEach((node, gIdx) => {
+              if (node.querySelector("span, div, p")) return; // Only capture leaf elements
+              const rawText = decodeHtmlEntities(node.textContent?.replace(/\s+/g, " ").trim() || "");
+              if (!rawText || globalSeenTexts.has(rawText)) return;
+              globalSeenTexts.add(rawText);
+              const realId = node.getAttribute("data-hf-id") || node.id || `el-global-${gIdx}`;
+              extracted.push({
+                id: realId,
+                sceneId: "global",
+                sceneIndex: -1,
+                isGlobal: true,
+                field: "header",
+                tag: node.tagName.toLowerCase(),
+                type: "badge",
+                name: `Header: ${rawText.slice(0, 24)}`,
+                text: rawText,
+                originalText: rawText,
+                sceneStart: 0,
+                sceneDuration: totalDur,
+                isModified: false,
+                style: {
+                  fontSize: 14,
+                  color: "#8ca2b7",
+                  letterSpacing: "0.2em",
+                },
+                placement: { x: 10 + gIdx * 25, y: 3, width: 350, height: 30, isTopLeft: true },
+                visible: true,
               });
             });
 
@@ -2974,7 +3156,7 @@ export function App({ hostSession = null }) {
                 seenTexts.add(rawText);
 
                 const tag = node.tagName.toLowerCase();
-                const cls = (node.className || "").toLowerCase();
+                const cls = getSafeClassName(node).toLowerCase();
 
                 let field = "text";
                 let type = "text";
@@ -3167,9 +3349,10 @@ export function App({ hostSession = null }) {
             (data?.assets && data.assets.length > 0 ? (data.assets[0].url || data.assets[0]) : null) ||
             initialThumb;
 
-          const assetImages = (data?.assets && Array.isArray(data.assets) && data.assets.length > 0)
+          const hasRealAssets = data?.assets && Array.isArray(data.assets) && data.assets.length > 0;
+          const assetImages = hasRealAssets
             ? data.assets.map((a) => (typeof a === "string" ? a : a.url)).filter(Boolean)
-            : initialAssets;
+            : (projectThumb ? [projectThumb] : initialAssets);
 
           setVisualSegments((prevSegments) =>
             prevSegments.map((seg) => ({
@@ -3226,15 +3409,19 @@ export function App({ hostSession = null }) {
         const liveElements = event.data.payload;
         if (Array.isArray(liveElements) && liveElements.length > 0) {
           setProjectElements((prev) => {
-            if (prev.length === 0 || prev.some((el) => el.id === "el-main-title")) {
+            const currentPrev = Array.isArray(prev) ? prev : [];
+            if (currentPrev.length === 0 || currentPrev.some((el) => el.id === "el-main-title")) {
               return liveElements;
             }
-            return prev.map((el) => {
-              const live = liveElements.find((l) => l.id === el.id || (l.text && l.text.trim().toLowerCase() === (el.text || "").trim().toLowerCase()));
+            return currentPrev.map((el) => {
+              const live = liveElements?.find((l) =>
+                l.id === el.id ||
+                ((el.sceneIndex === undefined || l.sceneIndex === el.sceneIndex) &&
+                  l.text && el.text && l.text.trim().toLowerCase() === el.text.trim().toLowerCase())
+              );
               if (live && live.placement) {
                 return {
                   ...el,
-                  id: live.id || el.id,
                   placement: el.hasMoved ? el.placement : live.placement,
                   style: { ...el.style, ...live.style },
                 };
@@ -3249,7 +3436,7 @@ export function App({ hostSession = null }) {
 
         const idLower = (payload.id || "").toLowerCase();
         const tagLower = (payload.tag || "").toLowerCase();
-        const clsLower = (payload.className || "").toLowerCase();
+        const clsLower = getSafeClassName(payload).toLowerCase();
         if (
           idLower === "root" ||
           idLower === "scenes" ||
@@ -3262,24 +3449,20 @@ export function App({ hostSession = null }) {
           tagLower === "html" ||
           tagLower === "section" ||
           tagLower === "main" ||
-          clsLower.includes("scene") ||
-          clsLower.includes("clip") ||
-          clsLower.includes("bg") ||
-          clsLower.includes("shade") ||
-          clsLower.includes("content") ||
-          clsLower.includes("center") ||
-          clsLower.includes("left") ||
-          clsLower.includes("bar") ||
-          clsLower.includes("track") ||
-          clsLower.includes("fill")
+          clsLower.includes("scene-background") ||
+          clsLower.includes("grid-overlay") ||
+          clsLower.includes("film-grain") ||
+          clsLower.includes("grain") ||
+          clsLower.includes("progress-track")
         ) {
           setSelectedElementId(null);
           return;
         }
 
         setProjectElements((prev) => {
+          const currentPrev = Array.isArray(prev) ? prev : [];
           const targetText = (payload.text || "").trim().toLowerCase();
-          let match = prev.find((el) => {
+          let match = currentPrev.find((el) => {
             if (payload.id && el.id === payload.id) return true;
             if (targetText && el.text && el.text.trim().toLowerCase() === targetText) return true;
             return false;
@@ -3288,18 +3471,41 @@ export function App({ hostSession = null }) {
           if (match) {
             setSelectedElementId(match.id);
             setActiveTool("elements");
+            if (payload.rect && payload.rect.width > 0 && payload.rect.height > 0) {
+              const rectX = Math.max(0, Math.min(95, (payload.rect.left / 1920) * 100));
+              const rectY = Math.max(0, Math.min(95, (payload.rect.top / 1080) * 100));
+              return prev.map((el) => {
+                if (el.id === match.id) {
+                  return {
+                    ...el,
+                    placement: {
+                      ...el.placement,
+                      x: rectX,
+                      y: rectY,
+                      width: Math.max(40, payload.rect.width),
+                      height: Math.max(20, payload.rect.height),
+                      isTopLeft: true,
+                    },
+                  };
+                }
+                return el;
+              });
+            }
             return prev;
           }
 
           const isHeading = payload.type === "heading" || payload.tag?.startsWith("h");
+          const isIll = payload.type === "image" || payload.type === "symbol" || ["svg", "img", "path"].includes(tagLower) || clsLower.includes("spear") || clsLower.includes("battleline") || clsLower.includes("rule") || clsLower.includes("map");
           const newEl = {
             id: payload.id || `el-canvas-${Date.now()}`,
             sceneId: payload.sceneId || (payload.sceneIndex !== undefined ? `scene-${payload.sceneIndex + 1}` : "scene-1"),
             sceneIndex: payload.sceneIndex !== undefined ? payload.sceneIndex : 0,
+            sceneStart: payload.sceneStart !== undefined ? payload.sceneStart : Math.max(0, currentTime - 1),
+            sceneDuration: payload.sceneDuration !== undefined ? payload.sceneDuration : 12,
             file: payload.file || (payload.sceneIndex !== undefined ? `compositions/scene_${payload.sceneIndex + 1}.html` : "index.html"),
-            tag: payload.tag || (isHeading ? "h1" : "p"),
-            type: payload.type || (isHeading ? "heading" : "text"),
-            name: `${payload.tag ? payload.tag.toUpperCase() : "EL"}: ${(payload.text || "Element").slice(0, 20)}`,
+            tag: payload.tag || (isIll ? "svg" : isHeading ? "h1" : "p"),
+            type: payload.type || (isIll ? "image" : isHeading ? "heading" : "text"),
+            name: `${payload.tag ? payload.tag.toUpperCase() : "EL"}: ${(payload.text || payload.name || "Element").slice(0, 20)}`,
             text: payload.text || "",
             originalText: payload.text || "",
             isModified: false,

@@ -173,6 +173,7 @@ export default defineSchema({
     outputFileId: v.optional(v.id("files")),
     outputStorageId: v.optional(v.id("_storage")),
     outputUrl: v.optional(v.string()),
+    videoUrl: v.optional(v.string()),
     error: v.optional(v.string()),
     jobId: v.optional(v.id("jobs")),
     avatarId: v.optional(v.string()),

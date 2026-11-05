@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { modifyAccountCredentials } from "@convex-dev/auth/server";
 
@@ -120,7 +121,7 @@ export const setUserPassword = internalMutation({
   },
   handler: async (ctx, { email, password }) => {
     const cleanEmail = email.trim().toLowerCase();
-    await modifyAccountCredentials(ctx, {
+    await modifyAccountCredentials(ctx as any, {
       provider: "password",
       account: { id: cleanEmail, secret: password },
     });
@@ -158,7 +159,7 @@ export const listAllProjects = query({
         _id: w._id,
         name: w.name,
       })),
-      projects: list.map((p) => ({
+      projects: list.map((p: any) => ({
         _id: p._id,
         name: p.name,
         workspaceId: p.workspaceId,
@@ -250,6 +251,7 @@ export const retainOnlyFourShowcaseProjects = mutation({
 
     // Insert clean projects into ws1
     const idsWs1: Record<string, string> = {};
+    const nowTime = Date.now();
     for (const d of desired) {
       const id = await ctx.db.insert("projects", {
         workspaceId: ws1,
@@ -266,6 +268,8 @@ export const retainOnlyFourShowcaseProjects = mutation({
         videoUrl: d.videoUrl,
         thumbnailUrl: d.thumbnailUrl,
         cdnUrl: d.outputUrl,
+        createdAt: nowTime,
+        updatedAt: nowTime,
       });
       idsWs1[d.key] = id;
     }
@@ -288,6 +292,8 @@ export const retainOnlyFourShowcaseProjects = mutation({
         videoUrl: d.videoUrl,
         thumbnailUrl: d.thumbnailUrl,
         cdnUrl: d.outputUrl,
+        createdAt: nowTime,
+        updatedAt: nowTime,
       });
       idsWs2[d.key] = id;
     }
@@ -312,3 +318,141 @@ export const updateProjectMetadata = mutation({
     return { success: true };
   },
 });
+
+export const createTestingWorkspaceAndUser = mutation({
+  args: {
+    email: v.string(),
+    name: v.string(),
+    password: v.optional(v.string()),
+    workspaceName: v.optional(v.string()),
+  },
+  handler: async (ctx, { email, name, password, workspaceName }) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const effectiveWsName = workspaceName || `${name}'s Workspace`;
+    const now = Date.now();
+
+    // 1. Create or get user
+    let user = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", cleanEmail))
+      .first();
+
+    if (!user) {
+      const userId = await ctx.db.insert("users", {
+        name,
+        email: cleanEmail,
+        emailVerificationTime: now,
+      });
+      user = (await ctx.db.get(userId))!;
+    } else {
+      await ctx.db.patch(user._id, {
+        name,
+        emailVerificationTime: now,
+      });
+    }
+
+    // 2. Setup auth credentials for password login
+    let userPasswordAcc = await ctx.db
+      .query("authAccounts")
+      .withIndex("userIdAndProvider", (q) => q.eq("userId", user!._id).eq("provider", "password"))
+      .first();
+
+    if (!userPasswordAcc) {
+      const existingPasswordAcc = await ctx.db
+        .query("authAccounts")
+        .filter((q) => q.eq(q.field("provider"), "password"))
+        .first();
+
+      const accId = await ctx.db.insert("authAccounts", {
+        userId: user._id,
+        provider: "password",
+        providerAccountId: cleanEmail,
+        secret: existingPasswordAcc?.secret || "",
+      });
+      userPasswordAcc = (await ctx.db.get(accId))!;
+    }
+
+    if (password) {
+      try {
+        await modifyAccountCredentials(ctx as any, {
+          provider: "password",
+          account: { id: cleanEmail, secret: password },
+        });
+      } catch (err) {
+        console.warn("Could not modify account credentials via auth helper:", err);
+      }
+    }
+
+    // 3. Create dedicated workspace for this testing user
+    let ws = await ctx.db
+      .query("workspaces")
+      .filter((q) => q.eq(q.field("ownerId"), user!._id))
+      .first();
+
+    if (!ws) {
+      const wsId = await ctx.db.insert("workspaces", {
+        name: effectiveWsName,
+        ownerId: user._id,
+        createdAt: now,
+      });
+      ws = (await ctx.db.get(wsId))!;
+    } else {
+      await ctx.db.patch(ws._id, { name: effectiveWsName });
+    }
+
+    // 4. Ensure owner membership
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_user", (q) => q.eq("userId", user!._id))
+      .filter((q) => q.eq(q.field("workspaceId"), ws!._id))
+      .first();
+
+    if (!member) {
+      await ctx.db.insert("members", {
+        workspaceId: ws._id,
+        userId: user._id,
+        role: "owner",
+        createdAt: now,
+      });
+    }
+
+    // 5. Add default London reference video demo project to this workspace
+    const existingDemo = await ctx.db
+      .query("projects")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", ws!._id))
+      .filter((q) => q.eq(q.field("name"), "London in 3 Days (Reference Video)"))
+      .first();
+
+    let demoProjectId = existingDemo?._id;
+    if (!existingDemo) {
+      demoProjectId = await ctx.db.insert("projects", {
+        workspaceId: ws._id,
+        userId: user._id,
+        name: "London in 3 Days (Reference Video)",
+        description: "Default reference travel composition video",
+        prompt: "A cinematic 60s travel showcase of London featuring iconic landmarks, royal palaces, Thames views, and modern city energy.",
+        status: "completed",
+        duration: 60,
+        width: 1920,
+        height: 1080,
+        fps: 30,
+        hyperframesVersion: "0.8.139",
+        outputUrl: "/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142.mp4",
+        thumbnailUrl: "/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142_thumb.jpg",
+        cdnUrl: "/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142.mp4",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    return {
+      success: true,
+      userId: user._id,
+      email: cleanEmail,
+      workspaceId: ws._id,
+      workspaceName: ws.name,
+      demoProjectId,
+    };
+  },
+});
+

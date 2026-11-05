@@ -38,19 +38,23 @@ export function Sidebar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const activeWorkspace = workspaces.find((w) => w._id === current) || workspaces[0];
-  const workspaceName = activeWorkspace?.name === "Personal" 
-    ? "Shihan Shereef's Workspace" 
-    : (activeWorkspace?.name || "Shihan Shereef's Workspace");
+  const emailPrefix = user?.email ? user.email.split("@")[0] : "";
+  const derivedEmailName = emailPrefix.toLowerCase().startsWith("shihan")
+    ? "Shihan Shereef"
+    : (emailPrefix ? emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1) : "Personal");
+  const userFallbackName = (user?.name && user.name !== "User") ? user.name : derivedEmailName;
+  const defaultWorkspaceTitle = `${userFallbackName}'s Workspace`;
+  const workspaceName = (!activeWorkspace?.name || activeWorkspace?.name === "Personal" || activeWorkspace?.name === "User")
+    ? defaultWorkspaceTitle 
+    : activeWorkspace.name;
 
   // User initials
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : "SW";
+  const initials = (user?.name || userFallbackName || "SS")
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   // Exact navigation items requested by user
   const navItems = [
@@ -148,40 +152,46 @@ export function Sidebar() {
 
           {/* Workspace Switcher Menu Popover */}
           {showWorkspaceMenu && (
-            <div className={`absolute top-13 z-50 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-neutral-800 dark:bg-[#121620] animate-in fade-in zoom-in-95 duration-100 ${
-              collapsed ? "left-12" : "left-0"
-            }`}>
-              <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Switch Workspace
+            <>
+              <div
+                className="fixed inset-0 z-40 cursor-default"
+                onClick={() => setShowWorkspaceMenu(false)}
+              />
+              <div className={`absolute top-13 z-50 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-neutral-800 dark:bg-[#121620] animate-in fade-in zoom-in-95 duration-100 ${
+                collapsed ? "left-12" : "left-0"
+              }`}>
+                <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Switch Workspace
+                </div>
+                <div className="mt-1 space-y-1">
+                  {workspaces.map((w) => {
+                    const isPrimary = w.role === "owner";
+                    const isCurrent = w._id === current;
+                    return (
+                      <button
+                        key={w._id}
+                        type="button"
+                        onClick={() => {
+                          select(w._id);
+                          toast.success(`Switched to ${w.name}`);
+                          setShowWorkspaceMenu(false);
+                        }}
+                        className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-xs text-left transition cursor-pointer ${
+                          isCurrent
+                            ? "bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
+                            : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-neutral-800"
+                        }`}
+                      >
+                        <span className="truncate">
+                          {w.name} {isPrimary ? "★" : ""}
+                        </span>
+                        {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-indigo-600" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="mt-1 space-y-1">
-                {workspaces.map((w) => {
-                  const isPrimary = w.role === "owner";
-                  const isCurrent = w._id === current;
-                  return (
-                    <button
-                      key={w._id}
-                      type="button"
-                      onClick={() => {
-                        select(w._id);
-                        toast.success(`Switched to ${w.name}`);
-                        setShowWorkspaceMenu(false);
-                      }}
-                      className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-xs text-left transition cursor-pointer ${
-                        isCurrent
-                          ? "bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
-                          : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-neutral-800"
-                      }`}
-                    >
-                      <span className="truncate">
-                        {w.name} {isPrimary ? "★" : ""}
-                      </span>
-                      {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-indigo-600" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            </>
           )}
         </div>
 
@@ -248,7 +258,7 @@ export function Sidebar() {
             className={`flex items-center rounded-xl hover:bg-slate-100/70 dark:hover:bg-neutral-800/60 transition cursor-pointer ${
               collapsed ? "h-10 w-10 justify-center p-0" : "w-full justify-between p-2"
             }`}
-            title={user?.name || "Shihan Shereef"}
+            title={user?.name || userFallbackName}
           >
             <div className={`flex items-center gap-2.5 overflow-hidden ${collapsed ? "justify-center" : ""}`}>
               <div className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[11px] font-bold text-white shadow-2xs">
@@ -258,7 +268,7 @@ export function Sidebar() {
               {!collapsed && (
                 <div className="flex flex-col text-left overflow-hidden">
                   <span className="truncate text-xs font-medium text-slate-800 dark:text-slate-200 leading-tight">
-                    {user?.name || "Shihan Shereef"}
+                    {user?.name || userFallbackName}
                   </span>
                   <span className="truncate text-[10px] text-slate-400">{user?.email}</span>
                 </div>
@@ -269,12 +279,17 @@ export function Sidebar() {
 
           {/* User Profile Dropdown Menu */}
           {showUserMenu && (
-            <div className={`absolute bottom-12 z-50 w-60 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-neutral-800 dark:bg-[#121620] animate-in fade-in zoom-in-95 duration-100 ${
-              collapsed ? "left-12" : "left-0"
-            }`}>
+            <>
+              <div
+                className="fixed inset-0 z-40 cursor-default"
+                onClick={() => setShowUserMenu(false)}
+              />
+              <div className={`absolute bottom-12 z-50 w-60 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-neutral-800 dark:bg-[#121620] animate-in fade-in zoom-in-95 duration-100 ${
+                collapsed ? "left-12" : "left-0"
+              }`}>
               <div className="border-b border-slate-100 p-2 dark:border-neutral-800">
                 <p className="truncate text-xs font-bold text-slate-900 dark:text-white">
-                  {user?.name || "Shihan Shereef"}
+                  {user?.name || userFallbackName}
                 </p>
                 <p className="truncate text-[11px] text-slate-500">{user?.email}</p>
               </div>
@@ -284,28 +299,68 @@ export function Sidebar() {
                 </div>
                 <Link
                   href="/settings"
-                  onClick={(e) => handleEditorNav(e, "/settings")}
-                  className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-neutral-800 transition"
+                  onClick={(e) => {
+                    setShowUserMenu(false);
+                    handleEditorNav(e, "/settings");
+                  }}
+                  className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-neutral-800 transition cursor-pointer"
                 >
                   <Settings className="h-3.5 w-3.5" /> Workspace Settings
                 </Link>
-                <Link
-                  href="/login"
-                  onClick={(e) => handleEditorNav(e, "/login")}
-                  className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition font-medium"
-                >
-                  <LogIn className="h-3.5 w-3.5" /> Sign In / Switch Account
-                </Link>
                 <button
                   type="button"
-                  onClick={() => signOut()}
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowUserMenu(false);
+                    toast.loading("Switching account...");
+                    try {
+                      await signOut();
+                    } catch (err) {
+                      console.warn("Sign out error:", err);
+                    }
+                    try {
+                      if (typeof window !== "undefined") {
+                        window.localStorage.removeItem("ws");
+                        document.cookie = "__convexAuthJWT=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                        document.cookie = "__convexAuthRefreshToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                      }
+                    } catch {}
+                    window.location.href = "/login?switch=true";
+                  }}
+                  className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition font-medium cursor-pointer"
+                >
+                  <LogIn className="h-3.5 w-3.5" /> Sign In / Switch Account
+                </button>
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowUserMenu(false);
+                    toast.loading("Logging out...");
+                    try {
+                      await signOut();
+                    } catch (err) {
+                      console.warn("Sign out error:", err);
+                    }
+                    try {
+                      if (typeof window !== "undefined") {
+                        window.localStorage.removeItem("ws");
+                        document.cookie = "__convexAuthJWT=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                        document.cookie = "__convexAuthRefreshToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                      }
+                    } catch {}
+                    window.location.href = "/login?logout=true";
+                  }}
                   className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
                 >
                   <LogOut className="h-3.5 w-3.5" /> Log out
                 </button>
               </div>
             </div>
-          )}
+          </>
+        )}
         </div>
       </div>
     </div>

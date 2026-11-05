@@ -85,8 +85,11 @@ export default function ProjectOllaEditorPage() {
     };
   }, [isFullscreen, toggleFullscreen]);
 
-  // Backend API URL
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+  // Backend API URL - use relative URL on HTTPS tunnel to leverage Next.js proxy
+  const backendUrl =
+    typeof window !== "undefined" && window.location.protocol === "https:"
+      ? ""
+      : (process.env.NEXT_PUBLIC_BACKEND_URL || "");
 
   // -------------------------------------------------------------
   // Olla Editor Session State & Connection Management
@@ -139,15 +142,17 @@ export default function ProjectOllaEditorPage() {
       if (isHttps && !isLocalhost) {
         // Remote (Cloudflare/production) deployment:
         // Priority 1: explicit studio tunnel URL (separate CF tunnel for studio)
-        // Priority 2: proxy URL through backend-echo (works in all HTTPS deployments)
+        // Priority 2: proxy URL through backend-echo (works cleanly in all HTTPS deployments)
         if (data.tunnelStudioUrl) {
           finalStudioUrl = data.tunnelStudioUrl;
-        } else if (process.env.NEXT_PUBLIC_STUDIO_URL) {
+        } else if (data.proxyStudioUrl) {
+          finalStudioUrl = data.proxyStudioUrl;
+        } else if (
+          process.env.NEXT_PUBLIC_STUDIO_URL &&
+          process.env.NEXT_PUBLIC_STUDIO_URL.startsWith("https://")
+        ) {
           const tunnelBase = process.env.NEXT_PUBLIC_STUDIO_URL.replace(/\/+$/, "");
           finalStudioUrl = `${tunnelBase}/#project/${data.projectName || data.sessionId}`;
-        } else if (data.proxyStudioUrl) {
-          // Use the backend-echo proxy route — accessible via the main Cloudflare tunnel
-          finalStudioUrl = data.proxyStudioUrl;
         }
       } else if (isLocalhost) {
         // On localhost, proxyStudioUrl or direct localhost:PORT
@@ -432,7 +437,7 @@ export default function ProjectOllaEditorPage() {
         {/* Native Video Editor */}
         <iframe
           ref={nativeIframeRef}
-          src={`/native-editor/index.html?project=${encodeURIComponent(projectId)}&title=${encodeURIComponent(projectTitle)}${effectiveVideoUrl ? `&video=${encodeURIComponent(effectiveVideoUrl)}` : ""}${convexProject?.prompt ? `&prompt=${encodeURIComponent(convexProject.prompt)}` : ""}&duration=${convexProject?.duration || 40}`}
+          src={`/native-editor/index.html?v=3&project=${encodeURIComponent(projectId)}&title=${encodeURIComponent(projectTitle)}${effectiveVideoUrl ? `&video=${encodeURIComponent(effectiveVideoUrl)}` : ""}${convexProject?.prompt ? `&prompt=${encodeURIComponent(convexProject.prompt)}` : ""}&duration=${convexProject?.duration || 40}`}
           title={`Native Editor - ${projectTitle}`}
           className="flex-1 w-full h-full border-0 bg-[#101720]"
           allow="accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen; microphone"

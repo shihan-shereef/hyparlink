@@ -3,7 +3,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Button } from "@v1/ui/button";
 import { KeyRound, Mail, Lock } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 type Mode = "signIn" | "signUp" | "verify" | "forgot" | "reset";
 type AuthMethod = "password" | "otp";
@@ -380,6 +380,16 @@ export function AuthForm() {
                 >
                   Resend code
                 </button>
+              </div>
+              <div className="text-center pt-1">
+                <a
+                  href="http://localhost:8025"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-muted-foreground underline hover:text-foreground"
+                >
+                  Local Mailbox Viewer (Mailpit) ↗
+                </a>
               </div>
             </Shell>
           )}

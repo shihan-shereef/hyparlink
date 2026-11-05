@@ -868,20 +868,20 @@ export function Timeline({
     openMobileInspector?.(selectedMobileClipTrack, section);
   };
   const selectedMobileAudioSegment = selectedMobileClipTrack === "audio"
-    ? audioSegments.find((segment) => segment.id === selectedAudioSegmentId) ?? null
+    ? audioSegments?.find((segment) => segment.id === selectedAudioSegmentId) ?? null
     : selectedMobileClipTrack === "source"
-      ? linkedSourceAudioSegments.find((segment) => segment.id === selectedSourceAudioSegmentId) ?? null
+      ? linkedSourceAudioSegments?.find((segment) => segment.id === selectedSourceAudioSegmentId) ?? null
       : selectedMobileClipTrack === "music" && selectedMusicSegmentId
-        ? (musicSegments.find((segment) => segment.id === selectedMusicSegmentId) ?? { id: "music-audio", start: musicStartPercent / 100 * timelineDuration, sourceStart: 0, duration: musicDuration, peaks: musicPeaks })
+        ? (musicSegments?.find((segment) => segment.id === selectedMusicSegmentId) ?? { id: "music-audio", start: musicStartPercent / 100 * timelineDuration, sourceStart: 0, duration: musicDuration, peaks: musicPeaks })
         : null;
   const selectedMobileVisualSegment = selectedMobileClipTrack === "image"
-    ? displayedVisualSegments.find((segment) => segment.id === selectedVisualSegmentId) ?? null
+    ? displayedVisualSegments?.find((segment) => segment.id === selectedVisualSegmentId) ?? null
     : null;
   const selectedMobileOverlaySegment = selectedMobileClipTrack === "overlay"
-    ? visualOverlaySegments.find((segment) => segment.id === selectedVisualOverlayId) ?? null
+    ? visualOverlaySegments?.find((segment) => segment.id === selectedVisualOverlayId) ?? null
     : null;
   const selectedMobileCaptionSegment = selectedMobileClipTrack === "caption"
-    ? displayedCaptionSegments.find((segment) => segment.id === selectedSegmentId) ?? null
+    ? displayedCaptionSegments?.find((segment) => segment.id === selectedSegmentId) ?? null
     : null;
   const selectedMobileAudioHasLinkedCaption = selectedMobileClipTrack === "audio" && selectedMobileAudioSegment
     ? displayedCaptionSegments.some((caption) => caption.audioSegmentId === selectedMobileAudioSegment.id)
@@ -1028,11 +1028,11 @@ export function Timeline({
   };
   const draggingVisualSegment =
     activeTimelineClipDrag?.track === "image"
-      ? displayedVisualSegments.find((segment) => segment.id === activeTimelineClipDrag.segmentId)
+      ? displayedVisualSegments?.find((segment) => segment.id === activeTimelineClipDrag.segmentId)
       : null;
   const draggingCaptionSegment =
     activeTimelineClipDrag?.track === "caption"
-      ? displayedCaptionSegments.find((segment) => segment.id === activeTimelineClipDrag.segmentId)
+      ? displayedCaptionSegments?.find((segment) => segment.id === activeTimelineClipDrag.segmentId)
       : null;
   const packedAudioLanes = useMemo(
     () => packTimedSegmentsIntoLanes(audioSegments, { preferredLaneKey: "lane" }),
@@ -1167,23 +1167,23 @@ export function Timeline({
   const [contextMenu, setContextMenu] = useState(null);
   const [imageCaptionPendingId, setImageCaptionPendingId] = useState("");
   const contextImageSegment = contextMenu?.track === "image" && contextMenu.segmentId
-    ? displayedVisualSegments.find((segment) => segment.id === contextMenu.segmentId)
+    ? displayedVisualSegments?.find((segment) => segment.id === contextMenu.segmentId)
     : null;
   const contextOverlaySegment = contextMenu?.track === "overlay" && contextMenu.segmentId
-    ? visualOverlaySegments.find((segment) => segment.id === contextMenu.segmentId)
+    ? visualOverlaySegments?.find((segment) => segment.id === contextMenu.segmentId)
     : null;
   const contextAudioSegment = contextMenu?.track === "audio" && contextMenu.segmentId
-    ? audioSegments.find((segment) => segment.id === contextMenu.segmentId)
+    ? audioSegments?.find((segment) => segment.id === contextMenu.segmentId)
     : null;
   const contextCaptionSegment = contextMenu?.track === "caption" && contextMenu.segmentId
-    ? displayedCaptionSegments.find((segment) => segment.id === contextMenu.segmentId)
+    ? displayedCaptionSegments?.find((segment) => segment.id === contextMenu.segmentId)
     : null;
   const contextAudioHasLinkedCaption = contextAudioSegment
-    ? displayedCaptionSegments.some((caption) => caption.audioSegmentId === contextAudioSegment.id)
+    ? displayedCaptionSegments?.some((caption) => caption.audioSegmentId === contextAudioSegment.id)
     : false;
   const contextMusicSegment = contextMenu?.track === "music" && contextMenu.segmentId
     ? (musicSegments.length ? musicSegments : [{ id: "music-audio", start: musicStartPercent / 100 * timelineDuration, duration: musicDuration, peaks: musicPeaks }])
-      .find((segment) => segment.id === contextMenu.segmentId)
+      ?.find((segment) => segment.id === contextMenu.segmentId)
     : null;
   const trackTool = (track) => ({ image: "media", overlay: "media", sticker: "stickers", caption: "caption", source: "audio", audio: "audio", music: "audio" })[track] || "media";
   const openTrackPanel = (track) => {

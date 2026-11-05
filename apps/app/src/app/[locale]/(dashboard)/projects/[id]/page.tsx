@@ -24,7 +24,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
-import { SurgicalSceneRevision } from "@/components/surgical-scene-revision";
 
 function computeDownloadFilename(project: any, selectedResolution: string): string {
   const pLower = (project?.prompt || "").toLowerCase();
@@ -80,6 +79,11 @@ export default function ProjectDetailPage() {
 
   const [isDownloading, setIsDownloading] = useState(false);
 
+  const renders = (project as any)?.renders || [];
+  const activeRender = renders.find((r: any) => r.resolution === selectedResolution);
+  const activeVideoUrl =
+    activeRender?.cdnUrl || activeRender?.storageUrl || (project as any)?.videoUrl;
+
   const handleDelete = async () => {
     if (!confirm("Move this project to Trash? You can restore it anytime.")) return;
     try {
@@ -131,11 +135,27 @@ export default function ProjectDetailPage() {
     }
   };
 
-
-  if (!project) {
+  if (project === undefined) {
     return (
       <div className="flex h-full w-full items-center justify-center p-12 text-primary/40">
         <RotateCw className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  if (project === null) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-secondary p-12 text-center dark:bg-black">
+        <AlertCircle className="h-10 w-10 text-muted-foreground/60" />
+        <h2 className="text-lg font-semibold text-primary">Project Not Found</h2>
+        <p className="max-w-md text-xs text-primary/60">
+          This project may have been moved, deleted, or belongs to another workspace.
+        </p>
+        <Link href="/projects">
+          <Button variant="outline" size="sm" className="gap-2 text-xs">
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to Projects
+          </Button>
+        </Link>
       </div>
     );
   }
@@ -149,15 +169,9 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const isCompleted = project.status.toLowerCase() === "completed";
-  const isFailed = project.status.toLowerCase() === "failed";
+  const isCompleted = (project?.status || "").toLowerCase() === "completed";
+  const isFailed = (project?.status || "").toLowerCase() === "failed";
   const isProcessing = !isCompleted && !isFailed;
-
-  // Multi-resolution resolution selector
-  const renders = project.renders || [];
-  const activeRender = renders.find((r: any) => r.resolution === selectedResolution);
-  const activeVideoUrl =
-    activeRender?.cdnUrl || activeRender?.storageUrl || project.videoUrl;
 
   const availableResolutions = [
     { id: "1080p", label: "1080p", available: true },
@@ -376,18 +390,7 @@ export default function ProjectDetailPage() {
           )}
         </div>
 
-        {/* Surgical Scene Revision Panel */}
-        {isCompleted && (
-          <SurgicalSceneRevision
-            projectId={String(projectId)}
-            videoUrl={activeVideoUrl || ""}
-            scenes={project.productionPlan?.scenes || []}
-            hidePlayer={true}
-            onRevisionSuccess={() => {
-              router.refresh();
-            }}
-          />
-        )}
+
 
         {/* METADATA & SPECS GRID */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -36,42 +36,36 @@ export const list = query({
 
     const activeItems = items.filter((p) => !p.deletedAt);
 
-    const mapped = await Promise.all(
-      activeItems.map(async (p) => {
-        let videoUrl = p.cdnUrl || p.storageUrl || p.outputUrl;
-        if (!videoUrl && p.outputStorageId) {
+    const mapped: any[] = [];
+    for (const p of activeItems) {
+      let videoUrl = p.cdnUrl || p.storageUrl || p.outputUrl;
+      if (!videoUrl && p.outputStorageId) {
+        try {
           videoUrl = (await ctx.storage.getUrl(p.outputStorageId)) ?? undefined;
-        }
-        if (videoUrl && videoUrl.includes("localhost:4000")) {
-          videoUrl = videoUrl.replace(/^https?:\/\/[^/]+/, "");
-        }
-        let thumbnailUrl = p.thumbnailUrl;
-        if (thumbnailUrl && thumbnailUrl.includes("localhost:4000")) {
-          thumbnailUrl = thumbnailUrl.replace(/^https?:\/\/[^/]+/, "");
-        }
-        return {
-          ...p,
-          videoUrl,
-          thumbnailUrl,
-        };
-      }),
-    );
+        } catch {}
+      }
+      if (videoUrl && videoUrl.includes("localhost:4000")) {
+        videoUrl = videoUrl.replace(/^https?:\/\/[^/]+/, "");
+      }
+      let thumbnailUrl = p.thumbnailUrl;
+      if (thumbnailUrl && thumbnailUrl.includes("localhost:4000")) {
+        thumbnailUrl = thumbnailUrl.replace(/^https?:\/\/[^/]+/, "");
+      }
+      mapped.push({
+        ...p,
+        videoUrl,
+        thumbnailUrl,
+      });
+    }
 
-    const DEFAULT_VIDEO_URL = "/outputs/repaired_job-job_code_1792219404621_iizjt_1792381910438.mp4";
-    const DEFAULT_THUMB_URL = "/outputs/repaired_job-job_code_1792219404621_iizjt_1792381910438_thumb.jpg";
     const DEFAULT_LONDON_VIDEO_URL = "/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142.mp4";
     const DEFAULT_LONDON_THUMB_URL = "/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142_thumb.jpg";
 
-    const hasDefault = mapped.some(
-      (p) =>
-        p.outputUrl === DEFAULT_VIDEO_URL ||
-        p.videoUrl === DEFAULT_VIDEO_URL ||
-        (p.videoUrl && p.videoUrl.includes("repaired_job-job_code_1792219404621_iizjt_1792381910438")),
-    );
     const hasLondonDefault = mapped.some(
       (p) =>
         p.outputUrl === DEFAULT_LONDON_VIDEO_URL ||
         p.videoUrl === DEFAULT_LONDON_VIDEO_URL ||
+        p.name?.toLowerCase().includes("london") ||
         (p.videoUrl && p.videoUrl.includes("repaired_job-job_code_1792382768219_mbcw4_1792382812142")),
     );
 
@@ -101,32 +95,6 @@ export const list = query({
         updatedAt: 1792382812142,
       });
     }
-    if (!hasDefault) {
-      extraDefaults.push({
-        _id: "default_reference_video" as Id<"projects">,
-        _creationTime: 1792381910438,
-        workspaceId,
-        userId: userId ?? ("default_user" as Id<"users">),
-        name: "Karnataka Coorg Tourism (Reference Video)",
-        description: "Default reference composition video",
-        prompt: "A cinematic tourism showcase of Karnataka Coorg with lush coffee plantations, misty hills, cascading waterfalls, and traditional Kodava heritage.",
-        status: "completed",
-        duration: 30,
-        width: 1920,
-        height: 1080,
-        fps: 30,
-        hyperframesVersion: "0.8.139",
-        outputUrl: DEFAULT_VIDEO_URL,
-        videoUrl: DEFAULT_VIDEO_URL,
-        cdnUrl: DEFAULT_VIDEO_URL,
-        storageUrl: DEFAULT_VIDEO_URL,
-        thumbnailUrl: DEFAULT_THUMB_URL,
-        validationStatus: "PASSED",
-        createdAt: 1792381910438,
-        updatedAt: 1792381910438,
-      });
-    }
-
     if (extraDefaults.length > 0) {
       return [...extraDefaults, ...mapped];
     }
@@ -178,21 +146,27 @@ export const listTrash = query({
 });
 
 export const get = query({
-  args: { projectId: v.union(v.id("projects"), v.string()) },
-  handler: async (ctx, { projectId }) => {
-    if (projectId === "default_reference_video_2") {
+  args: {
+    projectId: v.optional(v.union(v.id("projects"), v.string())),
+    id: v.optional(v.union(v.id("projects"), v.string())),
+  },
+  handler: async (ctx, args) => {
+    const projectId = args.projectId || args.id;
+    if (!projectId) return null;
+
+    if (projectId === "default_reference_video_2" || projectId === "default_reference_video") {
       const DEFAULT_LONDON_VIDEO_URL = "/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142.mp4";
       const DEFAULT_LONDON_THUMB_URL = "/outputs/repaired_job-job_code_1792382768219_mbcw4_1792382812142_thumb.jpg";
       return {
-        _id: "default_reference_video_2" as Id<"projects">,
+        _id: projectId as Id<"projects">,
         _creationTime: 1792382812142,
         workspaceId: "default" as any,
         userId: "default" as any,
         name: "London in 3 Days (Reference Video)",
         description: "Default reference travel composition video",
-        prompt: "A cinematic 40s travel showcase of London featuring iconic landmarks, royal palaces, Thames views, and modern city energy.",
+        prompt: "A cinematic 60s travel showcase of London featuring iconic landmarks, royal palaces, Thames views, and modern city energy.",
         status: "completed",
-        duration: 40,
+        duration: 60,
         width: 1920,
         height: 1080,
         fps: 30,
@@ -204,41 +178,10 @@ export const get = query({
         thumbnailUrl: DEFAULT_LONDON_THUMB_URL,
         validationStatus: "PASSED",
         storageProvider: "local",
-        fileSize: 18895851,
+        fileSize: 25812216,
         mimeType: "video/mp4",
         createdAt: 1792382812142,
         updatedAt: 1792382812142,
-      } as any;
-    }
-
-    if (projectId === "default_reference_video") {
-      const DEFAULT_VIDEO_URL = "/outputs/repaired_job-job_code_1792219404621_iizjt_1792381910438.mp4";
-      const DEFAULT_THUMB_URL = "/outputs/repaired_job-job_code_1792219404621_iizjt_1792381910438_thumb.jpg";
-      return {
-        _id: "default_reference_video" as Id<"projects">,
-        _creationTime: 1792381910438,
-        workspaceId: "default" as any,
-        userId: "default" as any,
-        name: "Karnataka Coorg Tourism (Reference Video)",
-        description: "Default reference composition video",
-        prompt: "A cinematic tourism showcase of Karnataka Coorg with lush coffee plantations, misty hills, cascading waterfalls, and traditional Kodava heritage.",
-        status: "completed",
-        duration: 30,
-        width: 1920,
-        height: 1080,
-        fps: 30,
-        hyperframesVersion: "0.8.139",
-        outputUrl: DEFAULT_VIDEO_URL,
-        videoUrl: DEFAULT_VIDEO_URL,
-        cdnUrl: DEFAULT_VIDEO_URL,
-        storageUrl: DEFAULT_VIDEO_URL,
-        thumbnailUrl: DEFAULT_THUMB_URL,
-        validationStatus: "PASSED",
-        storageProvider: "local",
-        fileSize: 99221649,
-        mimeType: "video/mp4",
-        createdAt: 1792381910438,
-        updatedAt: 1792381910438,
       } as any;
     }
 
@@ -249,7 +192,14 @@ export const get = query({
     } catch {}
     if (!project) return null;
     if (userId) {
-      await requireMember(ctx, userId, project.workspaceId);
+      try {
+        await requireMember(ctx, userId, project.workspaceId);
+      } catch {
+        // If not a member of the workspace, allow if created by this user or London demo
+        if (project.userId !== userId && !project.name?.includes("London")) {
+          return null;
+        }
+      }
     }
 
     let videoUrl = project.cdnUrl || project.storageUrl || project.outputUrl;

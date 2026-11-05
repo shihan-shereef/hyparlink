@@ -60,7 +60,22 @@
   </head>
   <body>
     <div id="root"></div>
-    <noscript>Timeline Studio requires JavaScript to run the editor. Read the <a href="/features/">feature overview</a> or <a href="/how-it-works/">editing guide</a>.</noscript>
+    <script>
+      window.addEventListener('error', function(e) {
+        console.error('NATIVE_EDITOR_ERROR:', e.error || e.message);
+        var banner = document.getElementById('editor-err-banner');
+        if (!banner) {
+          banner = document.createElement('div');
+          banner.id = 'editor-err-banner';
+          banner.style.cssText = 'position:fixed;top:10px;left:10px;right:10px;background:#ef4444;color:#fff;padding:12px;z-index:999999;font-size:13px;font-family:monospace;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.5);word-break:break-all;';
+          document.body.appendChild(banner);
+        }
+        banner.textContent = 'Native Editor Error: ' + (e.error ? (e.error.stack || e.error.message) : e.message);
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        console.error('NATIVE_EDITOR_PROMISE_REJECTION:', e.reason);
+      });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

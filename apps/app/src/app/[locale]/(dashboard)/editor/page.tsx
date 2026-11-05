@@ -18,11 +18,20 @@ import {
   RotateCw,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function LiveEditorProjectsPage() {
+  const router = useRouter();
+  const user = useQuery(api.users.getUser);
   const { current, workspaces } = useWorkspace();
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    if (user === null) {
+      router.push("/login");
+    }
+  }, [user, router]);
 
   const effectiveWs = current || (workspaces && workspaces[0]?._id) || undefined;
 

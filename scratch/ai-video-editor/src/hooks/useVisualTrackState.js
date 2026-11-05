@@ -25,7 +25,7 @@ export function useVisualTrackState() {
     // asynchronous preparation; legacy mirrors must not disable valid footage.
     imageDuration: visualSegments.length ? getVisualSegmentsTotal(visualSegments) : imageDuration,
     imageMeta, imageName,
-    imageSrc: imageSrc || visualSegments.find((segment) => segment.src)?.src || "",
+    imageSrc: imageSrc || visualSegments?.find((segment) => segment.src)?.src || "",
     selectedFilterId, selectedStickerId, selectedStickerSegmentId,
     selectedTransitionId, selectedVisualSegmentId, setFitMode, setImageClipCount,
     setImageDuration, setImageMeta, setImageName, setImageSrc, setSelectedFilterId,

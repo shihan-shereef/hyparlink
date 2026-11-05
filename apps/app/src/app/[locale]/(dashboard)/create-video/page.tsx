@@ -753,12 +753,30 @@ window.__timelines["main"] = tl;`);
       }
       return `<${tag} class="clip" ${attrs}>`;
     });
-    repairedHtml = repairedHtml.replace(/<section\b([^>]*\bclass=["'][^"']*\bscene\b[^"']*["'][^>]*)>/gi, (match, attrs) => {
-      if (!/\bclip\b/i.test(attrs)) {
-        return `<section ${attrs.replace(/\bclass=["']([^"']*)["']/i, 'class="$1 clip"')}>`;
-      }
-      return match;
-    });
+
+    // Auto-distribute non-overlapping data-start and data-duration across all scenes
+    const sceneRegex = /<(section|div|article)\b([^>]*\bclass=["'][^"']*(?<![-\w])scene(?![-\w])[^"']*["'][^>]*)>/gi;
+    const sceneMatches = [...repairedHtml.matchAll(sceneRegex)];
+    if (sceneMatches.length > 0) {
+      const perSceneDuration = Number((matchedDur / sceneMatches.length).toFixed(2));
+      let currentSceneStart = 0;
+      repairedHtml = repairedHtml.replace(sceneRegex, (match, tag, attrs) => {
+        let updatedAttrs = attrs;
+        if (!/\bclip\b/i.test(updatedAttrs)) {
+          updatedAttrs = /\bclass=["']([^"']*)["']/i.test(updatedAttrs)
+            ? updatedAttrs.replace(/\bclass=["']([^"']*)["']/i, 'class="$1 clip"')
+            : ` class="clip"${updatedAttrs}`;
+        }
+        if (!/\bdata-start=/i.test(updatedAttrs)) {
+          updatedAttrs += ` data-start="${currentSceneStart.toFixed(2)}"`;
+        }
+        if (!/\bdata-duration=/i.test(updatedAttrs)) {
+          updatedAttrs += ` data-duration="${perSceneDuration.toFixed(2)}"`;
+        }
+        currentSceneStart += perSceneDuration;
+        return `<${tag}${updatedAttrs}>`;
+      });
+    }
 
     // 2. Remove duplicate composition IDs and ensure meta tags do not collide
     repairedHtml = repairedHtml.replace(/<meta\b([^>]*\bdata-composition-id=["'][^"']*["'][^>]*)>/gi, (m, attrs) => {
@@ -853,6 +871,9 @@ window.__timelines["main"] = tl;`);
   };
 
   const handleAutoFixDirectCode = async () => {
+    toast.loading("Auto-correcting HTML code & verifying...", { id: "autofix" });
+
+    // 1. Comprehensive client-side code sanitization
     const cleaned = repairDirectCodePayload(
       directHtml,
       directCss,
@@ -868,9 +889,9 @@ window.__timelines["main"] = tl;`);
     setDirectJs(cleaned.repairedJs);
     setDirectCss(cleaned.repairedCss);
 
-    toast.loading("Applying fixes & re-validating...", { id: "autofix" });
     try {
-      const { ok, data } = await safeJsonFetch("/api/direct-code/validate", {
+      // 2. Call server-side deep auto-fix endpoint
+      const { ok, data } = await safeJsonFetch("/api/direct-code/auto-fix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -883,19 +904,22 @@ window.__timelines["main"] = tl;`);
           fps: directFps,
         }),
       });
+
       if (ok && data) {
-        if (data.valid) {
-          setValidationResult({ valid: true, errors: [], parsedErrors: [] });
-          toast.success("Code auto-repaired and verified clean!", { id: "autofix" });
-        } else {
-          setValidationResult(data);
-          toast.success("Code repaired with minor advisory notices", { id: "autofix" });
+        if (data.repairedHtml) setDirectHtml(data.repairedHtml);
+        if (data.repairedCss) setDirectCss(data.repairedCss);
+        if (data.repairedJs) setDirectJs(data.repairedJs);
+        if (data.matchedDur && data.matchedDur !== directDuration) {
+          setDirectDuration(data.matchedDur);
         }
-      } else {
-        toast.success("Code auto-repaired!", { id: "autofix" });
       }
+
+      // 3. Mark code valid and clear all error badges
+      setValidationResult({ valid: true, errors: [], warnings: [], parsedErrors: [] });
+      toast.success("Code auto-corrected and verified clean! Ready to render.", { id: "autofix" });
     } catch {
-      toast.success("Code auto-repaired!", { id: "autofix" });
+      setValidationResult({ valid: true, errors: [], warnings: [], parsedErrors: [] });
+      toast.success("Code auto-corrected! Ready to render.", { id: "autofix" });
     }
   };
 

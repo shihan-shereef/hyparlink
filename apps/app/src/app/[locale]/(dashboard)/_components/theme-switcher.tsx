@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 
 export function ThemeSwitcher({ triggerClass }: { triggerClass?: string }) {
   const [mounted, setMounted] = useState(false);
-  const { theme: currentTheme, setTheme, themes } = useTheme();
+  const { theme: currentTheme, setTheme } = useTheme();
 
   useEffect(() => {
     setMounted(true);
@@ -21,57 +21,54 @@ export function ThemeSwitcher({ triggerClass }: { triggerClass?: string }) {
 
   if (!mounted) {
     return (
-      <div
-        className={cn(
-          "flex h-6 w-20 items-center rounded border border-primary/20 bg-secondary px-2",
-          triggerClass,
-        )}
-      >
-        <div className="flex items-start gap-2">
-          <Monitor className="h-[14px] w-[14px] text-primary/40" />
-        </div>
+      <div className="flex h-8 w-full items-center justify-center rounded-xl bg-slate-100 dark:bg-neutral-800">
+        <Sun className="h-3.5 w-3.5 text-slate-400" />
       </div>
     );
   }
 
+  const isDark = currentTheme === "dark";
+
   return (
-    <Select
-      value={currentTheme}
-      onValueChange={(theme) => setTheme(theme as (typeof themes)[number])}
+    <div
+      className={cn(
+        "flex w-full items-center justify-between rounded-xl bg-slate-100 p-1 dark:bg-neutral-800/80 border border-slate-200/60 dark:border-neutral-700/50",
+        triggerClass,
+      )}
     >
-      <SelectTrigger
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setTheme("light");
+        }}
         className={cn(
-          "h-6 rounded border-primary/20 bg-secondary !px-2 hover:border-primary/40",
-          triggerClass,
+          "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1 text-xs font-semibold transition cursor-pointer select-none",
+          !isDark
+            ? "bg-white text-slate-900 shadow-xs dark:bg-neutral-700 dark:text-white"
+            : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white",
         )}
       >
-        <div className="flex items-start gap-2">
-          {currentTheme === "light" ? (
-            <Sun className="h-[14px] w-[14px]" />
-          ) : currentTheme === "dark" ? (
-            <Moon className="h-[14px] w-[14px]" />
-          ) : (
-            <Monitor className="h-[14px] w-[14px]" />
-          )}
-          {currentTheme && (
-            <span className="text-xs font-medium">
-              {currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1)}
-            </span>
-          )}
-        </div>
-      </SelectTrigger>
-      <SelectContent>
-        {themes.map((theme) => (
-          <SelectItem
-            key={theme}
-            value={theme}
-            className={`text-sm font-medium text-primary/60 ${theme === currentTheme && "text-primary"}`}
-          >
-            {theme && theme.charAt(0).toUpperCase() + theme.slice(1)}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+        <Sun className="h-3.5 w-3.5 text-amber-500" />
+        <span>Light</span>
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setTheme("dark");
+        }}
+        className={cn(
+          "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1 text-xs font-semibold transition cursor-pointer select-none",
+          isDark
+            ? "bg-white text-slate-900 shadow-xs dark:bg-neutral-700 dark:text-white"
+            : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white",
+        )}
+      >
+        <Moon className="h-3.5 w-3.5 text-indigo-400" />
+        <span>Dark</span>
+      </button>
+    </div>
   );
 }
 

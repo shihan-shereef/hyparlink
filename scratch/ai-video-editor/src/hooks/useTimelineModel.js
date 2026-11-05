@@ -38,8 +38,8 @@ export function useTimelineModel(d) {
     [d.selectedVoiceId],
   );
   const selectedAudioSegment =
-    d.audioSegments.find((segment) => segment.id === d.selectedAudioSegmentId) ??
-    d.audioSegments.at(-1) ??
+    d.audioSegments?.find((segment) => segment.id === d.selectedAudioSegmentId) ??
+    d.audioSegments?.at(-1) ??
     null;
   const audioBlob = selectedAudioSegment?.blob ?? null;
   const audioUrl = selectedAudioSegment?.url ?? "";
@@ -137,7 +137,7 @@ export function useTimelineModel(d) {
     ? d.captionSegments[currentSegmentIndex] ?? null
     : null;
   const selectedCaptionSegment =
-    d.captionSegments.find((segment) => segment.id === d.selectedSegmentId) ??
+    d.captionSegments?.find((segment) => segment.id === d.selectedSegmentId) ??
     currentCaptionSegment;
   const currentCaption = currentCaptionSegment && !currentCaptionSegment.hidden
     ? currentCaptionSegment.text

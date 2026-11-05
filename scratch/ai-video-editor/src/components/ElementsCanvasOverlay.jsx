@@ -19,6 +19,174 @@ export function getFriendlyElementLabel(el) {
   return "Element";
 }
 
+// Recognized text container selectors across all HyperFrames templates (leaf text containers only)
+export const TEXT_CONTAINERS_QUERY =
+  "h1, h2, h3, h4, h5, h6, p, .headline, .hero-headline, .title, .mega, .big, .sub, .subtitle, .description, .eyebrow, .kicker, .label, .caption, [class*='label'], [class*='caption'], .num, .pill, .badge-pill, .corner-mark, .date, .bottom-label, .note, .tag, .stat, .badge, button, a, div[style*='font'], .spear, [class*='spear'], [class*='arrow'], .battleline, .rule, .map, svg";
+
+// Exported helper to resolve a live DOM element from the iframe using multi-tier fallback
+export function findLiveElementInDoc(doc, el) {
+  if (!doc || !el) return null;
+  const docsToCheck = [doc];
+  try {
+    const subIframes = doc.querySelectorAll("iframe");
+    for (const subIfr of subIframes) {
+      const sd = subIfr.contentDocument || subIfr.contentWindow?.document;
+      if (sd && !docsToCheck.includes(sd)) docsToCheck.push(sd);
+    }
+  } catch (err) {}
+
+  // 0. Direct match by data-hf-id or id in any document
+  if (el.id) {
+    for (const currentDoc of docsToCheck) {
+      const direct = currentDoc.querySelector(`[data-hf-id="${el.id}"], #${el.id}`);
+      if (direct) {
+        // Only ascend if direct is a split letter/word token (.ch, .w, .row, .char, .word)
+        // Standalone semantic elements (.label, span.gold, headers) remain direct targets!
+        const isSplitToken = direct.classList?.contains("ch") || direct.classList?.contains("w") || direct.classList?.contains("row") || direct.classList?.contains("char") || direct.classList?.contains("word");
+        if (isSplitToken) {
+          const container = direct.closest(TEXT_CONTAINERS_QUERY);
+          if (container && container !== direct) {
+            if (!container.getAttribute("data-hf-id")) {
+              container.setAttribute("data-hf-id", el.id);
+            }
+            return container;
+          }
+        }
+        return direct;
+      }
+    }
+  }
+
+  // 1. Text content match within target scene context (Most accurate for any video structure!)
+  const targetText = (el.text || el.originalText || "").replace(/\s+/g, " ").trim().toLowerCase();
+  const needle = targetText.slice(0, 30);
+
+  for (const currentDoc of docsToCheck) {
+    let sceneEl = null;
+    if (el.sceneIndex !== undefined) {
+      sceneEl = currentDoc.getElementById(`sc${el.sceneIndex}`) ||
+                currentDoc.querySelector(`[data-scene="${el.sceneIndex + 1}"]`) ||
+                currentDoc.getElementById(`scene${el.sceneIndex + 1}`) ||
+                currentDoc.getElementById(`scene-0${el.sceneIndex + 1}`) ||
+                currentDoc.getElementById(`scene-${el.sceneIndex + 1}`) ||
+                currentDoc.querySelectorAll(".scene, .ad-scene, section")[el.sceneIndex];
+    }
+    if (!sceneEl && el.sceneId) {
+      sceneEl = currentDoc.getElementById(el.sceneId) ||
+                currentDoc.querySelector(`[data-scene="${el.sceneId}"]`) ||
+                currentDoc.querySelector(`[data-composition-id="${el.sceneId}"]`);
+    }
+
+    if (sceneEl) {
+      let searchContexts = [sceneEl];
+      const innerIfr = sceneEl.querySelector("iframe");
+      if (innerIfr) {
+        const sd = innerIfr.contentDocument || innerIfr.contentWindow?.document;
+        if (sd) searchContexts.unshift(sd);
+      }
+
+      for (const ctx of searchContexts) {
+        // If we have text, find the candidate whose text matches
+        if (needle.length >= 2 && el.type !== "image" && el.tag !== "img" && el.tag !== "svg") {
+          // Priority 1: Check full containers first (.headline, .title, .mega, .big, h1-h6, p, etc.)
+          const containers = ctx.querySelectorAll(TEXT_CONTAINERS_QUERY);
+          for (const cand of containers) {
+            const candText = (cand.innerText || cand.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+            if (candText === targetText || candText.includes(needle) || (targetText.length > 0 && targetText.includes(candText) && candText.length >= targetText.length * 0.75)) {
+              return cand;
+            }
+          }
+
+          // Priority 2: Check any other elements including spans, but always resolve to closest container!
+          const candidates = ctx.querySelectorAll("span, div");
+          for (const cand of candidates) {
+            const candText = (cand.innerText || cand.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+            if (candText.length >= 2 && (candText === targetText || candText.includes(needle))) {
+              const container = cand.closest(TEXT_CONTAINERS_QUERY);
+              return container || cand;
+            }
+          }
+        }
+
+        if (el.type === "image" || el.tag === "img" || el.tag === "svg") {
+          // Priority 1: Match by src if available
+          if (el.src) {
+            const cleanSrc = el.src.split("?")[0].split("/").pop();
+            if (cleanSrc && cleanSrc.length > 2) {
+              const srcMatch = ctx.querySelector(`img[src*="${cleanSrc}"]`);
+              if (srcMatch) return srcMatch;
+            }
+          }
+          // Priority 2: Real image tags or graphics (never background gradient/divs!)
+          const targetEl = ctx.querySelector("img:not([hidden]), .product-image, .feature-image, svg:not(.stars svg):not(.moon svg):not(.background svg), .img:not(.scene-background):not(.scene-overlay)");
+          if (targetEl) return targetEl;
+        } else if (el.field === "title" || el.tag === "h1" || el.tag === "h2" || el.tag === "h3" || el.type === "heading") {
+          const targetEl = ctx.querySelector(".headline, .hero-headline, .title.m, .mega.m, .big.m, .title, .mega, .big, h1, h2, h3");
+          if (targetEl) return targetEl;
+        } else if (el.field === "sub" || el.field === "subtitle" || el.field === "description" || el.tag === "p" || el.type === "text") {
+          const targetEl = ctx.querySelector(".description, .hero-subtitle, .sub.sb, .sub, p");
+          if (targetEl) return targetEl;
+        } else if (el.field === "kicker" || el.field === "eyebrow") {
+          const targetEl = ctx.querySelector(".eyebrow, .kicker.k, .kicker");
+          if (targetEl) return targetEl;
+        } else if (el.field === "time" || el.field === "badge" || el.tag === "pill") {
+          const targetEl = ctx.querySelector(".pill.k, .pill.k2, .badge-pill, .pill, .scene-number, .date, .corner-mark, .bottom-label");
+          if (targetEl) return targetEl;
+        } else if (el.field === "n" || el.field === "number" || el.tag === "num") {
+          const targetEl = ctx.querySelector(".num.nm, .num, .scene-number");
+          if (targetEl) return targetEl;
+        } else if (el.field === "cta" || el.type === "button") {
+          const targetEl = ctx.querySelector(".pill.k2, .pill, button, .cta, a.btn, a");
+          if (targetEl) return targetEl;
+        }
+      }
+    }
+  }
+
+  // 2. Global text matching across all documents
+  if (needle.length >= 2 && el.type !== "image" && el.tag !== "img" && el.tag !== "svg") {
+    for (const currentDoc of docsToCheck) {
+      // Priority 1: Check full containers first
+      const containers = currentDoc.querySelectorAll(TEXT_CONTAINERS_QUERY);
+      for (const cand of containers) {
+        const candText = (cand.innerText || cand.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+        if (candText === targetText || candText.includes(needle) || (targetText.length > 0 && targetText.includes(candText) && candText.length >= targetText.length * 0.75)) {
+          return cand;
+        }
+      }
+      // Priority 2: Other elements, ascending to container
+      const candidates = currentDoc.querySelectorAll("span, div");
+      for (const cand of candidates) {
+        const candText = (cand.innerText || cand.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+        if (candText.length >= 2 && (candText === targetText || candText.includes(needle))) {
+          const container = cand.closest(TEXT_CONTAINERS_QUERY);
+          return container || cand;
+        }
+      }
+    }
+  }
+
+  // 3. Fallback for images (never match background divs!)
+  if (el.type === "image" || el.tag === "img" || el.tag === "svg") {
+    for (const currentDoc of docsToCheck) {
+      if (el.src) {
+        const cleanSrc = el.src.split("?")[0].split("/").pop();
+        if (cleanSrc && cleanSrc.length > 2) {
+          const srcMatch = currentDoc.querySelector(`img[src*="${cleanSrc}"]`);
+          if (srcMatch) return srcMatch;
+        }
+      }
+      const imgs = currentDoc.querySelectorAll("img:not([hidden]), .product-image, .feature-image, svg:not(.stars svg):not(.moon svg):not(.background svg), .img:not(.scene-background):not(.scene-overlay)");
+      if (imgs.length > 0) {
+        const idx = el.sceneIndex !== undefined ? Math.min(imgs.length - 1, el.sceneIndex) : 0;
+        return imgs[idx];
+      }
+    }
+  }
+
+  return null;
+}
+
 export function ElementsCanvasOverlay({
   elements = [],
   compositionIframeRef = null,
@@ -38,7 +206,7 @@ export function ElementsCanvasOverlay({
   isPlaying = false,
 }) {
   const containerRef = useRef(null);
-  const [dragging, setDragging] = useState(null); // { id, startX, startY, items: [] }
+  const [dragging, setDragging] = useState(null); // { id, startX, startY, hasMovedEnough, items: [] }
   const [resizing, setResizing] = useState(null); // { id, corner, startX, startY, initWidth, initHeight, initRawFontSize, initPlacement, initStyle }
   const [inlineEditingId, setInlineEditingId] = useState(null);
   const [contextMenu, setContextMenu] = useState(null); // { x, y, elementId }
@@ -57,7 +225,6 @@ export function ElementsCanvasOverlay({
   }, []);
 
   // Helper to dynamically measure exact bounding rectangle from the live composition iframe DOM
-  // Helper to dynamically measure exact bounding rectangle from the live composition iframe DOM
   const getDynamicPlacement = (el) => {
     if (!compositionIframeRef?.current) return null;
     try {
@@ -65,140 +232,15 @@ export function ElementsCanvasOverlay({
       const doc = iframe.contentDocument || iframe.contentWindow?.document;
       if (!doc) return null;
 
-      let targetEl = null;
-
-      // Collect all documents to search (root doc and any subcomposition iframes)
-      const docsToCheck = [doc];
-      try {
-        const subIframes = doc.querySelectorAll("iframe");
-        for (const subIfr of subIframes) {
-          const sd = subIfr.contentDocument || subIfr.contentWindow?.document;
-          if (sd && !docsToCheck.includes(sd)) docsToCheck.push(sd);
-        }
-      } catch (err) {}
-
-      // 0. Priority: Direct match by data-hf-id or id in any document
-      if (el.id) {
-        for (const currentDoc of docsToCheck) {
-          const direct = currentDoc.querySelector(`[data-hf-id="${el.id}"], #${el.id}`);
-          if (direct) {
-            targetEl = direct;
-            break;
-          }
-        }
-      }
-
-      // 1. Try matching by sceneIndex or sceneId
-      if (!targetEl) {
-        let sceneEl = null;
-        if (el.sceneIndex !== undefined) {
-          sceneEl = doc.getElementById(`sc${el.sceneIndex}`) ||
-                    doc.querySelector(`[data-scene="${el.sceneIndex + 1}"]`) ||
-                    doc.getElementById(`scene${el.sceneIndex + 1}`) ||
-                    doc.getElementById(`scene-0${el.sceneIndex + 1}`) ||
-                    doc.getElementById(`scene-${el.sceneIndex + 1}`) ||
-                    doc.querySelectorAll(".scene, .ad-scene, section")[el.sceneIndex];
-        }
-        if (!sceneEl && el.sceneId) {
-          sceneEl = doc.getElementById(el.sceneId) ||
-                    doc.querySelector(`[data-scene="${el.sceneId}"]`) ||
-                    doc.querySelector(`[data-composition-id="${el.sceneId}"]`);
-        }
-
-        if (sceneEl) {
-          let searchContexts = [sceneEl];
-          const innerIfr = sceneEl.querySelector("iframe");
-          if (innerIfr) {
-            const sd = innerIfr.contentDocument || innerIfr.contentWindow?.document;
-            if (sd) searchContexts.unshift(sd);
-          }
-
-          for (const ctx of searchContexts) {
-            if (el.type === "image" || el.tag === "img") {
-              targetEl = ctx.querySelector("img, .product-image, .feature-image, .scene-background");
-            } else if (el.field === "title" || el.tag === "h1" || el.tag === "h2" || el.tag === "h3" || el.type === "heading") {
-              targetEl = ctx.querySelector(".headline, .hero-headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
-            } else if (el.field === "sub" || el.field === "subtitle" || el.field === "description" || el.tag === "p" || el.type === "text") {
-              targetEl = ctx.querySelector(".description, .hero-subtitle, .sub.sb, .sub, p");
-            } else if (el.field === "kicker" || el.field === "eyebrow") {
-              targetEl = ctx.querySelector(".eyebrow, .kicker.k, .kicker");
-            } else if (el.field === "time" || el.field === "badge" || el.tag === "pill") {
-              targetEl = ctx.querySelector(".pill.k, .pill.k2, .badge-pill, .pill, .scene-number, .date, .corner-mark, .bottom-label");
-            } else if (el.field === "n" || el.field === "number" || el.tag === "num") {
-              targetEl = ctx.querySelector(".num.nm, .num, .scene-number");
-            } else if (el.field === "cta" || el.type === "button") {
-              targetEl = ctx.querySelector(".pill.k2, .pill, button, .cta, a.btn, a");
-            }
-            if (targetEl) break;
-          }
-        }
-      }
-
-      // 2. If not found in specific scene, check active/visible scene in all documents
-      if (!targetEl) {
-        for (const currentDoc of docsToCheck) {
-          const scenes = currentDoc.querySelectorAll(".scene, .ad-scene, [data-composition-id], section");
-          for (const scene of scenes) {
-            const win = currentDoc.defaultView || iframe.contentWindow;
-            const style = win?.getComputedStyle(scene);
-            if (!style || style.display !== "none") {
-              let candidate = null;
-              if (el.type === "image" || el.tag === "img") {
-                candidate = scene.querySelector("img, .product-image, .feature-image, .scene-background");
-              } else if (el.field === "title" || el.tag === "h1" || el.type === "heading") {
-                candidate = scene.querySelector(".headline, .hero-headline, .title.m, .mega.m, .big.m, .title, h1, h2, h3");
-              } else if (el.field === "sub" || el.field === "description" || el.tag === "p") {
-                candidate = scene.querySelector(".description, .hero-subtitle, .sub.sb, .sub, p");
-              } else if (el.field === "kicker" || el.field === "eyebrow") {
-                candidate = scene.querySelector(".eyebrow, .kicker.k, .kicker");
-              } else if (el.field === "time" || el.field === "badge" || el.tag === "pill") {
-                candidate = scene.querySelector(".pill.k, .pill.k2, .badge-pill, .pill, .scene-number, .date, .corner-mark, .bottom-label");
-              }
-              if (candidate) {
-                targetEl = candidate;
-                break;
-              }
-            }
-          }
-          if (targetEl) break;
-        }
-      }
-
-      // 2b. Fallback image search across documents
-      if (!targetEl && (el.type === "image" || el.tag === "img")) {
-        for (const currentDoc of docsToCheck) {
-          const imgs = currentDoc.querySelectorAll("img:not([hidden]), .product-image, .feature-image");
-          if (imgs.length > 0) {
-            const idx = el.sceneIndex !== undefined ? Math.min(imgs.length - 1, el.sceneIndex) : 0;
-            targetEl = imgs[idx];
-            break;
-          }
-        }
-      }
-
-      // 3. Fallback: match by text content in all documents
-      if (!targetEl && el.text) {
-        const needle = el.text.trim().toLowerCase();
-        const shortNeedle = needle.slice(0, 15);
-        if (shortNeedle.length >= 2) {
-          for (const currentDoc of docsToCheck) {
-            const candidates = currentDoc.querySelectorAll(".headline, .hero-headline, .title, .mega, .big, .description, .hero-subtitle, .sub, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, .badge-pill, h1, h2, h3, h4, p, span, button, a");
-            for (const cand of candidates) {
-              const candText = (cand.textContent || "").trim().toLowerCase();
-              if (candText.includes(shortNeedle)) {
-                targetEl = cand;
-                break;
-              }
-            }
-            if (targetEl) break;
-          }
-        }
-      }
-
+      const targetEl = findLiveElementInDoc(doc, el);
       if (!targetEl) return null;
 
+      if (el.id && !targetEl.getAttribute("data-hf-id")) {
+        targetEl.setAttribute("data-hf-id", el.id);
+      }
+
       // Measure exact text bounds snug to the sentence (top to bottom, left to right)
-      let r = null;
+      let r = targetEl.getBoundingClientRect();
       const tagLower = targetEl.tagName ? targetEl.tagName.toLowerCase() : "";
       if (tagLower !== "img" && tagLower !== "svg" && tagLower !== "video") {
         try {
@@ -210,22 +252,58 @@ export function ElementsCanvasOverlay({
             r = rangeRect;
           }
         } catch (e) {}
-      }
-      if (!r) {
-        r = targetEl.getBoundingClientRect();
-      }
-      if (!r || r.width <= 0) return null;
 
-      const left = Math.max(0, r.left - 2);
-      const top = Math.max(0, r.top - 2);
-      const width = Math.max(24, r.width + 4);
-      const height = Math.max(16, (r.height > 0 ? r.height : 24) + 4);
+        // If targetEl has child elements (e.g. split rows / words), verify bounds cover ALL children
+        if (targetEl.children && targetEl.children.length > 0) {
+          let minLeft = r ? r.left : Infinity;
+          let minTop = r ? r.top : Infinity;
+          let maxRight = r ? r.right : -Infinity;
+          let maxBottom = r ? r.bottom : -Infinity;
+          let hasValidChild = false;
+          for (const child of targetEl.children) {
+            const cr = child.getBoundingClientRect();
+            if (cr && cr.width > 0 && cr.height > 0) {
+              minLeft = Math.min(minLeft, cr.left);
+              minTop = Math.min(minTop, cr.top);
+              maxRight = Math.max(maxRight, cr.right);
+              maxBottom = Math.max(maxBottom, cr.bottom);
+              hasValidChild = true;
+            }
+          }
+          if (hasValidChild && maxRight > minLeft && maxBottom > minTop) {
+            r = {
+              left: minLeft,
+              top: minTop,
+              right: maxRight,
+              bottom: maxBottom,
+              width: maxRight - minLeft,
+              height: maxBottom - minTop,
+            };
+          }
+        }
+      }
+      if (!r || (r.width <= 0 && r.height <= 0)) return null;
+
+      // Expand hitbox and center bounding box for thin (e.g. spears, arrows, lines) graphic elements only
+      const isGraphic = el.type === "image" || el.tag === "svg" || el.tag === "path" || el.tag === "line";
+      const isThin = isGraphic && r.width < 30;
+      const isShort = isGraphic && r.height < 30;
+      const targetW = isThin ? Math.max(48, r.width + 24) : r.width + 4;
+      const targetH = isShort ? Math.max(48, r.height + 24) : r.height + 4;
+      const left = Math.max(0, r.left - (targetW - r.width) / 2);
+      const top = Math.max(0, r.top - (targetH - r.height) / 2);
+      const width = targetW;
+      const height = targetH;
+
+      const iframeDoc = targetEl.ownerDocument || doc;
+      const docW = iframeDoc?.documentElement?.clientWidth || 1920;
+      const docH = iframeDoc?.documentElement?.clientHeight || 1080;
 
       return {
-        leftPercent: (left / 1920) * 100,
-        topPercent: (top / 1080) * 100,
-        widthPercent: (width / 1920) * 100,
-        heightPercent: (height / 1080) * 100,
+        leftPercent: (left / docW) * 100,
+        topPercent: (top / docH) * 100,
+        widthPercent: (width / docW) * 100,
+        heightPercent: (height / docH) * 100,
         widthPx: width,
         heightPx: height,
       };
@@ -234,13 +312,26 @@ export function ElementsCanvasOverlay({
     }
   };
 
-  // Filter elements active at current playhead time
-  const visibleElements = elements.filter((el) => {
-    if (el.visible === false) return false;
-    if (el.sceneStart === undefined || el.sceneDuration === undefined) return true;
-    const end = el.sceneStart + el.sceneDuration + 0.3;
-    return currentTime >= el.sceneStart && currentTime < end;
+  // Filter elements active at current playhead time or visible in live DOM
+  const visibleElements = (Array.isArray(elements) ? elements : []).filter((el) => {
+    if (!el || el.visible === false) return false;
+
+    // 1. Global elements (e.g. topbar, watermark, headers) are visible across all scenes
+    if (el.isGlobal || el.sceneIndex === -1) return true;
+
+    // 2. Must be within the element's scene time window!
+    const hasTimeWindow = el.sceneStart !== undefined && el.sceneDuration !== undefined;
+    if (hasTimeWindow) {
+      const inTimeWindow = currentTime >= (el.sceneStart - 0.35) && currentTime <= (el.sceneStart + el.sceneDuration + 0.35);
+      if (!inTimeWindow) return false;
+    }
+
+    return true;
   });
+
+  if (typeof window !== "undefined" && window.__debugOverlay) {
+    console.log("[OverlayRender]", { ct: currentTime, total: elements.length, visible: visibleElements.map(e => e.id) });
+  }
 
   // Handle Multi-Element & Single-Element Dragging
   useEffect(() => {
@@ -250,8 +341,19 @@ export function ElementsCanvasOverlay({
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect || rect.width <= 0 || rect.height <= 0) return;
 
-      const deltaX = ((e.clientX - dragging.startX) / rect.width) * 100;
-      const deltaY = ((e.clientY - dragging.startY) / rect.height) * 100;
+      const deltaPixelX = e.clientX - dragging.startX;
+      const deltaPixelY = e.clientY - dragging.startY;
+      const dist = Math.hypot(deltaPixelX, deltaPixelY);
+
+      // 5px deadzone to prevent accidental movement on clicks or taps
+      if (!dragging.hasMovedEnough) {
+        if (dist < 5) return;
+        dragging.hasMovedEnough = true;
+        onStartMove?.();
+      }
+
+      const deltaX = (deltaPixelX / rect.width) * 100;
+      const deltaY = (deltaPixelY / rect.height) * 100;
 
       const items = dragging.items || [{
         id: dragging.id,
@@ -279,7 +381,7 @@ export function ElementsCanvasOverlay({
     };
 
     const handlePointerUp = () => {
-      if (dragging) {
+      if (dragging && dragging.hasMovedEnough) {
         const items = dragging.items || [{ id: dragging.id }];
         items.forEach((item) => {
           onUpdateElement?.(item.id, { isDragging: false });
@@ -294,7 +396,7 @@ export function ElementsCanvasOverlay({
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
     };
-  }, [dragging, onUpdateElement]);
+  }, [dragging, onUpdateElement, onStartMove]);
 
   // Handle Corner Handle Resizing
   useEffect(() => {
@@ -310,9 +412,12 @@ export function ElementsCanvasOverlay({
       if (corner.includes("w")) factorX = -deltaX;
       if (corner.includes("n")) factorY = -deltaY;
 
-      const combinedDelta = (factorX + factorY) / 2;
-      const baseDim = resizing.initWidth || 200;
-      const scaleFactor = Math.max(0.2, (baseDim + combinedDelta * 1.5) / baseDim);
+      const rect = containerRef.current?.getBoundingClientRect();
+      const canvasScale = (rect && rect.width > 0) ? (rect.width / 1920) : 0.5;
+
+      const initDiag = Math.hypot(resizing.initWidth, resizing.initHeight) || 200;
+      const scaleDelta = ((factorX + factorY) / 2) / Math.max(0.1, canvasScale);
+      const scaleFactor = Math.max(0.1, Math.min(5, (initDiag + scaleDelta) / initDiag));
 
       if (resizing.type === "image") {
         const newWidth = Math.max(40, Math.min(1920, Math.round(resizing.initWidth * scaleFactor)));
@@ -323,11 +428,10 @@ export function ElementsCanvasOverlay({
           isDragging: true,
         });
       } else {
-        const newFontSize = Math.max(12, Math.min(160, Math.round(resizing.initRawFontSize * scaleFactor)));
-        const newWidth = Math.max(40, Math.round(resizing.initWidth * scaleFactor));
+        const newFontSize = Math.max(10, Math.min(600, Math.round(resizing.initRawFontSize * scaleFactor)));
         onUpdateElement?.(resizing.id, {
           style: { ...resizing.initStyle, fontSize: newFontSize },
-          placement: { ...resizing.initPlacement, width: newWidth },
+          placement: { ...resizing.initPlacement, width: "fit-content" },
           hasMoved: true,
           isDragging: true,
         });
@@ -401,7 +505,7 @@ export function ElementsCanvasOverlay({
   }, [marquee, visibleElements, onSelectElement, onSelectElements]);
 
   const handleLayerChange = (elId, action) => {
-    const target = elements.find((e) => e.id === elId);
+    const target = (elements || []).find((e) => e.id === elId);
     if (!target) return;
     const currentZ = parseInt(target.style?.zIndex, 10) || 10;
     let newZ = currentZ;
@@ -427,7 +531,7 @@ export function ElementsCanvasOverlay({
       style={{
         position: "absolute",
         inset: 0,
-        pointerEvents: "none",
+        pointerEvents: isPlaying ? "none" : "auto",
         zIndex: 40,
         overflow: "hidden",
       }}
@@ -438,164 +542,293 @@ export function ElementsCanvasOverlay({
             try {
               const iframe = compositionIframeRef.current;
               const doc = iframe.contentDocument || iframe.contentWindow?.document;
-              if (doc) {
-                const rect = containerRef.current.getBoundingClientRect();
-                const clickX = ((e.clientX - rect.left) / rect.width) * 1920;
-                const clickY = ((e.clientY - rect.top) / rect.height) * 1080;
-                const hits = doc.elementsFromPoint ? doc.elementsFromPoint(clickX, clickY) : [doc.elementFromPoint(clickX, clickY)].filter(Boolean);
+              const iframeDoc = doc;
+              const docW = iframeDoc?.documentElement?.clientWidth || 1920;
+              const docH = iframeDoc?.documentElement?.clientHeight || 1080;
+              const rect = containerRef.current.getBoundingClientRect();
+              const clickX = ((e.clientX - rect.left) / rect.width) * docW;
+              const clickY = ((e.clientY - rect.top) / rect.height) * docH;
 
-                const isIgnored = (el) => {
-                  if (!el || !el.tagName) return true;
-                  const tag = el.tagName.toLowerCase();
-                  if (["html", "body", "main", "video"].includes(tag)) return true;
-                  if (["composition", "root", "scenes", "hud", "barTop", "barBot", "flare"].includes(el.id)) return true;
-                  const cls = typeof el.className === "string" ? el.className.toLowerCase() : "";
-                  if (cls.includes("grid-overlay") || cls.includes("film-grain") || cls.includes("grain") || cls.includes("scene-background") || cls.includes("bg-") || cls.includes("scene-overlay") || cls.includes("progress-track") || cls.includes("progress-bar") || cls.includes("flare")) return true;
-                  return false;
-                };
+              const isIgnored = (el) => {
+                if (!el || !el.tagName) return true;
+                const tag = el.tagName.toLowerCase();
+                if (["html", "body", "main", "video"].includes(tag)) return true;
+                if (["composition", "root", "scenes", "hud", "barTop", "barBot", "flare"].includes(el.id)) return true;
+                const cls = typeof el.className === "string" ? el.className.toLowerCase() : (typeof el.className === "object" && el.className?.baseVal ? el.className.baseVal.toLowerCase() : "");
+                if (cls.includes("scene-background") || cls.includes("grid-overlay") || cls.includes("film-grain") || cls.includes("grain") || cls.includes("scene-overlay") || cls.includes("progress-track") || cls.includes("progress-bar") || cls.includes("flare")) return true;
+                return false;
+              };
 
-                // Check if any hit matches an already extracted element
-                for (const h of hits) {
-                  if (isIgnored(h)) continue;
-                  const hId = h.getAttribute("data-hf-id") || h.id;
-                  const hText = h.textContent?.trim().toLowerCase();
-                  const hSrc = h.getAttribute("src");
-                  const matched = elements.find((el) => {
-                    if (hId && el.id === hId) return true;
-                    if (hSrc && el.src && (el.src.includes(hSrc) || hSrc.includes(el.src))) return true;
-                    if (hText && el.text) {
-                      const et = el.text.trim().toLowerCase();
-                      return et === hText || et.includes(hText) || hText.includes(et);
-                    }
-                    return false;
-                  });
-                  if (matched) {
+              // TIER 1: Exact direct hit at (clickX, clickY)
+              const directHit = doc.elementFromPoint ? doc.elementFromPoint(clickX, clickY) : null;
+              if (directHit && !isIgnored(directHit)) {
+                // 1a. Check exact match by data-hf-id or id on directHit or its closest ancestor
+                const directTarget = directHit.closest?.("[data-hf-id], [id]");
+                const directId = directHit.getAttribute?.("data-hf-id") || directHit.id || directTarget?.getAttribute?.("data-hf-id") || directTarget?.id;
+                if (directId) {
+                  const directMatch = (elements || []).find((el) => el.id === directId);
+                  if (directMatch) {
                     e.stopPropagation();
-                    onSelectElement?.(matched.id);
-                    onSelectElements?.([matched.id]);
+                    onSelectElement?.(directMatch.id);
+                    onSelectElements?.([directMatch.id]);
                     return;
                   }
                 }
 
-                // Look for Symbols / Glyphs / Icons
-                let symbolEl = null;
-                for (const h of hits) {
-                  if (isIgnored(h)) continue;
-                  const t = h.tagName.toLowerCase();
-                  const cls = typeof h.className === "string" ? h.className.toLowerCase() : "";
-                  const isSymbol = cls.includes("glyph") || cls.includes("symbol") || cls.includes("icon") || cls.includes("orbit") || cls.includes("visual") || t === "svg";
-                  if (isSymbol) {
-                    symbolEl = h;
-                    break;
+                // 1b. If directHit is a container (e.g. .panel, .columns, .card), find child element closest to (clickX, clickY)
+                const cardContainer = directHit.closest?.(".panel, .card, .columns, [class*='panel'], [class*='card']");
+                if (cardContainer) {
+                  const candidateChildren = Array.from(cardContainer.querySelectorAll("[data-hf-id], h1, h2, h3, h4, h5, h6, p, .label, .caption, span"));
+                  let closestEl = null;
+                  let closestDist = Infinity;
+                  for (const child of candidateChildren) {
+                    const cId = child.getAttribute("data-hf-id") || child.id;
+                    const matchedEl = cId ? (elements || []).find((el) => el.id === cId) : null;
+                    if (matchedEl) {
+                      const cr = child.getBoundingClientRect();
+                      const centerX = cr.left + cr.width / 2;
+                      const centerY = cr.top + cr.height / 2;
+                      const dist = Math.hypot(clickX - centerX, clickY - centerY);
+                      if (dist < closestDist) {
+                        closestDist = dist;
+                        closestEl = matchedEl;
+                      }
+                    }
+                  }
+                  if (closestEl && closestDist < 350) {
+                    e.stopPropagation();
+                    onSelectElement?.(closestEl.id);
+                    onSelectElements?.([closestEl.id]);
+                    return;
                   }
                 }
+              }
 
-                if (symbolEl && onAddElement) {
+              // TIER 2: Multi-point probing for thin, rotated, or small elements
+              const probeOffsets = [
+                [0, 0],
+                [-12, 0], [12, 0], [0, -12], [0, 12],
+                [-20, 0], [20, 0], [0, -20], [0, 20],
+                [-15, -15], [15, 15], [-15, 15], [15, -15],
+                [-30, 0], [30, 0]
+              ];
+              const hitSet = new Set();
+              const hits = [];
+              for (const [ox, oy] of probeOffsets) {
+                const px = clickX + ox;
+                const py = clickY + oy;
+                const ptHits = doc.elementsFromPoint ? doc.elementsFromPoint(px, py) : [doc.elementFromPoint(px, py)].filter(Boolean);
+                for (const h of ptHits) {
+                  if (h && !hitSet.has(h)) {
+                    hitSet.add(h);
+                    hits.push(h);
+                  }
+                }
+              }
+
+              // Check if any hit matches an extracted element by exact ID first
+              for (const h of hits) {
+                if (isIgnored(h)) continue;
+                const hId = h.getAttribute?.("data-hf-id") || h.id;
+                if (hId) {
+                  const matchById = (elements || []).find((el) => el.id === hId);
+                  if (matchById) {
+                    e.stopPropagation();
+                    onSelectElement?.(matchById.id);
+                    onSelectElements?.([matchById.id]);
+                    return;
+                  }
+                }
+              }
+
+              // Check if hit is inside an SVG (prioritize child shapes with data-hf-id!)
+              for (const h of hits) {
+                if (isIgnored(h)) continue;
+                const svgParent = h.closest?.("svg");
+                if (svgParent) {
+                  // Check child shape first
+                  const childShape = h.closest?.("[data-hf-id]");
+                  const childId = childShape?.getAttribute("data-hf-id");
+                  if (childId) {
+                    const matchChild = (elements || []).find((el) => el.id === childId);
+                    if (matchChild) {
+                      e.stopPropagation();
+                      onSelectElement?.(matchChild.id);
+                      onSelectElements?.([matchChild.id]);
+                      return;
+                    }
+                  }
+                  // Fall back to parent SVG
+                  const svgId = svgParent.getAttribute("data-hf-id") || svgParent.id;
+                  const matchedSvg = (elements || []).find((el) => svgId && el.id === svgId);
+                  if (matchedSvg) {
+                    e.stopPropagation();
+                    onSelectElement?.(matchedSvg.id);
+                    onSelectElements?.([matchedSvg.id]);
+                    return;
+                  }
+                }
+              }
+
+              // Check text match strictly on leaf text elements (never layout sections / columns / cards!)
+              for (const h of hits) {
+                if (isIgnored(h)) continue;
+                const tag = h.tagName.toLowerCase();
+                if (["section", "main", "body", "html", "svg"].includes(tag) || h.classList?.contains("columns") || h.classList?.contains("scene") || h.classList?.contains("panel")) continue;
+
+                const container = h.closest?.(TEXT_CONTAINERS_QUERY) || h;
+                const targetH = isIgnored(container) ? h : container;
+                const targetTag = targetH.tagName.toLowerCase();
+                if (["section", "main", "body", "html", "svg"].includes(targetTag) || targetH.classList?.contains("columns") || targetH.classList?.contains("scene") || targetH.classList?.contains("panel")) continue;
+
+                const hId = targetH.getAttribute("data-hf-id") || targetH.id || h.getAttribute("data-hf-id") || h.id;
+                const hText = (targetH.textContent || h.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+                const matched = (elements || []).find((el) => {
+                  if (hId && el.id === hId) return true;
+                  if (hText && el.text) {
+                    const et = el.text.replace(/\s+/g, " ").trim().toLowerCase();
+                    if (et === hText) return true;
+                    if (et.length >= 6 && hText === et) return true;
+                  }
+                  return false;
+                });
+                if (matched) {
                   e.stopPropagation();
-                  const symRect = symbolEl.getBoundingClientRect();
-                  const targetHfId = symbolEl.getAttribute("data-hf-id") || symbolEl.id;
-                  const newId = targetHfId || `el-sym-${Date.now()}`;
-                  if (!symbolEl.getAttribute("data-hf-id")) symbolEl.setAttribute("data-hf-id", newId);
-                  const symText = symbolEl.textContent?.trim() || "◇";
-                  const newEl = {
-                    id: newId,
-                    sceneStart: Math.max(0, currentTime - 1),
-                    sceneDuration: 6,
-                    tag: symbolEl.tagName.toLowerCase(),
-                    type: "symbol",
-                    name: `Symbol: ${symText.slice(0, 15)}`,
-                    text: symText,
-                    originalText: symText,
-                    isModified: false,
-                    style: {
-                      fontSize: 28,
-                      color: "#38bdf8",
-                      textAlign: "center",
-                    },
-                    placement: {
-                      x: symRect ? (symRect.left / 1920) * 100 : (clickX / 1920) * 100,
-                      y: symRect ? (symRect.top / 1080) * 100 : (clickY / 1080) * 100,
-                      width: symRect ? Math.max(30, symRect.width) : 50,
-                      height: symRect ? Math.max(30, symRect.height) : 50,
-                      isTopLeft: true,
-                    },
-                    visible: true,
-                  };
-                  onAddElement(newEl);
-                  onSelectElement?.(newId);
-                  onSelectElements?.([newId]);
+                  onSelectElement?.(matched.id);
+                  onSelectElements?.([matched.id]);
                   return;
                 }
+              }
 
-                // Look for text elements (h1-h6, p, span, button, a, or class-based text)
+              // Look for Illustrations, Shapes, Symbols, Glyphs, Icons
+              let symbolEl = null;
+              for (const h of hits) {
+                if (isIgnored(h)) continue;
+                const t = h.tagName.toLowerCase();
+                const cls = typeof h.className === "string" ? h.className.toLowerCase() : "";
+                const isSymbol = cls.includes("glyph") || cls.includes("symbol") || cls.includes("icon") || cls.includes("orbit") || cls.includes("visual") || cls.includes("spear") || cls.includes("battleline") || cls.includes("rule") || cls.includes("map") || (t === "svg" && !cls.includes("skyline") && !cls.includes("background"));
+                if (isSymbol) {
+                  symbolEl = h;
+                  break;
+                }
+              }
+
+              if (symbolEl && onAddElement) {
+                e.stopPropagation();
+                const symRect = symbolEl.getBoundingClientRect();
+                const targetHfId = symbolEl.getAttribute("data-hf-id") || symbolEl.id;
+                const newId = targetHfId || `el-sym-${Date.now()}`;
+                if (!symbolEl.getAttribute("data-hf-id")) symbolEl.setAttribute("data-hf-id", newId);
+                const symCls = typeof symbolEl.className === "string" ? symbolEl.className : "";
+                const symLabel = symCls.includes("spear") ? `Spear (${symCls.includes("left") ? "Left" : "Right"})` : symCls.includes("battleline") ? "Battleline" : symCls.includes("rule") ? "Accent Rule" : symCls.includes("map") ? "Map Graphic" : (symbolEl.textContent?.trim() || "Illustration");
+                const newEl = {
+                  id: newId,
+                  sceneStart: Math.max(0, currentTime - 1),
+                  sceneDuration: 12,
+                  tag: symbolEl.tagName.toLowerCase(),
+                  type: "image",
+                  name: `Graphic: ${symLabel.slice(0, 18)}`,
+                  text: symLabel,
+                  originalText: symLabel,
+                  isModified: false,
+                  style: {
+                    color: "#e8c27a",
+                    textAlign: "center",
+                  },
+                  placement: {
+                    x: symRect ? (symRect.left / docW) * 100 : (clickX / docW) * 100,
+                    y: symRect ? (symRect.top / docH) * 100 : (clickY / docH) * 100,
+                    width: symRect ? Math.max(40, symRect.width) : 60,
+                    height: symRect ? Math.max(20, symRect.height) : 60,
+                    isTopLeft: true,
+                  },
+                  visible: true,
+                };
+                onAddElement(newEl);
+                onSelectElement?.(newId);
+                onSelectElements?.([newId]);
+                return;
+              }
+
+              // Check for real image or SVG graphics (never match background gradient/containers!)
+              let imgEl = null;
+              for (const h of hits) {
+                if (isIgnored(h)) continue;
+                const t = h.tagName.toLowerCase();
+                const cls = typeof h.className === "string" ? h.className.toLowerCase() : "";
+                const svgParent = h.closest?.("svg");
+                if (svgParent && !isIgnored(svgParent)) {
+                  imgEl = svgParent;
+                  break;
+                }
+                if (t === "img" || cls.includes("product-image") || cls.includes("feature-image") || (cls.includes("img") && !cls.includes("scene-background")) || (t === "svg" && !cls.includes("background"))) {
+                  imgEl = h;
+                  break;
+                }
+              }
+
+              // Handle Image/SVG selection
+              if (imgEl && onAddElement) {
+                e.stopPropagation();
+                const targetSrc = imgEl.getAttribute("src") || "";
+                const targetHfId = imgEl.getAttribute("data-hf-id") || imgEl.id;
+                const imgRect = imgEl.getBoundingClientRect();
+                const newId = targetHfId || `el-img-${Date.now()}`;
+                if (!imgEl.getAttribute("data-hf-id")) imgEl.setAttribute("data-hf-id", newId);
+                const isSvg = imgEl.tagName.toLowerCase() === "svg";
+                const newEl = {
+                  id: newId,
+                  sceneStart: Math.max(0, currentTime - 1),
+                  sceneDuration: 6,
+                  tag: isSvg ? "svg" : "img",
+                  type: "image",
+                  name: isSvg ? "Graphic: Skyline" : `Image: ${imgEl.alt || "Visual"}`,
+                  src: targetSrc,
+                  isModified: false,
+                  style: { objectFit: "contain" },
+                  placement: {
+                    x: (imgRect.left / docW) * 100,
+                    y: (imgRect.top / docH) * 100,
+                    width: imgRect.width || 400,
+                    height: imgRect.height || 250,
+                    isTopLeft: true,
+                  },
+                  visible: true,
+                };
+                onAddElement(newEl);
+                onSelectElement?.(newId);
+                onSelectElements?.([newId]);
+                return;
+              }
+
+              // Look for text elements (h1-h6, p, span, button, a, or class-based text)
                 let textEl = null;
                 for (const h of hits) {
                   if (isIgnored(h)) continue;
-                  const t = h.tagName.toLowerCase();
-                  const cls = typeof h.className === "string" ? h.className.toLowerCase() : "";
-                  const isTextTag = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "button", "a", "div"].includes(t);
-                  const isTextCls = cls.includes("headline") || cls.includes("title") || cls.includes("description") || cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("scene-number") || cls.includes("num") || cls.includes("pill");
-                  if ((isTextTag || isTextCls) && h.textContent && h.textContent.trim().length > 0 && h.textContent.trim().length < 300) {
-                    textEl = h;
+                  // Ascend to the highest recognized text container!
+                  const container = h.closest?.(TEXT_CONTAINERS_QUERY);
+                  const cand = container && !isIgnored(container) ? container : h;
+                  const t = cand.tagName.toLowerCase();
+                  const cls = typeof cand.className === "string" ? cand.className.toLowerCase() : "";
+                  const isTextTag = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "button", "a", "div", "span"].includes(t);
+                  const isTextCls = cls.includes("headline") || cls.includes("title") || cls.includes("description") || cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("scene-number") || cls.includes("num") || cls.includes("pill") || cls.includes("big") || cls.includes("mega");
+                  const candText = cand.textContent?.replace(/\s+/g, " ").trim() || "";
+                  if ((isTextTag || isTextCls) && candText.length > 0 && candText.length < 500) {
+                    textEl = cand;
                     break;
                   }
-                }
-
-                // Check for image element
-                let imgEl = null;
-                if (!textEl) {
-                  for (const h of hits) {
-                    if (isIgnored(h)) continue;
-                    if (h.tagName === "IMG" || (typeof h.className === "string" && (h.className.includes("product-image") || h.className.includes("feature-image")))) {
-                      imgEl = h;
-                      break;
-                    }
-                  }
-                }
-
-                // Handle Image selection
-                if (imgEl && onAddElement) {
-                  e.stopPropagation();
-                  const targetSrc = imgEl.getAttribute("src") || "";
-                  const targetHfId = imgEl.getAttribute("data-hf-id") || imgEl.id;
-                  const imgRect = imgEl.getBoundingClientRect();
-                  const newId = targetHfId || `el-img-${Date.now()}`;
-                  if (!imgEl.getAttribute("data-hf-id")) imgEl.setAttribute("data-hf-id", newId);
-                  const newEl = {
-                    id: newId,
-                    sceneStart: Math.max(0, currentTime - 1),
-                    sceneDuration: 6,
-                    tag: "img",
-                    type: "image",
-                    name: `Image: ${imgEl.alt || "Visual"}`,
-                    src: targetSrc,
-                    isModified: false,
-                    style: { objectFit: "contain" },
-                    placement: {
-                      x: (imgRect.left / 1920) * 100,
-                      y: (imgRect.top / 1080) * 100,
-                      width: imgRect.width || 300,
-                      height: imgRect.height || 200,
-                      isTopLeft: true,
-                    },
-                    visible: true,
-                  };
-                  onAddElement(newEl);
-                  onSelectElement?.(newId);
-                  onSelectElements?.([newId]);
-                  return;
                 }
 
                 // Handle Text selection
                 if (textEl && textEl.textContent && textEl.textContent.trim().length > 0 && onAddElement) {
-                  const clickedText = textEl.textContent.trim();
+                  const clickedText = textEl.textContent.replace(/\s+/g, " ").trim();
                   const targetHfId = textEl.getAttribute("data-hf-id") || textEl.id;
                   const tag = textEl.tagName ? textEl.tagName.toLowerCase() : "p";
                   e.stopPropagation();
                   const newId = targetHfId || `el-detected-${Date.now()}`;
                   if (!textEl.getAttribute("data-hf-id")) textEl.setAttribute("data-hf-id", newId);
                   const cls = typeof textEl.className === "string" ? textEl.className.toLowerCase() : "";
-                  const isH = tag.startsWith("h") || cls.includes("headline") || cls.includes("title");
+                  const isH = tag.startsWith("h") || cls.includes("headline") || cls.includes("title") || cls.includes("big") || cls.includes("mega");
                   const isPill = cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("scene-number") || cls.includes("badge");
                   const newType = isH ? "heading" : isPill ? "badge" : "text";
                   const friendlyLabel = isH ? "Title" : isPill ? "Badge" : "Text";
@@ -630,7 +863,6 @@ export function ElementsCanvasOverlay({
                   onSelectElements?.([newId]);
                   return;
                 }
-              }
             } catch (err) {
               console.warn("Error picking element from point:", err);
             }
@@ -656,8 +888,9 @@ export function ElementsCanvasOverlay({
         const posY = dynamic ? dynamic.topPercent : (el.placement?.y ?? 50);
 
         const isHeading = el.type === "heading" || el.tag === "h1" || el.tag === "h2" || el.tag === "h3";
-        const isImage = el.type === "image" || el.tag === "img";
+        const isImage = el.type === "image" || el.tag === "img" || el.tag === "svg" || el.field === "image";
         const isButton = el.type === "button" || el.tag === "button" || el.type === "cta";
+        const isBackgroundVisual = isImage || el.tag === "svg" || el.field === "image" || (el.id && el.id.includes("visual"));
 
         const scale = frameWidth > 0 ? frameWidth / 1920 : 1;
         const rawFontSize = el.style?.fontSize || (isHeading ? 48 : 24);
@@ -669,51 +902,88 @@ export function ElementsCanvasOverlay({
 
         const boxLeft = `${posX}%`;
         const boxTop = `${posY}%`;
-        const boxWidth = isImage
-          ? (el.placement?.width ? `${Math.min(95, (el.placement.width / 1920) * 100)}%` : (dynamic ? `${dynamic.widthPercent}%` : "auto"))
-          : (dynamic ? `${dynamic.widthPercent}%` : "fit-content");
-        const boxHeight = isImage
-          ? (el.placement?.height ? `${Math.min(95, (el.placement.height / 1080) * 100)}%` : (dynamic ? `${dynamic.heightPercent}%` : "auto"))
-          : (dynamic ? `${dynamic.heightPercent}%` : "auto");
+        const boxWidth = dynamic
+          ? `${dynamic.widthPercent}%`
+          : (isImage && el.placement?.width ? `${Math.min(95, (el.placement.width / 1920) * 100)}%` : (isImage ? "auto" : "fit-content"));
+        const boxHeight = dynamic
+          ? `${dynamic.heightPercent}%`
+          : (isImage && el.placement?.height ? `${Math.min(95, (el.placement.height / 1080) * 100)}%` : "auto");
 
         return (
           <React.Fragment key={el.id}>
             <div
               data-element-id={el.id}
+              data-is-selected={isSelected ? "true" : undefined}
               onMouseEnter={() => onHoverElement?.(el.id)}
               onMouseLeave={() => onHoverElement?.(null)}
               onPointerDown={(e) => {
                 if (inlineEditingId === el.id) return;
+
+                // If clicking inside a smaller nested element at these coordinates, prioritize the smaller element
+                const rect = containerRef.current?.getBoundingClientRect();
+                if (rect) {
+                  const clickX = e.clientX;
+                  const clickY = e.clientY;
+                  const myArea = (dynamic?.widthPx || 100) * (dynamic?.heightPx || 100);
+                  const smallerCandidate = visibleElements.find((other) => {
+                    if (other.id === el.id) return false;
+                    const otherBox = containerRef.current?.querySelector(`[data-element-id="${other.id}"]`);
+                    if (!otherBox) return false;
+                    const or = otherBox.getBoundingClientRect();
+                    if (clickX >= or.left && clickX <= or.right && clickY >= or.top && clickY <= or.bottom) {
+                      const otherArea = or.width * or.height;
+                      return otherArea < myArea;
+                    }
+                    return false;
+                  });
+                  if (smallerCandidate) {
+                    e.stopPropagation();
+                    onSelectElement?.(smallerCandidate.id);
+                    onSelectElements?.([smallerCandidate.id]);
+                    return;
+                  }
+                }
+
                 e.stopPropagation();
                 onSelectElement?.(el.id);
                 const isMulti = selectedSet.has(el.id) && selectedSet.size > 1;
                 if (!isMulti) {
                   onSelectElements?.([el.id]);
                 }
-                onStartMove?.();
 
                 const itemsToMove = isMulti
                   ? Array.from(selectedSet).map((id) => {
-                      const itemEl = elements.find((x) => x.id === id);
+                      const itemEl = (elements || []).find((x) => x.id === id);
                       const dyn = itemEl ? getDynamicPlacement(itemEl) : null;
                       return {
                         id,
                         initX: dyn ? dyn.leftPercent : (itemEl?.placement?.x ?? 50),
                         initY: dyn ? dyn.topPercent : (itemEl?.placement?.y ?? 50),
-                        initPlacement: itemEl?.placement || {},
+                        initPlacement: {
+                          ...itemEl?.placement,
+                          width: itemEl?.placement?.width || dyn?.widthPx,
+                          height: itemEl?.placement?.height || dyn?.heightPx,
+                          isTopLeft: true,
+                        },
                       };
                     })
                   : [{
                       id: el.id,
                       initX: dynamic ? dynamic.leftPercent : posX,
                       initY: dynamic ? dynamic.topPercent : posY,
-                      initPlacement: el.placement || {},
+                      initPlacement: {
+                        ...el.placement,
+                        width: el.placement?.width || dynamic?.widthPx,
+                        height: el.placement?.height || dynamic?.heightPx,
+                        isTopLeft: true,
+                      },
                     }];
 
                 setDragging({
                   id: el.id,
                   startX: e.clientX,
                   startY: e.clientY,
+                  hasMovedEnough: false,
                   items: itemsToMove,
                 });
               }}
@@ -749,7 +1019,7 @@ export function ElementsCanvasOverlay({
                 userSelect: "none",
                 pointerEvents: "auto",
                 background: "rgba(0, 0, 0, 0.001)",
-                zIndex: isSelected ? 30 : isHovered ? 20 : 10,
+                zIndex: isSelected ? 35 : isHovered ? (isBackgroundVisual ? 14 : 25) : (isBackgroundVisual ? 5 : 15),
                 maxWidth: "96%",
                 boxSizing: "border-box",
                 outline: isSelected
@@ -773,31 +1043,27 @@ export function ElementsCanvasOverlay({
                 <div
                   style={{
                     position: "absolute",
-                    bottom: "100%",
+                    ...(posY < 26 ? { top: "calc(100% + 6px)" } : { bottom: "100%", marginBottom: "4px" }),
                     left: "0",
-                    marginBottom: "6px",
                     display: "flex",
                     alignItems: "center",
-                    gap: "6px",
+                    gap: "4px",
                     background: isSelected ? "#0284c7" : "#0f172a",
                     color: "#ffffff",
                     fontSize: "10px",
-                    fontWeight: 800,
-                    letterSpacing: "0.04em",
-                    textTransform: "uppercase",
-                    padding: "3px 8px",
+                    fontWeight: 700,
+                    letterSpacing: "0.02em",
+                    padding: "2px 6px",
                     borderRadius: "4px",
-                    boxShadow: "0 4px 10px rgba(0,0,0,0.5)",
-                    whiteSpace: "nowrap",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
                     zIndex: 40,
+                    maxWidth: "max(120px, 100%)",
+                    pointerEvents: "none",
                   }}
                 >
-                  <span>{getFriendlyElementLabel(el)}</span>
-                  {el.text && (
-                    <span style={{ fontWeight: 400, opacity: 0.9, maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      : {el.text.slice(0, 20)}
-                    </span>
-                  )}
+                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {getFriendlyElementLabel(el)}
+                  </span>
                   {isSelected && !isImage && (
                     <button
                       type="button"
@@ -808,18 +1074,19 @@ export function ElementsCanvasOverlay({
                       }}
                       title="Edit text content"
                       style={{
-                        background: "rgba(255,255,255,0.2)",
+                        pointerEvents: "auto",
+                        background: "rgba(255,255,255,0.25)",
                         border: "none",
                         color: "#fff",
                         borderRadius: "3px",
-                        padding: "1px 6px",
-                        fontSize: "10px",
+                        padding: "1px 5px",
+                        fontSize: "9px",
                         fontWeight: 700,
                         cursor: "pointer",
                         display: "flex",
                         alignItems: "center",
                         gap: "2px",
-                        marginLeft: "4px",
+                        flexShrink: 0,
                       }}
                     >
                       ✎ Edit
@@ -833,20 +1100,18 @@ export function ElementsCanvasOverlay({
                         e.stopPropagation();
                         onDeleteElement?.(el.id);
                       }}
-                      title="Delete element (or press Del)"
+                      title="Delete element"
                       style={{
+                        pointerEvents: "auto",
                         background: "rgba(239,68,68,0.85)",
                         border: "none",
                         color: "#fff",
                         borderRadius: "3px",
-                        padding: "1px 6px",
-                        fontSize: "10px",
+                        padding: "1px 5px",
+                        fontSize: "9px",
                         fontWeight: 700,
                         cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "2px",
-                        marginLeft: "2px",
+                        flexShrink: 0,
                       }}
                     >
                       ✕ Del
@@ -856,20 +1121,7 @@ export function ElementsCanvasOverlay({
               )}
 
               {/* Content rendering based on type */}
-              {isImage ? (
-                <img
-                  src={el.src}
-                  alt={el.name || "Element"}
-                  style={{
-                    width: `${el.placement?.width || 200}px`,
-                    height: "auto",
-                    display: "block",
-                    opacity,
-                    pointerEvents: "none",
-                    borderRadius: el.style?.borderRadius || "4px",
-                  }}
-                />
-              ) : isButton || el.tag === "pill" ? (
+              {isImage ? null : isButton || el.tag === "pill" ? (
                 <div
                   style={{
                     display: "inline-flex",
@@ -1002,6 +1254,20 @@ export function ElementsCanvasOverlay({
                       e.stopPropagation();
                       onStartMove?.();
                       const dyn = getDynamicPlacement(el);
+                      let liveComputedFontSize = rawFontSize;
+                      try {
+                        const iframe = compositionIframeRef?.current;
+                        const doc = iframe?.contentDocument || iframe?.contentWindow?.document;
+                        if (doc) {
+                          const liveEl = findLiveElementInDoc(doc, el);
+                          if (liveEl) {
+                            const win = doc.defaultView || iframe.contentWindow;
+                            const fs = parseFloat(win.getComputedStyle(liveEl).fontSize);
+                            if (Number.isFinite(fs) && fs > 0) liveComputedFontSize = fs;
+                          }
+                        }
+                      } catch (err) {}
+
                       setResizing({
                         id: el.id,
                         corner,
@@ -1010,8 +1276,15 @@ export function ElementsCanvasOverlay({
                         startY: e.clientY,
                         initWidth: dyn?.widthPx || el.placement?.width || 200,
                         initHeight: dyn?.heightPx || el.placement?.height || 60,
-                        initRawFontSize: rawFontSize,
-                        initPlacement: el.placement || {},
+                        initRawFontSize: liveComputedFontSize,
+                        initPlacement: {
+                          ...el.placement,
+                          x: (typeof el.placement?.x === "number" && !isNaN(el.placement.x)) ? el.placement.x : (dyn?.leftPercent ?? 0),
+                          y: (typeof el.placement?.y === "number" && !isNaN(el.placement.y)) ? el.placement.y : (dyn?.topPercent ?? 0),
+                          width: dyn?.widthPx || el.placement?.width || 200,
+                          height: dyn?.heightPx || el.placement?.height || 60,
+                          isTopLeft: true,
+                        },
                         initStyle: el.style || {},
                       });
                     }}

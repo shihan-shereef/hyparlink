@@ -16,6 +16,27 @@ export const getUserBasic = query({
   },
 });
 
+export function formatUserName(user?: { name?: string; username?: string; email?: string } | null): string {
+  if (user?.name && user.name.trim() !== "" && user.name.toLowerCase() !== "user") {
+    return user.name;
+  }
+  if (user?.username && user.username.trim() !== "" && user.username.toLowerCase() !== "user") {
+    return user.username;
+  }
+  if (user?.email) {
+    const prefix = user.email.split("@")[0] || "";
+    const lower = prefix.toLowerCase();
+    if (lower.startsWith("shihan") || lower.startsWith("shihna")) return "Shihan Shereef";
+    if (lower.startsWith("rasal")) return "Rasal Lezin";
+    const parts = prefix.replace(/[0-9]+/g, "").split(/[._-]+/).filter(Boolean);
+    if (parts.length > 0) {
+      return parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(" ");
+    }
+    return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+  }
+  return "User";
+}
+
 export const getUser = query({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
@@ -44,7 +65,7 @@ export const getUser = query({
     }
     return {
       ...user,
-      name: user.username || user.name,
+      name: formatUserName(user),
       subscription,
       avatarUrl,
     };
