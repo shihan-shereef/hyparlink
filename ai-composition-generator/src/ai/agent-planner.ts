@@ -215,9 +215,12 @@ OUTPUT FORMAT: Strict valid JSON only. Do not include markdown preamble, comment
 CRITICAL RULES:
 1. TOTAL DURATION MATH: The sum of all scene 'duration' values MUST equal exactly ${duration} seconds.
 2. If the user provided a script, respect it scene-by-scene.
-3. Every scene MUST have a unique layout and distinct visual description matching the specific prompt. Do NOT make every scene look identical.`;
+3. Every scene MUST have a unique layout and distinct visual description matching the specific prompt. Do NOT make every scene look identical.
+4. METAPROMPT PURGE: NEVER echo user meta commands (e.g. 'create a video', 'adverstiment', '60 second', 'with animation', 'gsap motion') as headlines, subtitles, or narration. Instead, identify the core underlying product, mission, or human experience and author compelling, authentic advertising headlines, narrative story arcs, and persuasive voiceover scripts.`;
 
-        const userPrompt = `PROMPT: "${prompt}"
+        const cleanTopic = AgentPlanner.cleanPromptTopic(prompt);
+        const userPrompt = `TOPIC / SUBJECT: "${cleanTopic}"
+ORIGINAL USER PROMPT: "${prompt}"
 DURATION: ${duration} seconds (EXACT)
 ORIENTATION: ${aspectRatio} (${width}x${height} @ ${fps}fps)
 ${options.script ? `USER SCRIPT: "${options.script}"` : ""}
@@ -225,7 +228,7 @@ ${options.assets && options.assets.length > 0 ? `ATTACHED ASSETS: ${options.asse
 ${options.avatarId ? `PRESENTER AVATAR ID: ${options.avatarId} (Voice: ${options.voiceId || "default"})` : ""}`;
 
         const timeoutPromise = new Promise<string>((_, reject) =>
-          setTimeout(() => reject(new Error("LLM planning timeout (10s)")), 10000)
+          setTimeout(() => reject(new Error("LLM planning timeout (45s)")), 45000)
         );
         const raw = await Promise.race([
           provider.complete(
@@ -234,7 +237,7 @@ ${options.avatarId ? `PRESENTER AVATAR ID: ${options.avatarId} (Voice: ${options
               { role: "user", content: userPrompt },
             ],
             0.2,
-            options.model,
+            options.model || process.env.AI_MODEL || "gemini-3-flash",
           ),
           timeoutPromise,
         ]);
@@ -488,6 +491,18 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
     };
   }
 
+  public static cleanPromptTopic(raw: string): string {
+    if (!raw) return "Innovation";
+    let cleaned = raw
+      .replace(/\b(create|make|generate|produce|build|author|show|render)\s*(?:a\s*)?(?:video|clip|ad|advertisement|adverstiment|promo|commercial|spot|explainer|presentation|ppt|slideshow)?\s*(?:of|about|for|on)?\b/gi, "")
+      .replace(/\b\d+\s*(?:second|seconds|sec|s|minute|minutes|min|m)\b/gi, "")
+      .replace(/\bwith\s*(?:some\s*)?(?:gsap|animation|animations|motion|effects|music|voiceover|presenter|avatar)?\b/gi, "")
+      .replace(/\b(?:in|at)?\s*(?:1080p|720p|4k|landscape|portrait|square|hd)\b/gi, "")
+      .trim();
+    cleaned = cleaned.replace(/^[\s,.-]+|[\s,.-]+$/g, "").replace(/\b(?:with|and|some|of|for|about)\s*$/i, "").trim();
+    return cleaned.length > 1 ? cleaned : "Dynamic Vision";
+  }
+
   public static synthesizeBespokePlan(
     planId: string,
     mode: "plan" | "autopilot",
@@ -500,6 +515,9 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
     aspectRatio: "16:9" | "9:16" | "1:1",
   ): VideoProductionPlan {
     const p = prompt.toLowerCase();
+    const cleanTopic = AgentPlanner.cleanPromptTopic(prompt);
+    const topicUpper = cleanTopic.toUpperCase();
+    const isADHD = p.includes("adhd") || p.includes("neurodiverg") || p.includes("attention deficit") || p.includes("hyperfocus") || p.includes("executive function");
     const isTree = p.includes("tree") || p.includes("grow") || p.includes("seed");
     const isNetwork = p.includes("http") || p.includes("network") || p.includes("packet") || p.includes("server");
     const isChart = p.includes("revenue") || p.includes("chart") || p.includes("growth") || p.includes("metric");
@@ -528,18 +546,14 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
       let archetype: PlanScene["layoutArchetype"];
       if (hasAvatar) {
         if (compMode === "mode_c") {
-          // Mode C: Full-Screen Avatar throughout all scenes with lower thirds & overlays
           archetype = "avatar-presenter-spotlight";
         } else if (compMode === "mode_a") {
-          // Mode A: Presenter-Led — Avatar visible with side-by-side animated cards, telemetry & charts
           archetype = isFirst ? "avatar-presenter-spotlight" : "avatar-mixed-feature";
         } else if (compMode === "mode_b") {
-          // Mode B: Cinematic with Avatar Inserts — Avatar appears in selected scenes (hook intro & outro), intermediate scenes are full-screen visuals
           archetype = (isFirst || isLast)
             ? "avatar-presenter-spotlight"
             : (isTree ? "nature-tree-growth" : isNetwork ? "network-http-flow" : isChart ? "animated-bar-chart" : isShoe ? "hero-product-showcase" : "feature-split-layout");
         } else {
-          // Auto / Mixed default: Ollima recommendation
           archetype = isFirst
             ? "avatar-presenter-spotlight"
             : isLast
@@ -547,7 +561,6 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
               : (i % 2 === 1 ? "avatar-mixed-feature" : "feature-split-layout");
         }
       } else {
-        // Pure HyperFrames (No Avatar)
         archetype = isFirst
           ? "cinematic-hero-intro"
           : isLast
@@ -563,27 +576,90 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
                     : "feature-split-layout";
       }
 
+      let sceneName = isFirst ? "Visual Hook & Intro" : isLast ? "Climax & Call To Action" : `Key Progression ${i + 1}`;
       let headline = isFirst
-        ? (prompt.slice(0, 30).toUpperCase())
+        ? `${topicUpper}`
         : isLast
           ? "TAKE THE NEXT STEP"
-          : isChart
-            ? "EXPONENTIAL GROWTH METRICS"
-            : isTree
-              ? "CANOPY IN FULL BLOOM"
-              : isNetwork
-                ? "PACKET TRAVEL PROTOCOL"
-                : "BUILT FOR PERFORMANCE";
+          : i === 1
+            ? "THE CORE CHALLENGE"
+            : i === 2
+              ? "INNOVATION UNLOCKED"
+              : i === 3
+                ? "PROVEN IMPACT"
+                : "BUILT FOR EXCELLENCE";
+
+      let subtitle = isFirst
+        ? `Discover the breakthrough possibilities of ${cleanTopic}.`
+        : isLast
+          ? "Start your journey today and experience the difference."
+          : i === 1
+            ? "Overcoming friction and transforming complex workflows."
+            : i === 2
+              ? "Engineered with intelligent architecture and modern design."
+              : i === 3
+                ? "Delivering measurable momentum day after day."
+                : "Designed with utmost precision for modern teams.";
 
       let narration = isFirst
-        ? `Introducing ${prompt.slice(0, 40)}. The new standard in creation.`
+        ? `Introducing ${cleanTopic}. The modern standard in creative storytelling.`
         : isLast
-          ? "Get started today and experience the difference."
-          : `Engineered from the ground up for unprecedented results.`;
+          ? "Get started today and see what is possible."
+          : i === 1
+            ? "Traditional methods create friction and slow teams down."
+            : i === 2
+              ? "Engineered from the ground up for unprecedented results."
+              : i === 3
+                ? "Measurable impact that compounds with every single step."
+                : "Seamless execution designed to keep you miles ahead.";
 
       let badge = isFirst ? "OFFICIAL PREVIEW" : isLast ? "GET STARTED" : "CAPABILITY";
-      let subtitle = isFirst ? prompt : `Designed with utmost precision for modern teams.`;
-      let sceneName = isFirst ? "Visual Hook & Intro" : isLast ? "Climax & Call To Action" : `Key Progression ${i + 1}`;
+
+      if (isADHD) {
+        if (i === 0) {
+          sceneName = "The Racing Mind";
+          headline = "100 TABS OPEN";
+          subtitle = "Simultaneous racing thoughts, brilliant ideas, and intense sensory momentum.";
+          badge = "ADHD INSIGHT";
+          narration = "Imagine living with a hundred browser tabs open at once — brilliant, intense, and constantly in motion.";
+          archetype = "cinematic-hero-intro";
+        } else if (i === 1) {
+          sceneName = "The Hidden Struggle";
+          headline = "NOT LAZY. BUILT DIFFERENT.";
+          subtitle = "Executive dysfunction is a neurological reality, never a lack of character.";
+          badge = "NEURODIVERSITY";
+          narration = "It's not about trying harder. Executive dysfunction makes simple daily routines feel like climbing vertical glass.";
+          archetype = "feature-split-layout";
+        } else if (i === 2) {
+          sceneName = "The Power of Hyperfocus";
+          headline = "HYPERFOCUS UNLOCKED";
+          subtitle = "When passion meets dopamine, extraordinary innovation happens.";
+          badge = "SUPERPOWER";
+          narration = "When real passion clicks, all noise vanishes. Deep hyperfocus unlocks boundary-breaking creativity.";
+          archetype = "hero-product-showcase";
+        } else if (i === 3) {
+          sceneName = "Systems That Adapt";
+          headline = "WORK WITH YOUR BRAIN";
+          subtitle = "Flexible workflows and sensory strategies tailored for non-linear thinkers.";
+          badge = "STRATEGIES";
+          narration = "Stop forcing yourself into standard boxes. Build routines and momentum designed for your mind.";
+          archetype = "feature-split-layout";
+        } else if (i === 4) {
+          sceneName = "Creative Potential";
+          headline = "OUT-OF-THE-BOX THINKING";
+          subtitle = "Resilient problem solvers, innovative visionaries, and brave pioneers.";
+          badge = "ADVANTAGE";
+          narration = "Lateral leaps and daring instincts. Neurodivergent thinkers have driven the world's greatest innovations.";
+          archetype = "feature-split-layout";
+        } else if (i === 5) {
+          sceneName = "Empowerment & CTA";
+          headline = "THRIVE AS YOU ARE";
+          subtitle = "Embrace your unique cognitive wiring and unleash your greatest strengths.";
+          badge = "START NOW";
+          narration = "Your mind isn't broken — it's powerful. Embrace who you are and thrive on your own terms.";
+          archetype = "cinematic-climax-cta";
+        }
+      }
 
       if (isVikas) {
         if (i === 0) {
@@ -663,43 +739,55 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
       /\bblue\s+and\s+white\b/i.test(p) ||
       (/\bwhite\b/i.test(p) && /\bblue\b/i.test(p) && /\b(?:color|theme|theam|bg|background)\b/i.test(p));
 
-    const palette = isWhiteAndBlue
+    const palette = isADHD
       ? {
-          primary: "#1D4ED8", // Royal Blue
-          secondary: "#2563EB", // Vibrant Blue
-          accent: "#0284C7", // Sky Accent
-          backgroundColor: "#F8FAFC", // Clean Crisp White
-          surfaceColor: "rgba(255, 255, 255, 0.95)",
-          textColor: "#0F172A", // Deep Navy / Charcoal
-          textMutedColor: "#475569", // Slate Muted
-          glowColor: "rgba(37, 99, 235, 0.15)",
-          borderColor: "rgba(37, 99, 235, 0.25)",
+          primary: "#6366F1", // Indigo
+          secondary: "#8B5CF6", // Purple
+          accent: "#38BDF8", // Cyan Focus
+          backgroundColor: "#0B0F19", // Deep Space Navy
+          surfaceColor: "rgba(17, 24, 39, 0.85)",
+          textColor: "#F8FAFC",
+          textMutedColor: "rgba(255, 255, 255, 0.7)",
+          glowColor: "rgba(99, 102, 241, 0.35)",
+          borderColor: "rgba(99, 102, 241, 0.25)",
         }
-      : isCyber
+      : isWhiteAndBlue
         ? {
-            primary: "#00F5FF",
-            secondary: "#7928CA",
-            accent: "#FFE600",
-            backgroundColor: "#05070D",
-            surfaceColor: "rgba(10, 15, 30, 0.75)",
-            textColor: "#FFFFFF",
-            textMutedColor: "rgba(255, 255, 255, 0.65)",
-            glowColor: "rgba(0, 245, 255, 0.4)",
-            borderColor: "rgba(0, 245, 255, 0.2)",
+            primary: "#1D4ED8", // Royal Blue
+            secondary: "#2563EB", // Vibrant Blue
+            accent: "#0284C7", // Sky Accent
+            backgroundColor: "#F8FAFC", // Clean Crisp White
+            surfaceColor: "rgba(255, 255, 255, 0.95)",
+            textColor: "#0F172A", // Deep Navy / Charcoal
+            textMutedColor: "#475569", // Slate Muted
+            glowColor: "rgba(37, 99, 235, 0.15)",
+            borderColor: "rgba(37, 99, 235, 0.25)",
           }
-        : isTree
+        : isCyber
           ? {
-              primary: "#FACC15",
-              secondary: "#15803D",
-              accent: "#EAB308",
-              backgroundColor: "#0A160F",
-              surfaceColor: "rgba(20, 35, 25, 0.8)",
-              textColor: "#F8FAFC",
-              textMutedColor: "rgba(255, 255, 255, 0.7)",
-              glowColor: "rgba(250, 204, 21, 0.35)",
-              borderColor: "rgba(250, 204, 21, 0.2)",
+              primary: "#00F5FF",
+              secondary: "#7928CA",
+              accent: "#FFE600",
+              backgroundColor: "#05070D",
+              surfaceColor: "rgba(10, 15, 30, 0.75)",
+              textColor: "#FFFFFF",
+              textMutedColor: "rgba(255, 255, 255, 0.65)",
+              glowColor: "rgba(0, 245, 255, 0.4)",
+              borderColor: "rgba(0, 245, 255, 0.2)",
             }
-          : this.defaultPalette();
+          : isTree
+            ? {
+                primary: "#FACC15",
+                secondary: "#15803D",
+                accent: "#EAB308",
+                backgroundColor: "#0A160F",
+                surfaceColor: "rgba(20, 35, 25, 0.8)",
+                textColor: "#F8FAFC",
+                textMutedColor: "rgba(255, 255, 255, 0.7)",
+                glowColor: "rgba(250, 204, 21, 0.35)",
+                borderColor: "rgba(250, 204, 21, 0.2)",
+              }
+            : this.defaultPalette();
 
     return {
       planId,
@@ -707,13 +795,15 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
       mode,
       prompt,
       creativeBrief: {
-        title: prompt.slice(0, 35),
-        subject: prompt,
+        title: isADHD ? "Built Differently: Thriving with ADHD" : isVikas ? "Vikas Swami: Tech Leadership & Dual Enterprise Scale" : `${topicUpper}: Commercial Showcase`,
+        subject: isADHD ? "ADHD awareness, neurodiversity empowerment, and cognitive potential" : cleanTopic,
         goal: "Drive high engagement and retention with prompt-native video storytelling",
-        audience: "Modern audience and professionals",
-        videoType: isShoe ? "advertisement" : isChart ? "data_visualization" : isNetwork || isTree ? "explainer" : "motion_graphics",
-        visualDirection: "Curated modern aesthetic with fluid GSAP micro-animations and custom color harmony",
-        tone: "Dynamic, polished, and authoritative",
+        audience: isADHD ? "Neurodivergent individuals, educators, and creative professionals" : "Modern audience and professionals",
+        videoType: isShoe || isADHD ? "advertisement" : isChart ? "data_visualization" : isNetwork || isTree ? "explainer" : "motion_graphics",
+        visualDirection: isADHD
+          ? "Deep cognitive focus theme with pulsating neon neural connections, dark glassmorphism, and fluid kinetic typography"
+          : "Curated modern aesthetic with fluid GSAP micro-animations and custom color harmony",
+        tone: isADHD ? "Empathetic, inspiring, and powerfully energetic" : "Dynamic, polished, and authoritative",
         duration,
         aspectRatio,
         resolution: width === 1920 ? "1080p" : "720p",
@@ -726,7 +816,7 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
       script: {
         hook: scenes[0]?.narration || "Welcome to the future",
         fullNarrative: scenes.map((s) => s.narration).join(" "),
-        callToAction: "Explore the new standard today",
+        callToAction: isADHD ? "Embrace your mind and unleash your hyperfocus" : "Explore the new standard today",
         scenesScript: scenes.map((s) => ({
           sceneId: s.id,
           spokenNarration: s.narration,

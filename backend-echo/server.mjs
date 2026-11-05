@@ -4477,7 +4477,7 @@ const server = http.createServer(async (req, res) => {
             assets: Array.isArray(body.assets) ? body.assets : [],
             avatarId: body.avatarId,
             voiceId: body.voiceId,
-            model: body.model || "deepseek-v4-flash",
+            model: body.model || process.env.AI_MODEL || "gemini-3-flash",
             mode: body.mode || "plan",
           },
           provider,
