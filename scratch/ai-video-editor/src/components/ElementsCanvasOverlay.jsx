@@ -239,47 +239,35 @@ export function ElementsCanvasOverlay({
         targetEl.setAttribute("data-hf-id", el.id);
       }
 
-      // Measure exact text bounds snug to the sentence (top to bottom, left to right)
+      // Measure exact bounds of the element (boxes, cards, buttons, badges, and text)
       let r = targetEl.getBoundingClientRect();
-      const tagLower = targetEl.tagName ? targetEl.tagName.toLowerCase() : "";
-      if (tagLower !== "img" && tagLower !== "svg" && tagLower !== "video") {
-        try {
-          const ownerDoc = targetEl.ownerDocument || doc;
-          const range = ownerDoc.createRange();
-          range.selectNodeContents(targetEl);
-          const rangeRect = range.getBoundingClientRect();
-          if (rangeRect && rangeRect.width > 0 && rangeRect.height > 0) {
-            r = rangeRect;
-          }
-        } catch (e) {}
 
-        // If targetEl has child elements (e.g. split rows / words), verify bounds cover ALL children
-        if (targetEl.children && targetEl.children.length > 0) {
-          let minLeft = r ? r.left : Infinity;
-          let minTop = r ? r.top : Infinity;
-          let maxRight = r ? r.right : -Infinity;
-          let maxBottom = r ? r.bottom : -Infinity;
-          let hasValidChild = false;
-          for (const child of targetEl.children) {
-            const cr = child.getBoundingClientRect();
-            if (cr && cr.width > 0 && cr.height > 0) {
-              minLeft = Math.min(minLeft, cr.left);
-              minTop = Math.min(minTop, cr.top);
-              maxRight = Math.max(maxRight, cr.right);
-              maxBottom = Math.max(maxBottom, cr.bottom);
-              hasValidChild = true;
-            }
+      // If targetEl has child elements, ensure bounds encompass all visible children
+      if (targetEl.children && targetEl.children.length > 0) {
+        let minLeft = r ? r.left : Infinity;
+        let minTop = r ? r.top : Infinity;
+        let maxRight = r ? r.right : -Infinity;
+        let maxBottom = r ? r.bottom : -Infinity;
+        let hasValidChild = false;
+        for (const child of targetEl.children) {
+          const cr = child.getBoundingClientRect();
+          if (cr && cr.width > 0 && cr.height > 0) {
+            minLeft = Math.min(minLeft, cr.left);
+            minTop = Math.min(minTop, cr.top);
+            maxRight = Math.max(maxRight, cr.right);
+            maxBottom = Math.max(maxBottom, cr.bottom);
+            hasValidChild = true;
           }
-          if (hasValidChild && maxRight > minLeft && maxBottom > minTop) {
-            r = {
-              left: minLeft,
-              top: minTop,
-              right: maxRight,
-              bottom: maxBottom,
-              width: maxRight - minLeft,
-              height: maxBottom - minTop,
-            };
-          }
+        }
+        if (hasValidChild && maxRight > minLeft && maxBottom > minTop) {
+          r = {
+            left: Math.min(r.left, minLeft),
+            top: Math.min(r.top, minTop),
+            right: Math.max(r.right, maxRight),
+            bottom: Math.max(r.bottom, maxBottom),
+            width: Math.max(r.right, maxRight) - Math.min(r.left, minLeft),
+            height: Math.max(r.bottom, maxBottom) - Math.min(r.top, minTop),
+          };
         }
       }
       if (!r || (r.width <= 0 && r.height <= 0)) return null;
@@ -288,8 +276,8 @@ export function ElementsCanvasOverlay({
       const isGraphic = el.type === "image" || el.tag === "svg" || el.tag === "path" || el.tag === "line";
       const isThin = isGraphic && r.width < 30;
       const isShort = isGraphic && r.height < 30;
-      const targetW = isThin ? Math.max(48, r.width + 24) : r.width + 4;
-      const targetH = isShort ? Math.max(48, r.height + 24) : r.height + 4;
+      const targetW = isThin ? Math.max(48, r.width + 24) : r.width;
+      const targetH = isShort ? Math.max(48, r.height + 24) : r.height;
 
       let offsetLeft = 0;
       let offsetTop = 0;

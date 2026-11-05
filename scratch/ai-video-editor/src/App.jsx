@@ -1856,21 +1856,23 @@ export function App({ hostSession = null }) {
                 const tagRegex = new RegExp(`(<[^>]+(?:data-hf-id|id)=["']${el.id}["'][^>]*)>`, "i");
                 if (tagRegex.test(fileContent)) {
                   fileContent = fileContent.replace(tagRegex, (match, openTag) => {
-                    const cleanPos = (s) => (s || "").replace(/(?:position|left|top|margin|transform|width|height|z-index)\s*:[^;]+;?/gi, "").replace(/;\s*;/g, ";").trim();
+                    const cleanPos = (s) => (s || "").replace(/(?:position|left|top|margin|transform|z-index)\s*:[^;]+;?/gi, "").replace(/;\s*;/g, ";").trim();
                     if (openTag.includes('style="')) {
                       return openTag.replace(/style=["']([^"']*)["']/, (m, existing) => {
                         const cleaned = cleanPos(existing);
                         if (el.hasMoved && el.placement) {
-                          const isImg = el.tag === "img" || el.type === "image" || el.tag === "svg";
-                          const widthStyle = isImg && el.placement.width ? ` width: ${el.placement.width}px;` : " width: fit-content; max-width: 90%;";
-                          const posStyles = `position: absolute; left: ${el.placement.x}%; top: ${el.placement.y}%; margin: 0; transform: none;${widthStyle}`;
+                          const widthStyle = (el.isResizing && el.placement.width) ? ` width: ${el.placement.width}px;` : "";
+                          const heightStyle = (el.isResizing && el.placement.height) ? ` height: ${el.placement.height}px;` : "";
+                          const posStyles = `position: absolute; left: ${el.placement.x}%; top: ${el.placement.y}%; margin: 0; transform: none;${widthStyle}${heightStyle}`;
                           return `style="${cleaned ? cleaned + '; ' : ''}${posStyles}"`;
                         } else {
                           return cleaned ? `style="${cleaned}"` : "";
                         }
                       }) + ">";
                     } else if (el.hasMoved && el.placement) {
-                      const posStyles = `position: absolute; left: ${el.placement.x}%; top: ${el.placement.y}%; margin: 0; transform: none; width: fit-content; max-width: 90%;`;
+                      const widthStyle = (el.isResizing && el.placement.width) ? ` width: ${el.placement.width}px;` : "";
+                      const heightStyle = (el.isResizing && el.placement.height) ? ` height: ${el.placement.height}px;` : "";
+                      const posStyles = `position: absolute; left: ${el.placement.x}%; top: ${el.placement.y}%; margin: 0; transform: none;${widthStyle}${heightStyle}`;
                       return `${openTag} style="${posStyles}">`;
                     }
                     return openTag + ">";
@@ -1963,11 +1965,14 @@ export function App({ hostSession = null }) {
               }
               if (changes.placement && changes.hasMoved) {
                 const pl = changes.placement;
+                const ownerDoc = targetEl.ownerDocument || doc;
+                const docW = ownerDoc.documentElement?.clientWidth || 1920;
+                const docH = ownerDoc.documentElement?.clientHeight || 1080;
 
                 // Insert layout spacer in parent if not already present to prevent sibling shift
                 const parent = targetEl.parentNode;
                 if (parent && !parent.querySelector(`[data-hf-spacer-for="${target.id}"]`)) {
-                  const spacer = doc.createElement("div");
+                  const spacer = ownerDoc.createElement("div");
                   spacer.setAttribute("data-hf-spacer-for", target.id);
                   spacer.className = "hf-layout-spacer";
                   spacer.style.width = `${targetEl.offsetWidth || 100}px`;
@@ -1981,13 +1986,14 @@ export function App({ hostSession = null }) {
                   parent.insertBefore(spacer, targetEl);
                 }
 
-                targetEl.style.position = "absolute";
-                targetEl.style.margin = "0";
-                targetEl.style.transition = "none";
-
-                const ownerDoc = targetEl.ownerDocument || doc;
-                const docW = ownerDoc.documentElement?.clientWidth || 1920;
-                const docH = ownerDoc.documentElement?.clientHeight || 1080;
+                // Lock original rendered dimensions before becoming absolute so shape and padding never collapse
+                if (targetEl.offsetWidth > 0 && (!targetEl.style.width || targetEl.style.width.includes("%") || targetEl.style.width.includes("fit-content"))) {
+                  targetEl.style.width = `${targetEl.offsetWidth}px`;
+                }
+                if (targetEl.offsetHeight > 0 && (!targetEl.style.height || targetEl.style.height.includes("%") || targetEl.style.height.includes("fit-content")) && target.tag !== "h1" && target.tag !== "h2" && target.tag !== "h3" && target.tag !== "p") {
+                  targetEl.style.height = `${targetEl.offsetHeight}px`;
+                }
+                targetEl.style.boxSizing = "border-box";
 
                 const pRect = targetEl.offsetParent ? targetEl.offsetParent.getBoundingClientRect() : { left: 0, top: 0 };
                 if (typeof pl.x === "number" && !isNaN(pl.x)) {
@@ -1998,24 +2004,21 @@ export function App({ hostSession = null }) {
                   const targetTopPx = (pl.y / 100) * docH;
                   targetEl.style.top = `${Math.round(targetTopPx - pRect.top)}px`;
                 }
+                targetEl.style.position = "absolute";
+                targetEl.style.margin = "0";
+                targetEl.style.transition = "none";
                 targetEl.style.transform = pl.isTopLeft ? "none" : "translate(-50%, -50%)";
                 targetEl.style.zIndex = changes.style?.zIndex ? String(changes.style.zIndex) : "999";
                 targetEl.style.pointerEvents = "auto";
 
-                const isImg = target.tag === "img" || target.type === "image" || target.tag === "svg";
-                if (isImg) {
-                  targetEl.style.maxWidth = "none";
-                  targetEl.style.maxHeight = "none";
-                  targetEl.style.animation = "none";
-                  targetEl.style.objectFit = "contain";
-                  if (pl.width) targetEl.style.width = typeof pl.width === "number" ? `${pl.width}px` : pl.width;
-                  if (pl.height) targetEl.style.height = typeof pl.height === "number" ? `${pl.height}px` : pl.height;
-                } else {
-                  if (typeof pl.width === "number" && pl.width > 0) {
+                // Only adjust width/height if explicitly resizing via corner resize handles
+                if (changes.isResizing) {
+                  const isImg = target.tag === "img" || target.type === "image" || target.tag === "svg";
+                  if (isImg) {
+                    if (pl.width) targetEl.style.width = typeof pl.width === "number" ? `${pl.width}px` : pl.width;
+                    if (pl.height) targetEl.style.height = typeof pl.height === "number" ? `${pl.height}px` : pl.height;
+                  } else if (typeof pl.width === "number" && pl.width > 0) {
                     targetEl.style.width = `${pl.width}px`;
-                  } else {
-                    targetEl.style.width = "fit-content";
-                    targetEl.style.maxWidth = "95%";
                   }
                 }
               }
@@ -2072,11 +2075,11 @@ export function App({ hostSession = null }) {
                 const isImg = target.tag === "img" || target.type === "image";
                 const zStyle = changes.style?.zIndex ? ` z-index: ${changes.style.zIndex};` : "";
                 const fontStyle = (!isImg && (changes.style?.fontSize || target.style?.fontSize)) ? ` font-size: ${changes.style?.fontSize || target.style?.fontSize}px;` : "";
-                const heightStyle = isImg && pl.height ? ` height: ${pl.height}px; max-height: none;` : "";
-                const widthStyle = isImg && pl.width ? ` width: ${pl.width}px; max-width: none;` : " width: fit-content; max-width: 90%;";
+                const heightStyle = (changes.isResizing && pl.height) ? ` height: ${pl.height}px;` : "";
+                const widthStyle = (changes.isResizing && pl.width) ? ` width: ${pl.width}px;` : "";
                 const animStyle = isImg ? " animation: none;" : "";
                 const posStyles = `position: absolute; left: ${plX}%; top: ${plY}%; margin: 0; transform: none;${widthStyle}${heightStyle}${fontStyle}${zStyle}${animStyle}`;
-                const cleanPos = (s) => (s || "").replace(/(?:position|left|top|margin|transform|width|height|max-width|max-height|z-index|animation)\s*:[^;]+;?/gi, "").replace(/;+/g, ";").replace(/^;\s*/, "").replace(/;\s*$/, "").trim();
+                const cleanPos = (s) => (s || "").replace(/(?:position|left|top|margin|transform|z-index|animation)\s*:[^;]+;?/gi, "").replace(/;+/g, ";").replace(/^;\s*/, "").replace(/;\s*$/, "").trim();
                 const tagRegex = new RegExp(`(<[^>]+(?:data-hf-id|id)=["']${target.id}["'][^>]*)>`, "i");
                 if (tagRegex.test(fileContent)) {
                   fileContent = fileContent.replace(tagRegex, (match, openTag) => {
