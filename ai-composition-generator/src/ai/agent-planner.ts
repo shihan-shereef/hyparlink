@@ -3,6 +3,7 @@ import { ColorPalette, TypographySpec, CreativeBrief } from "./creative-brief.js
 import { PlannedTimeline, PlannedScene } from "./scene-planner.js";
 import { AnalyzedAsset } from "./asset-analyzer.js";
 import { jsonrepair } from "jsonrepair";
+import { TopicResearcher, ResearchedTopicInfo } from "./topic-researcher.js";
 
 export interface PlanScene {
   id: string; // "scene-1", "scene-2", etc.
@@ -146,6 +147,8 @@ export class AgentPlanner {
     const fps = options.fps || 30;
     const aspectRatio: "16:9" | "9:16" | "1:1" = isPortrait ? "9:16" : isSquare ? "1:1" : "16:9";
 
+    const research = await TopicResearcher.research(prompt);
+
     // Attempt generation with LLM
     if (provider && typeof provider.complete === "function") {
       try {
@@ -216,13 +219,29 @@ CRITICAL RULES:
 1. TOTAL DURATION MATH: The sum of all scene 'duration' values MUST equal exactly ${duration} seconds.
 2. If the user provided a script, respect it scene-by-scene.
 3. Every scene MUST have a unique layout and distinct visual description matching the specific prompt. Do NOT make every scene look identical.
-4. METAPROMPT PURGE: NEVER echo user meta commands (e.g. 'create a video', 'adverstiment', '60 second', 'with animation', 'gsap motion') as headlines, subtitles, or narration. Instead, identify the core underlying product, mission, or human experience and author compelling, authentic advertising headlines, narrative story arcs, and persuasive voiceover scripts.`;
+4. METAPROMPT PURGE: NEVER echo user meta commands (e.g. 'create a video', 'adverstiment', '60 second', 'with animation', 'gsap motion') as headlines, subtitles, or narration. Instead, identify the core underlying product, mission, or human experience and author compelling, authentic advertising headlines, narrative story arcs, and persuasive voiceover scripts.
+5. DOMAIN INTEGRITY & AWARENESS AUTHENTICITY:
+- If this is an AWARENESS, EDUCATIONAL, or SCIENTIFIC video (${research.isAwareness ? "AWARENESS & EDUCATION REQUIRED" : "COMMERCIAL"}):
+  * Create an authentic, educational, destigmatizing, and empowering video using verified facts.
+  * NEVER invent a fake app, software, or company name (e.g., do NOT invent a fake app called 'Avirnas' or 'MindApp' and say 'Download Now').
+  * Feature verified real-world concepts, neurological realities, lived human experiences, and practical takeaways.
+- If this is a COMMERCIAL ADVERTISEMENT:
+  * Only highlight the real product or service specified by the user.`;
 
-        const cleanTopic = AgentPlanner.cleanPromptTopic(prompt);
+        const cleanTopic = research.cleanTopic;
         const userPrompt = `TOPIC / SUBJECT: "${cleanTopic}"
 ORIGINAL USER PROMPT: "${prompt}"
 DURATION: ${duration} seconds (EXACT)
 ORIENTATION: ${aspectRatio} (${width}x${height} @ ${fps}fps)
+RESEARCHED TOPIC FACTS & DOMAIN KNOWLEDGE:
+- Category: ${research.category.toUpperCase()} (${research.isAwareness ? "AWARENESS & EDUCATION — DO NOT INVENT FAKE APPS OR PRODUCTS" : "COMMERCIAL"})
+- Core Subject: "${research.cleanTopic}"
+- Summary: "${research.summary}"
+- Key Scientific / Real-World Facts (incorporate these into your scenes):
+${research.keyFacts.map((f) => `  * ${f}`).join("\n")}
+- Suggested Visual Themes:
+${research.visualThemes.map((v) => `  * ${v}`).join("\n")}
+- Tone: ${research.tone}
 ${options.script ? `USER SCRIPT: "${options.script}"` : ""}
 ${options.assets && options.assets.length > 0 ? `ATTACHED ASSETS: ${options.assets.map((a: any) => a.name || a.originalFilename).join(", ")}` : ""}
 ${options.avatarId ? `PRESENTER AVATAR ID: ${options.avatarId} (Voice: ${options.voiceId || "default"})` : ""}`;
@@ -244,7 +263,7 @@ ${options.avatarId ? `PRESENTER AVATAR ID: ${options.avatarId} (Voice: ${options
 
         const parsed = this.cleanAndParseJson(raw);
         if (parsed && Array.isArray(parsed.scenes) && parsed.scenes.length > 0) {
-          return this.assembleValidatedPlan(planId, mode, prompt, options, parsed, duration, width, height, fps, aspectRatio);
+          return this.assembleValidatedPlan(planId, mode, prompt, options, parsed, duration, width, height, fps, aspectRatio, research);
         }
       } catch (err: any) {
         console.warn(`[AgentPlanner] LLM planning notice: ${err.message}. Generating dynamic bespoke plan.`);
@@ -252,7 +271,7 @@ ${options.avatarId ? `PRESENTER AVATAR ID: ${options.avatarId} (Voice: ${options
     }
 
     // Heuristic synthesis fallback: creates a bespoke prompt-specific plan without generic repetition
-    return this.synthesizeBespokePlan(planId, mode, prompt, options, duration, width, height, fps, aspectRatio);
+    return this.synthesizeBespokePlan(planId, mode, prompt, options, duration, width, height, fps, aspectRatio, research);
   }
 
   /**
@@ -436,8 +455,44 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
     height: number,
     fps: number,
     aspectRatio: "16:9" | "9:16" | "1:1",
+    research?: ResearchedTopicInfo,
   ): VideoProductionPlan {
     const scenes = this.normalizeSceneTimings(parsed.scenes, duration);
+
+    // If an awareness video was requested, sanitize any hallucinated product/brand titles
+    let title = parsed.title || "AI Video Production";
+    let subject = parsed.subject || prompt;
+    let videoType = parsed.videoType || (research?.isAwareness ? "explainer" : "advertisement");
+    let callToAction = parsed.script?.callToAction || "Discover more";
+
+    if (research?.isAwareness) {
+      videoType = "explainer";
+      if (/\b(avirnas|focusapp|mindflow|mindapp|app|software|platform)\b/i.test(title)) {
+        title = research.title;
+      }
+      if (/\b(avirnas|download|buy|signup|sign up|pricing)\b/i.test(subject)) {
+        subject = research.summary;
+      }
+      if (/\b(download|buy|signup|get started with the app)\b/i.test(callToAction)) {
+        callToAction = "Understand, support, and celebrate neurodivergent minds";
+      }
+
+      // Sanitize scenes from prompt echoing or fake product names
+      for (const scene of scenes) {
+        if (scene.onScreenText?.headline && /\b(avirnas|meet avirnas|download avirnas)\b/i.test(scene.onScreenText.headline)) {
+          scene.onScreenText.headline = scene.onScreenText.headline.replace(/\bavirnas\b/gi, "NEURODIVERSITY").trim();
+        }
+        if (scene.onScreenText?.subtitle && /\bavirnas\b/i.test(scene.onScreenText.subtitle)) {
+          scene.onScreenText.subtitle = scene.onScreenText.subtitle.replace(/\bavirnas\b/gi, "awareness and understanding").trim();
+        }
+        if (scene.narration && /\bavirnas\b/i.test(scene.narration)) {
+          scene.narration = scene.narration.replace(/\bavirnas\b/gi, "this journey of awareness").trim();
+        }
+        if (scene.onScreenText?.ctaText && /\b(download|buy)\b/i.test(scene.onScreenText.ctaText)) {
+          scene.onScreenText.ctaText = "LEARN MORE";
+        }
+      }
+    }
 
     return {
       planId,
@@ -445,13 +500,13 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
       mode,
       prompt,
       creativeBrief: {
-        title: parsed.title || "AI Video Production",
-        subject: parsed.subject || prompt,
-        goal: parsed.goal || "Engage audience with professional video production",
-        audience: parsed.audience || "General Audience",
-        videoType: parsed.videoType || "advertisement",
+        title,
+        subject,
+        goal: parsed.goal || (research?.isAwareness ? "Raise awareness and provide research-backed educational insights" : "Engage audience with professional video production"),
+        audience: parsed.audience || (research?.isAwareness ? "General public, educators, and neurodivergent individuals" : "General Audience"),
+        videoType,
         visualDirection: parsed.visualDirection || "Cinematic modern aesthetic",
-        tone: parsed.tone || "Professional and engaging",
+        tone: parsed.tone || (research?.isAwareness ? "Empathetic, educational, and inspiring" : "Professional and engaging"),
         brandStyle: options.brandColors ? { primaryColor: options.brandColors.primary, accentColor: options.brandColors.accent } : undefined,
         duration,
         aspectRatio,
@@ -465,7 +520,7 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
       script: {
         hook: parsed.script?.hook || scenes[0]?.narration || "Welcome to the future",
         fullNarrative: parsed.script?.fullNarrative || scenes.map((s) => s.narration).join(" "),
-        callToAction: parsed.script?.callToAction || "Discover more",
+        callToAction,
         scenesScript: scenes.map((s) => ({
           sceneId: s.id,
           spokenNarration: s.narration,
@@ -493,14 +548,7 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
 
   public static cleanPromptTopic(raw: string): string {
     if (!raw) return "Innovation";
-    let cleaned = raw
-      .replace(/\b(create|make|generate|produce|build|author|show|render)\s*(?:a\s*)?(?:video|clip|ad|advertisement|adverstiment|promo|commercial|spot|explainer|presentation|ppt|slideshow)?\s*(?:of|about|for|on)?\b/gi, "")
-      .replace(/\b\d+\s*(?:second|seconds|sec|s|minute|minutes|min|m)\b/gi, "")
-      .replace(/\bwith\s*(?:some\s*)?(?:gsap|animation|animations|motion|effects|music|voiceover|presenter|avatar)?\b/gi, "")
-      .replace(/\b(?:in|at)?\s*(?:1080p|720p|4k|landscape|portrait|square|hd)\b/gi, "")
-      .trim();
-    cleaned = cleaned.replace(/^[\s,.-]+|[\s,.-]+$/g, "").replace(/\b(?:with|and|some|of|for|about)\s*$/i, "").trim();
-    return cleaned.length > 1 ? cleaned : "Dynamic Vision";
+    return TopicResearcher.extractCleanTopic(TopicResearcher.normalizePrompt(raw));
   }
 
   public static synthesizeBespokePlan(
@@ -513,11 +561,18 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
     height: number,
     fps: number,
     aspectRatio: "16:9" | "9:16" | "1:1",
+    research?: ResearchedTopicInfo,
   ): VideoProductionPlan {
     const p = prompt.toLowerCase();
     const cleanTopic = AgentPlanner.cleanPromptTopic(prompt);
     const topicUpper = cleanTopic.toUpperCase();
-    const isADHD = p.includes("adhd") || p.includes("neurodiverg") || p.includes("attention deficit") || p.includes("hyperfocus") || p.includes("executive function");
+    const isADHD =
+      p.includes("adhd") ||
+      p.includes("neurodiverg") ||
+      p.includes("attention deficit") ||
+      p.includes("hyperfocus") ||
+      p.includes("executive function") ||
+      (research && research.cleanTopic === "ADHD");
     const isTree = p.includes("tree") || p.includes("grow") || p.includes("seed");
     const isNetwork = p.includes("http") || p.includes("network") || p.includes("packet") || p.includes("server");
     const isChart = p.includes("revenue") || p.includes("chart") || p.includes("growth") || p.includes("metric");
@@ -795,15 +850,15 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
       mode,
       prompt,
       creativeBrief: {
-        title: isADHD ? "Built Differently: Thriving with ADHD" : isVikas ? "Vikas Swami: Tech Leadership & Dual Enterprise Scale" : `${topicUpper}: Commercial Showcase`,
-        subject: isADHD ? "ADHD awareness, neurodiversity empowerment, and cognitive potential" : cleanTopic,
-        goal: "Drive high engagement and retention with prompt-native video storytelling",
-        audience: isADHD ? "Neurodivergent individuals, educators, and creative professionals" : "Modern audience and professionals",
-        videoType: isShoe || isADHD ? "advertisement" : isChart ? "data_visualization" : isNetwork || isTree ? "explainer" : "motion_graphics",
+        title: isADHD ? "Understanding ADHD: The Power of Neurodiversity" : isVikas ? "Vikas Swami: Tech Leadership & Dual Enterprise Scale" : `${topicUpper}: Complete Overview`,
+        subject: isADHD ? "ADHD neurodevelopmental awareness, executive dysfunction, dopamine regulation, and cognitive strengths" : cleanTopic,
+        goal: isADHD ? "Raise awareness, destigmatize ADHD, and empower neurodivergent individuals through scientific insights" : "Drive high engagement and retention with prompt-native video storytelling",
+        audience: isADHD ? "General public, educators, families, and neurodivergent individuals" : "Modern audience and professionals",
+        videoType: isADHD ? "explainer" : isShoe ? "advertisement" : isChart ? "data_visualization" : isNetwork || isTree ? "explainer" : "motion_graphics",
         visualDirection: isADHD
           ? "Deep cognitive focus theme with pulsating neon neural connections, dark glassmorphism, and fluid kinetic typography"
           : "Curated modern aesthetic with fluid GSAP micro-animations and custom color harmony",
-        tone: isADHD ? "Empathetic, inspiring, and powerfully energetic" : "Dynamic, polished, and authoritative",
+        tone: isADHD ? "Empathetic, scientifically illuminating, and powerfully inspiring" : "Dynamic, polished, and authoritative",
         duration,
         aspectRatio,
         resolution: width === 1920 ? "1080p" : "720p",
@@ -816,7 +871,7 @@ OUTPUT FORMAT: Strict valid JSON containing the updated plan matching the existi
       script: {
         hook: scenes[0]?.narration || "Welcome to the future",
         fullNarrative: scenes.map((s) => s.narration).join(" "),
-        callToAction: isADHD ? "Embrace your mind and unleash your hyperfocus" : "Explore the new standard today",
+        callToAction: isADHD ? "Understand, support, and celebrate neurodivergent minds" : "Explore the new standard today",
         scenesScript: scenes.map((s) => ({
           sceneId: s.id,
           spokenNarration: s.narration,
