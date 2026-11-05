@@ -3144,19 +3144,117 @@ export function App({ hostSession = null }) {
             try {
               const parser = new DOMParser();
               const doc = parser.parseFromString(compHtml, "text/html");
+
+              // 1. Query all image elements in this subcomposition
+              const imgNodes = doc.querySelectorAll("img:not([hidden]), .product-image, .feature-image");
+              imgNodes.forEach((imgNode, imgIdx) => {
+                const src = imgNode.getAttribute("src");
+                if (!src) return;
+                const realId = imgNode.getAttribute("data-hf-id") || imgNode.id || `el-${scId}-img-${imgIdx}`;
+                if (extracted.some((e) => e.id === realId)) return;
+                const alt = imgNode.getAttribute("alt") || src.split("/").pop()?.split("?")[0] || "Image";
+                extracted.push({
+                  id: realId,
+                  sceneId: scId,
+                  sceneIndex: idx,
+                  file: relPath,
+                  field: "image",
+                  tag: "img",
+                  type: "image",
+                  name: `Image: ${alt.slice(0, 20)}`,
+                  text: alt,
+                  originalText: alt,
+                  src: src,
+                  sceneStart: scStart,
+                  sceneDuration: scDur,
+                  isModified: false,
+                  style: { objectFit: "contain" },
+                  placement: { x: 50, y: 50, width: 400, height: 300, isTopLeft: false },
+                  visible: true,
+                });
+              });
+
+              // 2. Query SVG graphics and illustration shapes in this subcomposition
+              const svgNodes = doc.querySelectorAll("svg, .map, .illustration, .graphic, .diagram");
+              svgNodes.forEach((svgEl, sIdx) => {
+                const shapeNodes = svgEl.querySelectorAll("path[data-hf-id], circle[data-hf-id], rect[data-hf-id], polygon[data-hf-id], g[data-hf-id]");
+                if (shapeNodes.length > 0) {
+                  shapeNodes.forEach((shape, shIdx) => {
+                    const shapeId = shape.getAttribute("data-hf-id") || `el-${scId}-shape-${sIdx}-${shIdx}`;
+                    if (extracted.some((e) => e.id === shapeId)) return;
+                    const stroke = shape.getAttribute("stroke") || "";
+                    const fill = shape.getAttribute("fill") || "";
+                    const shapeName = `Graphic (${shape.tagName.toLowerCase()})`;
+                    extracted.push({
+                      id: shapeId,
+                      sceneId: scId,
+                      sceneIndex: idx,
+                      file: relPath,
+                      field: "illustration",
+                      tag: shape.tagName.toLowerCase(),
+                      type: "image",
+                      name: `Graphic: ${shapeName}`,
+                      text: shapeName,
+                      originalText: shapeName,
+                      sceneStart: scStart,
+                      sceneDuration: scDur,
+                      isModified: false,
+                      style: { color: stroke || fill || "#00e0ff" },
+                      placement: { x: 50, y: 50, width: 120, height: 120, isTopLeft: true },
+                      visible: true,
+                    });
+                  });
+                } else {
+                  const svgId = svgEl.getAttribute("data-hf-id") || svgEl.id || `el-${scId}-svg-${sIdx}`;
+                  if (!extracted.some((e) => e.id === svgId)) {
+                    extracted.push({
+                      id: svgId,
+                      sceneId: scId,
+                      sceneIndex: idx,
+                      file: relPath,
+                      field: "illustration",
+                      tag: "svg",
+                      type: "image",
+                      name: "Graphic: Vector",
+                      text: "Vector Graphic",
+                      originalText: "Vector Graphic",
+                      sceneStart: scStart,
+                      sceneDuration: scDur,
+                      isModified: false,
+                      style: { color: "#00e0ff" },
+                      placement: { x: 50, y: 50, width: 300, height: 200, isTopLeft: false },
+                      visible: true,
+                    });
+                  }
+                }
+              });
+
+              // 3. Query all text and visual elements across the subcomposition
               const textNodes = doc.querySelectorAll(
-                "h1, h2, h3, h4, p, .headline, .hero-headline, .title, .mega, .big, .description, .hero-subtitle, .sub, .subtitle, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, .badge-pill, button, a"
+                "h1, h2, h3, h4, h5, h6, p, .headline, .hero-headline, .title, .mega, .big, .description, .hero-subtitle, .sub, .subtitle, .eyebrow, .kicker, .scene-number, .num, .corner-mark, .date, .bottom-label, .pill, .badge-pill, .badge, .tag, .stat, .metric, [class*='metric'], [class*='stat'], button, a, [class*='btn'], [class*='cta'], [data-hf-id], span, strong, em, b, div[style*='font'], div[style*='position'], .glass-card > div, .card > div, li"
               );
 
-              const seenTexts = new Set();
+              const seenKeys = new Set();
               textNodes.forEach((node, nodeIdx) => {
-                if (node.querySelector("h1, h2, h3, p, .headline, .description")) return;
-                const rawText = node.textContent?.replace(/\s+/g, " ").trim();
-                if (!rawText || seenTexts.has(rawText)) return;
-                seenTexts.add(rawText);
-
                 const tag = node.tagName.toLowerCase();
+                if (tag === "svg" || tag === "path" || tag === "img" || tag === "script" || tag === "style") return;
+                if (node.id === "root" || node.id === "scenes" || node.id === "composition" || node.classList?.contains("ambient-glow-orb") || node.classList?.contains("grid-overlay")) return;
+
+                // Skip high-level containers unless they have a direct explicit data-hf-id
+                const hasExplicitHfId = !!node.getAttribute("data-hf-id");
+                if (!hasExplicitHfId && node.querySelector("h1, h2, h3, h4, h5, h6, p, .headline, .description, [data-hf-id], .glass-card > div, li")) {
+                  return;
+                }
+
+                const rawText = decodeHtmlEntities(node.textContent?.replace(/\s+/g, " ").trim() || "");
+                if (!rawText || rawText.length === 0 || rawText.length > 300) return;
+
                 const cls = getSafeClassName(node).toLowerCase();
+                const realId = node.getAttribute("data-hf-id") || node.id || `el-${scId}-${tag}-${nodeIdx}`;
+
+                const dedupeKey = `${realId}-${rawText}`;
+                if (seenKeys.has(dedupeKey)) return;
+                seenKeys.add(dedupeKey);
 
                 let field = "text";
                 let type = "text";
@@ -3166,58 +3264,74 @@ export function App({ hostSession = null }) {
                 if (tag === "h1" || tag === "h2" || tag === "h3" || cls.includes("headline") || cls.includes("title") || cls.includes("mega") || cls.includes("big")) {
                   field = "title";
                   type = "heading";
-                  fontSize = tag === "h1" ? 64 : 48;
+                  fontSize = tag === "h1" ? 64 : tag === "h2" ? 48 : 36;
                   fontWeight = 700;
-                } else if (cls.includes("description") || cls.includes("sub") || tag === "p") {
+                } else if (cls.includes("description") || cls.includes("sub") || cls.includes("subtitle") || tag === "p") {
                   field = "description";
                   type = "text";
-                  fontSize = 24;
+                  fontSize = 22;
                   fontWeight = 300;
-                } else if (cls.includes("eyebrow") || cls.includes("kicker")) {
+                } else if (cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("label") || cls.includes("caption")) {
                   field = "eyebrow";
                   type = "badge";
-                  fontSize = 20;
+                  fontSize = 18;
                   fontWeight = 600;
                 } else if (cls.includes("scene-number") || cls.includes("num") || cls.includes("number")) {
                   field = "number";
                   type = "badge";
                   fontSize = 18;
-                } else if (cls.includes("corner-mark") || cls.includes("date") || cls.includes("bottom-label") || cls.includes("pill") || cls.includes("badge")) {
+                  fontWeight = 600;
+                } else if (cls.includes("corner-mark") || cls.includes("date") || cls.includes("bottom-label") || cls.includes("pill") || cls.includes("badge") || cls.includes("tag")) {
                   field = "badge";
                   type = "badge";
                   fontSize = 16;
+                  fontWeight = 600;
+                } else if (cls.includes("metric") || cls.includes("stat") || cls.includes("value") || cls.includes("display-font")) {
+                  field = "stat";
+                  type = "text";
+                  fontSize = 32;
+                  fontWeight = 800;
                 } else if (tag === "button" || cls.includes("cta") || cls.includes("btn")) {
                   field = "button";
                   type = "button";
                   fontSize = 18;
+                  fontWeight = 700;
+                } else if (tag === "span" || tag === "strong" || tag === "em" || tag === "b") {
+                  field = "text";
+                  type = "text";
+                  fontSize = 20;
+                  fontWeight = tag === "strong" || tag === "b" ? 700 : 400;
                 }
 
+                const shortText = rawText.slice(0, 24);
+                const friendlyType = type === "heading" ? "Title" : type === "badge" ? "Badge" : field === "stat" ? "Metric" : "Text";
+
                 extracted.push({
-                  id: `el-${scId}-${field}-${nodeIdx}`,
+                  id: realId,
                   sceneId: scId,
                   sceneIndex: idx,
                   file: relPath,
                   field,
                   tag,
                   type,
-                  name: `${field.toUpperCase()}: ${rawText.slice(0, 20)}`,
+                  name: `${friendlyType}: ${shortText}`,
                   text: rawText,
                   originalText: rawText,
                   sceneStart: scStart,
                   sceneDuration: scDur,
                   isModified: false,
                   style: {
-                    fontFamily: "'Inter', sans-serif",
+                    fontFamily: type === "heading" ? "Georgia, 'Times New Roman', serif" : "'Inter', sans-serif",
                     fontSize,
                     fontWeight,
-                    color: "#ffffff",
+                    color: field === "eyebrow" || field === "badge" ? "#00e0ff" : "#ffffff",
                     textAlign: "left",
                   },
                   placement: {
                     x: 10,
-                    y: 20 + (nodeIdx * 12) % 65,
-                    width: 500,
-                    height: 60,
+                    y: 15 + (nodeIdx * 7) % 72,
+                    width: type === "heading" ? 700 : 400,
+                    height: type === "heading" ? 80 : 40,
                     isTopLeft: true,
                   },
                   visible: true,
@@ -3413,7 +3527,9 @@ export function App({ hostSession = null }) {
             if (currentPrev.length === 0 || currentPrev.some((el) => el.id === "el-main-title")) {
               return liveElements;
             }
-            return currentPrev.map((el) => {
+            const existingIds = new Set(currentPrev.map((el) => el.id));
+            const existingTexts = new Set(currentPrev.map((el) => `${el.sceneIndex ?? ""}-${(el.text || "").trim().toLowerCase()}`));
+            const merged = currentPrev.map((el) => {
               const live = liveElements?.find((l) =>
                 l.id === el.id ||
                 ((el.sceneIndex === undefined || l.sceneIndex === el.sceneIndex) &&
@@ -3428,6 +3544,14 @@ export function App({ hostSession = null }) {
               }
               return el;
             });
+            liveElements.forEach((l) => {
+              const textKey = `${l.sceneIndex ?? ""}-${(l.text || "").trim().toLowerCase()}`;
+              if (!existingIds.has(l.id) && !existingTexts.has(textKey)) {
+                merged.push(l);
+                existingIds.add(l.id);
+              }
+            });
+            return merged;
           });
         }
       } else if (event.data.type === "HYPERLINK_ELEMENT_CLICKED") {

@@ -290,12 +290,27 @@ export function ElementsCanvasOverlay({
       const isShort = isGraphic && r.height < 30;
       const targetW = isThin ? Math.max(48, r.width + 24) : r.width + 4;
       const targetH = isShort ? Math.max(48, r.height + 24) : r.height + 4;
-      const left = Math.max(0, r.left - (targetW - r.width) / 2);
-      const top = Math.max(0, r.top - (targetH - r.height) / 2);
+
+      let offsetLeft = 0;
+      let offsetTop = 0;
+      if (targetEl.ownerDocument !== doc) {
+        const subIframes = doc.querySelectorAll("iframe");
+        for (const subIfr of subIframes) {
+          if (subIfr.contentDocument === targetEl.ownerDocument) {
+            const ifrRect = subIfr.getBoundingClientRect();
+            offsetLeft = ifrRect.left;
+            offsetTop = ifrRect.top;
+            break;
+          }
+        }
+      }
+
+      const left = Math.max(0, offsetLeft + r.left - (targetW - r.width) / 2);
+      const top = Math.max(0, offsetTop + r.top - (targetH - r.height) / 2);
       const width = targetW;
       const height = targetH;
 
-      const iframeDoc = targetEl.ownerDocument || doc;
+      const iframeDoc = doc;
       const docW = iframeDoc?.documentElement?.clientWidth || 1920;
       const docH = iframeDoc?.documentElement?.clientHeight || 1080;
 
@@ -549,18 +564,65 @@ export function ElementsCanvasOverlay({
               const clickX = ((e.clientX - rect.left) / rect.width) * docW;
               const clickY = ((e.clientY - rect.top) / rect.height) * docH;
 
+              let targetDoc = doc;
+              let targetWin = iframe.contentWindow;
+              let localClickX = clickX;
+              let localClickY = clickY;
+              let activeSubIframe = null;
+
+              // Check if click coordinates fall inside an active sub-iframe (subcomposition)
+              const subIframes = Array.from(doc.querySelectorAll("iframe"));
+              for (const subIfr of subIframes) {
+                try {
+                  const sRect = subIfr.getBoundingClientRect();
+                  const sStyle = subIfr.ownerDocument.defaultView?.getComputedStyle(subIfr);
+                  const parentStyle = subIfr.parentElement ? subIfr.ownerDocument.defaultView?.getComputedStyle(subIfr.parentElement) : null;
+                  const isVisible = sStyle?.visibility !== "hidden" && sStyle?.opacity !== "0" && sStyle?.display !== "none" &&
+                    parentStyle?.visibility !== "hidden" && parentStyle?.opacity !== "0" && parentStyle?.display !== "none";
+                  if (isVisible && clickX >= sRect.left && clickX <= sRect.right && clickY >= sRect.top && clickY <= sRect.bottom) {
+                    const sDoc = subIfr.contentDocument || subIfr.contentWindow?.document;
+                    if (sDoc) {
+                      targetDoc = sDoc;
+                      targetWin = subIfr.contentWindow;
+                      localClickX = clickX - sRect.left;
+                      localClickY = clickY - sRect.top;
+                      activeSubIframe = subIfr;
+                      break;
+                    }
+                  }
+                } catch (err) {}
+              }
+
+              // Fallback: if top-level elementFromPoint hits an iframe, pierce it
+              if (targetDoc === doc) {
+                const topHit = doc.elementFromPoint ? doc.elementFromPoint(clickX, clickY) : null;
+                if (topHit && topHit.tagName?.toLowerCase() === "iframe") {
+                  try {
+                    const sDoc = topHit.contentDocument || topHit.contentWindow?.document;
+                    if (sDoc) {
+                      const sRect = topHit.getBoundingClientRect();
+                      targetDoc = sDoc;
+                      targetWin = topHit.contentWindow;
+                      localClickX = clickX - sRect.left;
+                      localClickY = clickY - sRect.top;
+                      activeSubIframe = topHit;
+                    }
+                  } catch (err) {}
+                }
+              }
+
               const isIgnored = (el) => {
                 if (!el || !el.tagName) return true;
                 const tag = el.tagName.toLowerCase();
-                if (["html", "body", "main", "video"].includes(tag)) return true;
+                if (["html", "body", "main", "video", "iframe"].includes(tag)) return true;
                 if (["composition", "root", "scenes", "hud", "barTop", "barBot", "flare"].includes(el.id)) return true;
                 const cls = typeof el.className === "string" ? el.className.toLowerCase() : (typeof el.className === "object" && el.className?.baseVal ? el.className.baseVal.toLowerCase() : "");
-                if (cls.includes("scene-background") || cls.includes("grid-overlay") || cls.includes("film-grain") || cls.includes("grain") || cls.includes("scene-overlay") || cls.includes("progress-track") || cls.includes("progress-bar") || cls.includes("flare")) return true;
+                if (cls.includes("scene-background") || cls.includes("grid-overlay") || cls.includes("film-grain") || cls.includes("grain") || cls.includes("scene-overlay") || cls.includes("progress-track") || cls.includes("progress-bar") || cls.includes("flare") || cls.includes("ambient-glow-orb")) return true;
                 return false;
               };
 
-              // TIER 1: Exact direct hit at (clickX, clickY)
-              const directHit = doc.elementFromPoint ? doc.elementFromPoint(clickX, clickY) : null;
+              // TIER 1: Exact direct hit at (localClickX, localClickY)
+              const directHit = targetDoc.elementFromPoint ? targetDoc.elementFromPoint(localClickX, localClickY) : null;
               if (directHit && !isIgnored(directHit)) {
                 // 1a. Check exact match by data-hf-id or id on directHit or its closest ancestor
                 const directTarget = directHit.closest?.("[data-hf-id], [id]");
@@ -575,7 +637,7 @@ export function ElementsCanvasOverlay({
                   }
                 }
 
-                // 1b. If directHit is a container (e.g. .panel, .columns, .card), find child element closest to (clickX, clickY)
+                // 1b. If directHit is a container (e.g. .panel, .columns, .card), find child element closest to (localClickX, localClickY)
                 const cardContainer = directHit.closest?.(".panel, .card, .columns, [class*='panel'], [class*='card']");
                 if (cardContainer) {
                   const candidateChildren = Array.from(cardContainer.querySelectorAll("[data-hf-id], h1, h2, h3, h4, h5, h6, p, .label, .caption, span"));
@@ -588,7 +650,7 @@ export function ElementsCanvasOverlay({
                       const cr = child.getBoundingClientRect();
                       const centerX = cr.left + cr.width / 2;
                       const centerY = cr.top + cr.height / 2;
-                      const dist = Math.hypot(clickX - centerX, clickY - centerY);
+                      const dist = Math.hypot(localClickX - centerX, localClickY - centerY);
                       if (dist < closestDist) {
                         closestDist = dist;
                         closestEl = matchedEl;
@@ -615,13 +677,27 @@ export function ElementsCanvasOverlay({
               const hitSet = new Set();
               const hits = [];
               for (const [ox, oy] of probeOffsets) {
-                const px = clickX + ox;
-                const py = clickY + oy;
-                const ptHits = doc.elementsFromPoint ? doc.elementsFromPoint(px, py) : [doc.elementFromPoint(px, py)].filter(Boolean);
+                const px = localClickX + ox;
+                const py = localClickY + oy;
+                const ptHits = targetDoc.elementsFromPoint ? targetDoc.elementsFromPoint(px, py) : [targetDoc.elementFromPoint(px, py)].filter(Boolean);
                 for (const h of ptHits) {
                   if (h && !hitSet.has(h)) {
                     hitSet.add(h);
                     hits.push(h);
+                  }
+                }
+              }
+              // If targetDoc is sub-iframe, also probe main doc for global elements (topbar, watermark)
+              if (targetDoc !== doc) {
+                for (const [ox, oy] of probeOffsets) {
+                  const px = clickX + ox;
+                  const py = clickY + oy;
+                  const topHits = doc.elementsFromPoint ? doc.elementsFromPoint(px, py) : [doc.elementFromPoint(px, py)].filter(Boolean);
+                  for (const h of topHits) {
+                    if (h && h.tagName?.toLowerCase() !== "iframe" && !hitSet.has(h)) {
+                      hitSet.add(h);
+                      hits.push(h);
+                    }
                   }
                 }
               }
@@ -829,14 +905,28 @@ export function ElementsCanvasOverlay({
                   if (!textEl.getAttribute("data-hf-id")) textEl.setAttribute("data-hf-id", newId);
                   const cls = typeof textEl.className === "string" ? textEl.className.toLowerCase() : "";
                   const isH = tag.startsWith("h") || cls.includes("headline") || cls.includes("title") || cls.includes("big") || cls.includes("mega");
-                  const isPill = cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("scene-number") || cls.includes("badge");
+                  const isPill = cls.includes("eyebrow") || cls.includes("kicker") || cls.includes("scene-number") || cls.includes("badge") || cls.includes("pill");
+                  const isStat = cls.includes("metric") || cls.includes("stat") || cls.includes("value") || cls.includes("display-font");
                   const newType = isH ? "heading" : isPill ? "badge" : "text";
-                  const friendlyLabel = isH ? "Title" : isPill ? "Badge" : "Text";
+                  const friendlyLabel = isH ? "Title" : isPill ? "Badge" : isStat ? "Metric" : "Text";
                   const tRect = textEl.getBoundingClientRect();
+
+                  const subHost = activeSubIframe?.parentElement;
+                  const subFile = activeSubIframe?.getAttribute("src") || subHost?.getAttribute("data-composition-src") || "index.html";
+                  const subId = subHost?.id || subHost?.getAttribute("data-composition-id") || "scene-1";
+                  const subStart = parseFloat(subHost?.getAttribute("data-start") || "0") || Math.max(0, currentTime - 1);
+                  const subDur = parseFloat(subHost?.getAttribute("data-duration") || "10") || 10;
+                  const sRect = activeSubIframe ? activeSubIframe.getBoundingClientRect() : null;
+
+                  const posX = tRect ? (( (sRect ? sRect.left : 0) + tRect.left) / 1920) * 100 : (clickX / 1920) * 100;
+                  const posY = tRect ? (( (sRect ? sRect.top : 0) + tRect.top) / 1080) * 100 : (clickY / 1080) * 100;
+
                   const newEl = {
                     id: newId,
-                    sceneStart: Math.max(0, currentTime - 1),
-                    sceneDuration: 6,
+                    sceneId: subId,
+                    file: subFile,
+                    sceneStart: subStart,
+                    sceneDuration: subDur,
                     tag,
                     type: newType,
                     name: `${friendlyLabel}: ${clickedText.slice(0, 20)}`,
@@ -845,13 +935,13 @@ export function ElementsCanvasOverlay({
                     isModified: false,
                     style: {
                       fontFamily: isH ? "Georgia, 'Times New Roman', serif" : "'Inter', sans-serif",
-                      fontSize: isH ? 48 : 24,
+                      fontSize: isH ? 48 : isStat ? 32 : 24,
                       color: "#ffffff",
                       textAlign: "left",
                     },
                     placement: {
-                      x: tRect ? (tRect.left / 1920) * 100 : (clickX / 1920) * 100,
-                      y: tRect ? (tRect.top / 1080) * 100 : (clickY / 1080) * 100,
+                      x: Math.max(0, Math.min(95, posX)),
+                      y: Math.max(0, Math.min(95, posY)),
                       width: tRect ? Math.max(60, tRect.width) : 300,
                       height: tRect ? Math.max(24, tRect.height) : 40,
                       isTopLeft: true,

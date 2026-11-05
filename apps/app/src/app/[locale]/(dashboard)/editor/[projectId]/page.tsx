@@ -437,7 +437,7 @@ export default function ProjectOllaEditorPage() {
         {/* Native Video Editor */}
         <iframe
           ref={nativeIframeRef}
-          src={`/native-editor/index.html?v=3&project=${encodeURIComponent(projectId)}&title=${encodeURIComponent(projectTitle)}${effectiveVideoUrl ? `&video=${encodeURIComponent(effectiveVideoUrl)}` : ""}${convexProject?.prompt ? `&prompt=${encodeURIComponent(convexProject.prompt)}` : ""}&duration=${convexProject?.duration || 40}`}
+          src={`/native-editor/index.html?v=4&project=${encodeURIComponent(projectId)}&title=${encodeURIComponent(projectTitle)}${effectiveVideoUrl ? `&video=${encodeURIComponent(effectiveVideoUrl)}` : ""}${convexProject?.prompt ? `&prompt=${encodeURIComponent(convexProject.prompt)}` : ""}&duration=${convexProject?.duration || 40}`}
           title={`Native Editor - ${projectTitle}`}
           className="flex-1 w-full h-full border-0 bg-[#101720]"
           allow="accelerometer; autoplay; clipboard-read; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen; microphone"

@@ -3857,6 +3857,78 @@ const server = http.createServer(async (req, res) => {
 
           if (loadedCount === totalScenes) {
             buildMasterTimeline();
+
+            // Scan subcomposition elements from all scenes
+            try {
+              var allSubScanned = [];
+              sceneHosts.forEach(function(sh, shIdx) {
+                var sIfr = sh.querySelector('iframe');
+                if (!sIfr) return;
+                var sDoc = sIfr.contentDocument || (sIfr.contentWindow ? sIfr.contentWindow.document : null);
+                var sWin = sIfr.contentWindow;
+                if (!sDoc) return;
+                var sStart = parseFloat(sh.dataset.start || sh.getAttribute('data-start') || '0');
+                var sDur = parseFloat(sh.dataset.duration || sh.getAttribute('data-duration') || '10');
+                var sId = sh.id || sh.getAttribute('data-composition-id') || ('scene-' + (shIdx + 1));
+                var sCandidates = sDoc.querySelectorAll(
+                  '.headline, .hero-headline, .title, .mega, .big, .sub, .subtitle, .kicker, .pill, .badge-pill, .badge, .num, .description, .eyebrow, .scene-number, [data-hf-id], h1, h2, h3, h4, h5, h6, p, button, a, img:not([hidden]), .stat, .metric, [class*="metric"], [class*="stat"], .glass-card > div, .card > div, span, strong, em, b, svg, div[style*="font"]'
+                );
+                var subSeen = new Set();
+                sCandidates.forEach(function(el, cIdx) {
+                  if (el.id === 'root' || el.id === 'scenes' || el.id === 'composition' || el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return;
+                  if (el.classList && (el.classList.contains('scene-background') || el.classList.contains('grid-overlay') || el.classList.contains('film-grain') || el.classList.contains('grain') || el.classList.contains('ambient-glow-orb'))) return;
+                  if (el.tagName !== 'IMG' && el.tagName !== 'SVG' && el.querySelector('h1, h2, h3, h4, p, .headline, .description, [data-hf-id]')) return;
+                  var t = el.tagName ? el.tagName.toLowerCase() : 'div';
+                  var isI = t === 'img';
+                  var isS = t === 'svg';
+                  var txt = isI ? (el.getAttribute('alt') || 'Image') : isS ? 'Vector Graphic' : (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                  if (!isS && !isI && (!txt || txt.length < 1 || subSeen.has(txt))) return;
+                  if (txt) subSeen.add(txt);
+                  var idAttr = el.getAttribute('data-hf-id') || el.id;
+                  if (!idAttr) {
+                    idAttr = 'el-' + sId + '-' + t + '-' + cIdx;
+                    el.setAttribute('data-hf-id', idAttr);
+                  }
+                  var cRect = el.getBoundingClientRect();
+                  var isHead = !isI && !isS && (t.startsWith('h') || (el.className && String(el.className).match(/title|headline|mega|big/i)));
+                  var isP = !isI && !isS && el.className && String(el.className).match(/eyebrow|kicker|badge|pill|num/i);
+                  var isStat = !isI && !isS && el.className && String(el.className).match(/metric|stat|value/i);
+                  var cComp = sWin ? sWin.getComputedStyle(el) : window.getComputedStyle(el);
+                  allSubScanned.push({
+                    id: idAttr,
+                    sceneId: sId,
+                    sceneIndex: shIdx,
+                    sceneStart: sStart,
+                    sceneDuration: sDur,
+                    tag: t,
+                    type: (isI || isS) ? 'image' : (isHead ? 'heading' : (isP ? 'badge' : (isStat ? 'text' : (t === 'button' ? 'button' : 'text')))),
+                    name: (isHead ? 'Title: ' : isP ? 'Badge: ' : isStat ? 'Metric: ' : 'Text: ') + txt.slice(0, 24),
+                    text: txt,
+                    originalText: txt,
+                    src: isI ? el.getAttribute('src') : undefined,
+                    isModified: false,
+                    style: {
+                      fontFamily: cComp ? cComp.fontFamily : 'Inter',
+                      fontSize: cComp ? parseInt(cComp.fontSize, 10) || 24 : 24,
+                      color: cComp ? cComp.color : '#ffffff',
+                      fontWeight: cComp ? cComp.fontWeight : (isHead ? '700' : '400'),
+                      textAlign: cComp ? cComp.textAlign : 'left'
+                    },
+                    placement: {
+                      x: cRect && cRect.width > 0 ? Math.max(0, Math.min(95, (cRect.left / 1920) * 100)) : 10,
+                      y: cRect && cRect.height > 0 ? Math.max(0, Math.min(95, (cRect.top / 1080) * 100)) : 15,
+                      width: cRect && cRect.width > 0 ? Math.max(60, cRect.width) : 300,
+                      height: cRect && cRect.height > 0 ? Math.max(24, cRect.height) : 40,
+                      isTopLeft: true
+                    },
+                    visible: true
+                  });
+                });
+              });
+              if (allSubScanned.length > 0) {
+                postToEditor({ type: 'HYPERLINK_ELEMENTS_READY', payload: allSubScanned });
+              }
+            } catch(e) {}
           }
         };
 
