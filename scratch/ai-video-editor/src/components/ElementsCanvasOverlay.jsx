@@ -489,11 +489,14 @@ export function ElementsCanvasOverlay({
       const newlySelected = [];
       visibleElements.forEach((el) => {
         const dyn = getDynamicPlacement(el);
-        if (!dyn) return;
-        const elLeft = (dyn.leftPercent / 100) * rect.width;
-        const elTop = (dyn.topPercent / 100) * rect.height;
-        const elRight = elLeft + (dyn.widthPercent / 100) * rect.width;
-        const elBottom = elTop + (dyn.heightPercent / 100) * rect.height;
+        const posX = dyn ? dyn.leftPercent : (el.placement?.x ?? 50);
+        const posY = dyn ? dyn.topPercent : (el.placement?.y ?? 50);
+        const elLeft = (posX / 100) * rect.width;
+        const elTop = (posY / 100) * rect.height;
+        const wPct = dyn ? dyn.widthPercent : (el.placement?.width ? (el.placement.width / 1920) * 100 : 15);
+        const hPct = dyn ? dyn.heightPercent : (el.placement?.height ? (el.placement.height / 1080) * 100 : 8);
+        const elRight = elLeft + (wPct / 100) * rect.width;
+        const elBottom = elTop + (hPct / 100) * rect.height;
 
         const intersects = !(elRight < mLeft || elLeft > mRight || elBottom < mTop || elTop > mBottom);
         if (intersects) {
@@ -973,6 +976,7 @@ export function ElementsCanvasOverlay({
         const isSelected = selectedSet.has(el.id);
         const isHovered = el.id === hoveredElementId;
         const dynamic = getDynamicPlacement(el);
+        const isRenderedByIframe = Boolean(dynamic && compositionIframeRef?.current);
 
         const posX = dynamic ? dynamic.leftPercent : (el.placement?.x ?? 50);
         const posY = dynamic ? dynamic.topPercent : (el.placement?.y ?? 50);
@@ -994,10 +998,18 @@ export function ElementsCanvasOverlay({
         const boxTop = `${posY}%`;
         const boxWidth = dynamic
           ? `${dynamic.widthPercent}%`
-          : (isImage && el.placement?.width ? `${Math.min(95, (el.placement.width / 1920) * 100)}%` : (isImage ? "auto" : "fit-content"));
+          : el.placement?.widthPercent
+          ? `${el.placement.widthPercent}%`
+          : el.placement?.width
+          ? `${Math.min(98, (el.placement.width / 1920) * 100)}%`
+          : (isImage ? "auto" : "fit-content");
         const boxHeight = dynamic
           ? `${dynamic.heightPercent}%`
-          : (isImage && el.placement?.height ? `${Math.min(95, (el.placement.height / 1080) * 100)}%` : "auto");
+          : el.placement?.heightPercent
+          ? `${el.placement.heightPercent}%`
+          : el.placement?.height
+          ? `${Math.min(98, (el.placement.height / 1080) * 100)}%`
+          : "auto";
 
         return (
           <React.Fragment key={el.id}>
@@ -1211,21 +1223,45 @@ export function ElementsCanvasOverlay({
               )}
 
               {/* Content rendering based on type */}
-              {isImage ? null : isButton || el.tag === "pill" ? (
+              {isImage ? (
+                (!isRenderedByIframe || el.src) ? (
+                  <img
+                    src={el.src || "/assets/sample-portrait.png"}
+                    alt={el.name || "Overlay Visual"}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: el.style?.objectFit || "contain",
+                      borderRadius: el.style?.borderRadius || "6px",
+                      pointerEvents: "none",
+                      opacity: el.style?.opacity ?? 1,
+                      userSelect: "none",
+                      display: "block",
+                      boxShadow: isRenderedByIframe ? "none" : "0 4px 20px rgba(0,0,0,0.4)",
+                    }}
+                  />
+                ) : null
+              ) : isButton || el.tag === "pill" ? (
                 <div
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "8px",
                     padding: el.tag === "pill" ? "8px 24px" : "10px 24px",
-                    background: "transparent",
-                    border: "none",
-                    color: inlineEditingId === el.id ? (el.style?.color || "#e8c27a") : "transparent",
+                    background: isRenderedByIframe
+                      ? "transparent"
+                      : (el.style?.backgroundColor || el.style?.background || (el.tag === "pill" ? "rgba(232, 194, 122, 0.25)" : "linear-gradient(135deg, #0ea5e9, #2563eb)")),
+                    border: isRenderedByIframe
+                      ? "none"
+                      : (el.style?.border || (el.tag === "pill" ? "1px solid #e8c27a" : "1px solid rgba(255,255,255,0.25)")),
+                    color: inlineEditingId === el.id
+                      ? (el.style?.color || "#e8c27a")
+                      : (isRenderedByIframe ? "transparent" : (el.style?.color || (el.tag === "pill" ? "#e8c27a" : "#ffffff"))),
                     fontFamily,
                     fontSize: `${fontSize}px`,
                     fontWeight: 700,
                     borderRadius: el.tag === "pill" ? "50px" : "30px",
-                    boxShadow: "none",
+                    boxShadow: isRenderedByIframe ? "none" : (el.style?.boxShadow || "0 4px 16px rgba(0,0,0,0.4)"),
                     letterSpacing: el.tag === "pill" ? "0.2em" : "0.02em",
                     textTransform: el.tag === "pill" ? "uppercase" : "none",
                   }}
@@ -1268,13 +1304,13 @@ export function ElementsCanvasOverlay({
                   style={{
                     fontFamily,
                     fontSize: `${fontSize}px`,
-                    color: inlineEditingId === el.id ? color : "transparent",
+                    color: inlineEditingId === el.id ? color : (isRenderedByIframe ? "transparent" : color),
                     textAlign,
                     opacity,
                     fontWeight: isHeading ? 700 : 400,
                     lineHeight: 1.15,
                     letterSpacing: isHeading ? "-0.01em" : "normal",
-                    textShadow: "none",
+                    textShadow: isRenderedByIframe ? "none" : "0 2px 12px rgba(0,0,0,0.85)",
                     background: "transparent",
                     backdropFilter: "none",
                     borderRadius: "4px",

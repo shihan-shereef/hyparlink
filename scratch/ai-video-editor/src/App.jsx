@@ -2458,90 +2458,109 @@ export function App({ hostSession = null }) {
     });
   }, [pushElementHistory]);
 
-  const addElement = useCallback((type = "heading", initialProps = {}) => {
+  const addElement = useCallback((typeOrElement = "heading", initialProps = {}) => {
     setProjectElements((prev) => {
       if (!isUndoingRef.current && prev && prev.length > 0) {
         pushElementHistory(prev);
       }
       return prev;
     });
-    const newId = `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const activeSc = projectScenes?.find((s) => currentTime >= s.start && currentTime < (s.start + (s.duration || s.dur || 4)));
-    const targetStart = activeSc ? activeSc.start : (currentTime || 0);
-    const targetDur = activeSc ? (activeSc.duration || activeSc.dur || 4) : 4;
-    let newElement = {
-      id: newId,
-      sceneStart: targetStart,
-      sceneDuration: targetDur,
-      visible: true,
-      ...initialProps,
-    };
 
-    if (type === "heading") {
+    let newElement;
+    if (typeof typeOrElement === "object" && typeOrElement !== null) {
       newElement = {
-        ...newElement,
-        tag: "h1",
-        type: "heading",
-        name: "H1: Headline",
-        text: initialProps.text || "Heading Text",
-        style: {
-          fontFamily: initialProps.fontFamily || "Cinzel",
-          fontSize: 48,
-          color: initialProps.color || "#ffffff",
-          textAlign: "center",
-          opacity: 1,
-        },
-        placement: initialProps.placement || { x: 50, y: 35 },
+        visible: true,
+        ...typeOrElement,
+        id: typeOrElement.id || `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sceneStart: typeOrElement.sceneStart !== undefined ? typeOrElement.sceneStart : (currentTime || 0),
+        sceneDuration: typeOrElement.sceneDuration !== undefined ? typeOrElement.sceneDuration : 10,
       };
-    } else if (type === "text") {
+    } else {
+      const type = typeOrElement || "heading";
+      const newId = `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const activeSc = projectScenes?.find((s) => currentTime >= s.start && currentTime < (s.start + (s.duration || s.dur || 4)));
+      const targetStart = activeSc ? activeSc.start : (currentTime || 0);
+      const targetDur = activeSc ? (activeSc.duration || activeSc.dur || 4) : 10;
       newElement = {
-        ...newElement,
-        tag: "p",
-        type: "text",
-        name: "P: Subtitle",
-        text: initialProps.text || "Subtitle Description",
-        style: {
-          fontFamily: initialProps.fontFamily || "Outfit",
-          fontSize: 24,
-          color: initialProps.color || "#cbd5e1",
-          textAlign: "center",
-          opacity: 0.9,
-        },
-        placement: initialProps.placement || { x: 50, y: 55 },
+        id: newId,
+        sceneStart: targetStart,
+        sceneDuration: targetDur,
+        visible: true,
+        ...initialProps,
       };
-    } else if (type === "image") {
-      newElement = {
-        ...newElement,
-        tag: "img",
-        type: "image",
-        name: initialProps.name || "Graphic Image",
-        src: initialProps.src || "/assets/sample-portrait.png",
-        style: { opacity: 1, borderRadius: "8px" },
-        placement: initialProps.placement || { x: 50, y: 50, width: 260, height: 260 },
-      };
-    } else if (type === "button") {
-      newElement = {
-        ...newElement,
-        tag: "button",
-        type: "button",
-        name: "CTA Button",
-        text: initialProps.text || "Get Started",
-        style: {
-          fontFamily: "Outfit",
-          fontSize: 18,
-          color: "#ffffff",
-          backgroundColor: "#0ea5e9",
-          textAlign: "center",
-          opacity: 1,
-        },
-        placement: initialProps.placement || { x: 50, y: 75, width: 200, height: 50 },
-      };
+
+      if (type === "heading") {
+        newElement = {
+          ...newElement,
+          tag: "h1",
+          type: "heading",
+          name: "H1: Headline",
+          text: initialProps.text || "Heading Text",
+          style: {
+            fontFamily: initialProps.fontFamily || "'Plus Jakarta Sans', sans-serif",
+            fontSize: 48,
+            color: initialProps.color || "#ffffff",
+            textAlign: "center",
+            opacity: 1,
+          },
+          placement: initialProps.placement || { x: 50, y: 35, width: 600, height: 80, isTopLeft: false },
+        };
+      } else if (type === "text") {
+        newElement = {
+          ...newElement,
+          tag: "p",
+          type: "text",
+          name: "P: Subtitle",
+          text: initialProps.text || "Subtitle Description",
+          style: {
+            fontFamily: initialProps.fontFamily || "'Inter', sans-serif",
+            fontSize: 24,
+            color: initialProps.color || "#cbd5e1",
+            textAlign: "center",
+            opacity: 0.9,
+          },
+          placement: initialProps.placement || { x: 50, y: 55, width: 500, height: 60, isTopLeft: false },
+        };
+      } else if (type === "image") {
+        newElement = {
+          ...newElement,
+          tag: "img",
+          type: "image",
+          name: initialProps.name || "Graphic Image",
+          src: initialProps.src || "/assets/sample-portrait.png",
+          style: { opacity: 1, borderRadius: "8px", objectFit: "contain" },
+          placement: initialProps.placement || { x: 50, y: 50, width: 260, height: 260, isTopLeft: false },
+        };
+      } else if (type === "button") {
+        newElement = {
+          ...newElement,
+          tag: "button",
+          type: "button",
+          name: "CTA Button",
+          text: initialProps.text || "Get Started",
+          style: {
+            fontFamily: "'Inter', sans-serif",
+            fontSize: 18,
+            color: "#ffffff",
+            backgroundColor: "#0ea5e9",
+            textAlign: "center",
+            opacity: 1,
+          },
+          placement: initialProps.placement || { x: 50, y: 75, width: 200, height: 50, isTopLeft: false },
+        };
+      }
     }
 
-    setProjectElements((prev) => [...prev, newElement]);
-    setSelectedElementId(newId);
+    setProjectElements((prev) => {
+      const currentPrev = Array.isArray(prev) ? prev : [];
+      if (currentPrev.some((el) => el.id === newElement.id)) {
+        return currentPrev.map((el) => (el.id === newElement.id ? { ...el, ...newElement } : el));
+      }
+      return [...currentPrev, newElement];
+    });
+    setSelectedElementId(newElement.id);
     setActiveTool("elements");
-  }, [setActiveTool]);
+  }, [projectScenes, currentTime, pushElementHistory, setActiveTool]);
 
   // Auto-connect project video and interactive elements from URL search params or postMessage
   const autoLoadedVideoRef = useRef(false);
@@ -3443,7 +3462,6 @@ export function App({ hostSession = null }) {
 
       // Fetch real project data to parse real elements and scenes
       loadedProjectIdRef.current = targetProjId;
-      setCompositionUrl(`/editor/project/${encodeURIComponent(targetProjId)}/raw/index.html`);
       fetch(`/editor/project/${encodeURIComponent(targetProjId)}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
@@ -3455,6 +3473,26 @@ export function App({ hostSession = null }) {
           setProjectElements(realElements);
           if (realElements.length > 0) {
             setSelectedElementId(realElements[0].id);
+          }
+
+          const hasHtmlFiles = Boolean(data?.files && (data.files["index.html"] || Object.keys(data.files).some((f) => f.endsWith(".html"))));
+          const effectiveVideo = videoUrl || videoParam || data?.renderedVideoUrl || data?.meta?.renderedVideoUrl || data?.meta?.videoUrl || "";
+
+          if (hasHtmlFiles) {
+            setCompositionUrl(`/editor/project/${encodeURIComponent(targetProjId)}/raw/index.html`);
+            setVisualType("composition");
+            setImageSrc("");
+          } else if (effectiveVideo) {
+            setCompositionUrl(null);
+            setVisualType("video");
+            setImageSrc(effectiveVideo);
+            setVisualSegments((prevSegments) =>
+              prevSegments.map((seg) => ({
+                ...seg,
+                type: "video",
+                src: effectiveVideo,
+              }))
+            );
           }
 
           // Populate real video thumbnail and scene images on visual timeline segments
@@ -3479,6 +3517,19 @@ export function App({ hostSession = null }) {
           );
         })
         .catch(() => {
+          const effectiveVideo = videoUrl || videoParam || "";
+          if (effectiveVideo) {
+            setCompositionUrl(null);
+            setVisualType("video");
+            setImageSrc(effectiveVideo);
+            setVisualSegments((prevSegments) =>
+              prevSegments.map((seg) => ({
+                ...seg,
+                type: "video",
+                src: effectiveVideo,
+              }))
+            );
+          }
           const fallbackElements = extractElementsFromProject(null, dur, projectTitle, prompt);
           setProjectElements(fallbackElements);
           if (fallbackElements.length > 0) {
@@ -3506,7 +3557,7 @@ export function App({ hostSession = null }) {
 
     if (!autoLoadedVideoRef.current && (projectParam || videoParam)) {
       loadProjectFromSource({
-        videoUrl: "",
+        videoUrl: videoParam || "",
         title: titleParam || (projectParam === "default_reference_video_2" ? "London in 3 Days (Reference Video)" : "Project Video"),
         duration: durationParam || 40,
         prompt: promptParam || "",
