@@ -3394,7 +3394,39 @@ export function App({ hostSession = null }) {
     };
 
     const loadProjectFromSource = (payload) => {
-      let { videoUrl, title, duration, prompt, overlays, projectId } = payload;
+      let { videoUrl, title, duration, prompt, overlays, projectId, isWebVideo } = payload;
+      const isPureWebVideo = Boolean(isWebVideo) || Boolean(videoUrl && !projectId && !projectParam);
+      if (isPureWebVideo) {
+        loadedProjectIdRef.current = "";
+        loadedProjectDataRef.current = null;
+        setCompositionUrl(null);
+        setVisualType("video");
+        setImageSrc(videoUrl);
+        const dur = Number(duration) && Number(duration) > 0 ? Number(duration) : 60;
+        const projectTitle = title || "Web Video";
+        setTimelineHorizon(dur);
+        setImageName(projectTitle);
+        setImageDuration(dur);
+        setCaptionSegments([]);
+        setCaptionsEnabled(false);
+        setVisualOverlaySegments(Array.isArray(overlays) ? overlays : []);
+        setVisualSegments([
+          {
+            id: "web-video-segment",
+            start: 0,
+            duration: dur,
+            type: "video",
+            src: videoUrl,
+            assetId: "web-video-" + Date.now(),
+            assetImages: [],
+            thumbnails: [],
+          }
+        ]);
+        setProjectElements([]);
+        notify(`Loaded web video: ${projectTitle}`);
+        return;
+      }
+
       const targetProjId = projectId || payload.projectId || projectParam || "default_reference_video_2";
       const isLondon =
         targetProjId === "default_reference_video_2" ||
@@ -3460,30 +3492,6 @@ export function App({ hostSession = null }) {
       setCaptionsEnabled(false);
       setVisualOverlaySegments(Array.isArray(overlays) ? overlays : []);
 
-      // If loading a pure web video directly without project ID
-      if (!targetProjId) {
-        loadedProjectIdRef.current = "";
-        loadedProjectDataRef.current = null;
-        setCompositionUrl(null);
-        setVisualType("video");
-        const effective = videoUrl || videoParam || "";
-        setImageSrc(effective);
-        setVisualSegments([
-          {
-            id: "web-video-segment",
-            start: 0,
-            duration: dur,
-            type: "video",
-            src: effective,
-            assetId: "web-video",
-            assetImages: [],
-            thumbnails: [],
-          }
-        ]);
-        setProjectElements([]);
-        notify(`Loaded web video: ${projectTitle}`);
-        return;
-      }
 
       // Fetch real project data to parse real elements and scenes
       loadedProjectIdRef.current = targetProjId;
@@ -3588,6 +3596,7 @@ export function App({ hostSession = null }) {
           duration: durationParam || 60,
           prompt: promptParam || "",
           projectId: "",
+          isWebVideo: true,
         });
       } else {
         loadProjectFromSource({
