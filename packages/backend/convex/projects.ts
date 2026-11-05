@@ -44,11 +44,11 @@ export const list = query({
           videoUrl = (await ctx.storage.getUrl(p.outputStorageId)) ?? undefined;
         } catch {}
       }
-      if (videoUrl && videoUrl.includes("localhost:4000")) {
+      if (videoUrl && videoUrl.includes(":4000")) {
         videoUrl = videoUrl.replace(/^https?:\/\/[^/]+/, "");
       }
       let thumbnailUrl = p.thumbnailUrl;
-      if (thumbnailUrl && thumbnailUrl.includes("localhost:4000")) {
+      if (thumbnailUrl && thumbnailUrl.includes(":4000")) {
         thumbnailUrl = thumbnailUrl.replace(/^https?:\/\/[^/]+/, "");
       }
       mapped.push({
@@ -128,11 +128,11 @@ export const listTrash = query({
         if (!videoUrl && p.outputStorageId) {
           videoUrl = (await ctx.storage.getUrl(p.outputStorageId)) ?? undefined;
         }
-        if (videoUrl && videoUrl.includes("localhost:4000")) {
+        if (videoUrl && videoUrl.includes(":4000")) {
           videoUrl = videoUrl.replace(/^https?:\/\/[^/]+/, "");
         }
         let thumbnailUrl = p.thumbnailUrl;
-        if (thumbnailUrl && thumbnailUrl.includes("localhost:4000")) {
+        if (thumbnailUrl && thumbnailUrl.includes(":4000")) {
           thumbnailUrl = thumbnailUrl.replace(/^https?:\/\/[^/]+/, "");
         }
         return {
@@ -207,11 +207,11 @@ export const get = query({
       videoUrl =
         (await ctx.storage.getUrl(project.outputStorageId)) ?? undefined;
     }
-    if (videoUrl && videoUrl.includes("localhost:4000")) {
+    if (videoUrl && videoUrl.includes(":4000")) {
       videoUrl = videoUrl.replace(/^https?:\/\/[^/]+/, "");
     }
     let thumbnailUrl = project.thumbnailUrl;
-    if (thumbnailUrl && thumbnailUrl.includes("localhost:4000")) {
+    if (thumbnailUrl && thumbnailUrl.includes(":4000")) {
       thumbnailUrl = thumbnailUrl.replace(/^https?:\/\/[^/]+/, "");
     }
 
@@ -265,11 +265,11 @@ export const getVideoPlaybackUrl = query({
       videoUrl =
         (await ctx.storage.getUrl(project.outputStorageId)) ?? undefined;
     }
-    if (videoUrl && videoUrl.includes("localhost:4000")) {
+    if (videoUrl && videoUrl.includes(":4000")) {
       videoUrl = videoUrl.replace(/^https?:\/\/[^/]+/, "");
     }
     let cdnUrl = project.cdnUrl;
-    if (cdnUrl && cdnUrl.includes("localhost:4000")) {
+    if (cdnUrl && cdnUrl.includes(":4000")) {
       cdnUrl = cdnUrl.replace(/^https?:\/\/[^/]+/, "");
     }
 
@@ -832,11 +832,11 @@ export const saveCompletedVideo = mutation({
 
     const now = Date.now();
     let effectiveOutputUrl = args.outputUrl;
-    if (effectiveOutputUrl.includes("localhost:4000")) {
+    if (effectiveOutputUrl.includes(":4000")) {
       effectiveOutputUrl = effectiveOutputUrl.replace(/^https?:\/\/[^/]+/, "");
     }
     let effectiveThumbUrl = args.thumbnailUrl;
-    if (effectiveThumbUrl && effectiveThumbUrl.includes("localhost:4000")) {
+    if (effectiveThumbUrl && effectiveThumbUrl.includes(":4000")) {
       effectiveThumbUrl = effectiveThumbUrl.replace(/^https?:\/\/[^/]+/, "");
     }
 

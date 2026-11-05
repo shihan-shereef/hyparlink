@@ -52,11 +52,11 @@ export const list = query({
 
     return rows.map((a) => {
       let storageUrl = a.storageUrl;
-      if (storageUrl && storageUrl.includes("localhost:4000")) {
+      if (storageUrl && storageUrl.includes(":4000")) {
         storageUrl = storageUrl.replace(/^https?:\/\/[^/]+/, "");
       }
       let cdnUrl = a.cdnUrl;
-      if (cdnUrl && cdnUrl.includes("localhost:4000")) {
+      if (cdnUrl && cdnUrl.includes(":4000")) {
         cdnUrl = cdnUrl.replace(/^https?:\/\/[^/]+/, "");
       }
       return {
@@ -79,11 +79,11 @@ export const get = query({
     if (!asset) return null;
     await requireMember(ctx, userId, asset.workspaceId);
     let storageUrl = asset.storageUrl;
-    if (storageUrl && storageUrl.includes("localhost:4000")) {
+    if (storageUrl && storageUrl.includes(":4000")) {
       storageUrl = storageUrl.replace(/^https?:\/\/[^/]+/, "");
     }
     let cdnUrl = asset.cdnUrl;
-    if (cdnUrl && cdnUrl.includes("localhost:4000")) {
+    if (cdnUrl && cdnUrl.includes(":4000")) {
       cdnUrl = cdnUrl.replace(/^https?:\/\/[^/]+/, "");
     }
     return {
