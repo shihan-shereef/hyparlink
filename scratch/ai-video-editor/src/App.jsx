@@ -1985,31 +1985,22 @@ export function App({ hostSession = null }) {
                 targetEl.style.margin = "0";
                 targetEl.style.transition = "none";
 
-                const docW = doc.documentElement?.clientWidth || 1920;
-                const docH = doc.documentElement?.clientHeight || 1080;
+                const ownerDoc = targetEl.ownerDocument || doc;
+                const docW = ownerDoc.documentElement?.clientWidth || 1920;
+                const docH = ownerDoc.documentElement?.clientHeight || 1080;
 
-                let parentOffsetLeft = 0;
-                let parentOffsetTop = 0;
-                let curr = targetEl.offsetParent;
-                const scene = targetEl.closest(".scene, .ad-scene, section, main, #composition, #root, body");
-                while (curr && curr !== scene && curr !== doc.body && curr !== doc.documentElement && curr.id !== "composition" && curr.id !== "root") {
-                  parentOffsetLeft += curr.offsetLeft || 0;
-                  parentOffsetTop += curr.offsetTop || 0;
-                  curr = curr.offsetParent;
-                }
-
+                const pRect = targetEl.offsetParent ? targetEl.offsetParent.getBoundingClientRect() : { left: 0, top: 0 };
                 if (typeof pl.x === "number" && !isNaN(pl.x)) {
                   const targetLeftPx = (pl.x / 100) * docW;
-                  targetEl.style.left = `${Math.round(targetLeftPx - parentOffsetLeft)}px`;
+                  targetEl.style.left = `${Math.round(targetLeftPx - pRect.left)}px`;
                 }
                 if (typeof pl.y === "number" && !isNaN(pl.y)) {
                   const targetTopPx = (pl.y / 100) * docH;
-                  targetEl.style.top = `${Math.round(targetTopPx - parentOffsetTop)}px`;
+                  targetEl.style.top = `${Math.round(targetTopPx - pRect.top)}px`;
                 }
                 targetEl.style.transform = pl.isTopLeft ? "none" : "translate(-50%, -50%)";
-                if (!changes.style?.zIndex) {
-                  targetEl.style.zIndex = "50";
-                }
+                targetEl.style.zIndex = changes.style?.zIndex ? String(changes.style.zIndex) : "999";
+                targetEl.style.pointerEvents = "auto";
 
                 const isImg = target.tag === "img" || target.type === "image" || target.tag === "svg";
                 if (isImg) {
@@ -3259,9 +3250,8 @@ export function App({ hostSession = null }) {
                 if (tag === "svg" || tag === "path" || tag === "img" || tag === "script" || tag === "style") return;
                 if (node.id === "root" || node.id === "scenes" || node.id === "composition" || node.classList?.contains("ambient-glow-orb") || node.classList?.contains("grid-overlay")) return;
 
-                // Skip high-level containers unless they have a direct explicit data-hf-id
-                const hasExplicitHfId = !!node.getAttribute("data-hf-id");
-                if (!hasExplicitHfId && node.querySelector("h1, h2, h3, h4, h5, h6, p, .headline, .description, [data-hf-id], .glass-card > div, li")) {
+                // Skip parent wrapper containers so only independent leaf elements are extracted
+                if (node.querySelector("h1, h2, h3, h4, h5, h6, p, .headline, .title, .mega, .big, .description, .sub, .subtitle, .eyebrow, .kicker, .stat, .metric, button, a, li")) {
                   return;
                 }
 

@@ -978,8 +978,9 @@ export function ElementsCanvasOverlay({
         const dynamic = getDynamicPlacement(el);
         const isRenderedByIframe = Boolean(dynamic && compositionIframeRef?.current);
 
-        const posX = dynamic ? dynamic.leftPercent : (el.placement?.x ?? 50);
-        const posY = dynamic ? dynamic.topPercent : (el.placement?.y ?? 50);
+        const hasCustomPos = (el.hasMoved || el.isDragging) && typeof el.placement?.x === "number" && typeof el.placement?.y === "number";
+        const posX = hasCustomPos ? el.placement.x : (dynamic ? dynamic.leftPercent : (el.placement?.x ?? 50));
+        const posY = hasCustomPos ? el.placement.y : (dynamic ? dynamic.topPercent : (el.placement?.y ?? 50));
 
         const isHeading = el.type === "heading" || el.tag === "h1" || el.tag === "h2" || el.tag === "h3";
         const isImage = el.type === "image" || el.tag === "img" || el.tag === "svg" || el.field === "image";
@@ -1021,46 +1022,64 @@ export function ElementsCanvasOverlay({
               onPointerDown={(e) => {
                 if (inlineEditingId === el.id) return;
 
-                // If clicking inside a smaller nested element at these coordinates, prioritize the smaller element
-                const rect = containerRef.current?.getBoundingClientRect();
-                if (rect) {
-                  const clickX = e.clientX;
-                  const clickY = e.clientY;
-                  const myArea = (dynamic?.widthPx || 100) * (dynamic?.heightPx || 100);
-                  const smallerCandidate = visibleElements.find((other) => {
-                    if (other.id === el.id) return false;
-                    const otherBox = containerRef.current?.querySelector(`[data-element-id="${other.id}"]`);
-                    if (!otherBox) return false;
-                    const or = otherBox.getBoundingClientRect();
-                    if (clickX >= or.left && clickX <= or.right && clickY >= or.top && clickY <= or.bottom) {
-                      const otherArea = or.width * or.height;
-                      return otherArea < myArea;
+                let targetId = el.id;
+                let targetEl = el;
+
+                // If not already selected, check if clicking inside a smaller nested element at these coordinates
+                if (!isSelected) {
+                  const rect = containerRef.current?.getBoundingClientRect();
+                  if (rect) {
+                    const clickX = e.clientX;
+                    const clickY = e.clientY;
+                    const myArea = (dynamic?.widthPx || 100) * (dynamic?.heightPx || 100);
+                    const smallerCandidate = visibleElements.find((other) => {
+                      if (other.id === el.id) return false;
+                      const otherBox = containerRef.current?.querySelector(`[data-element-id="${other.id}"]`);
+                      if (!otherBox) return false;
+                      const or = otherBox.getBoundingClientRect();
+                      if (clickX >= or.left && clickX <= or.right && clickY >= or.top && clickY <= or.bottom) {
+                        const otherArea = or.width * or.height;
+                        return otherArea < myArea;
+                      }
+                      return false;
+                    });
+                    if (smallerCandidate) {
+                      targetId = smallerCandidate.id;
+                      targetEl = smallerCandidate;
                     }
-                    return false;
-                  });
-                  if (smallerCandidate) {
-                    e.stopPropagation();
-                    onSelectElement?.(smallerCandidate.id);
-                    onSelectElements?.([smallerCandidate.id]);
-                    return;
                   }
                 }
 
                 e.stopPropagation();
-                onSelectElement?.(el.id);
-                const isMulti = selectedSet.has(el.id) && selectedSet.size > 1;
+                onSelectElement?.(targetId);
+                const isMulti = e.shiftKey && selectedSet.has(targetId) && selectedSet.size > 1;
                 if (!isMulti) {
-                  onSelectElements?.([el.id]);
+                  onSelectElements?.([targetId]);
                 }
+
+                const targetDyn = getDynamicPlacement(targetEl);
+                const targetHasPos = (targetEl.hasMoved || targetEl.isDragging) && typeof targetEl.placement?.x === "number" && typeof targetEl.placement?.y === "number";
+                const targetPosX = targetHasPos
+                  ? targetEl.placement.x
+                  : (targetDyn ? targetDyn.leftPercent : (targetEl.placement?.x ?? 50));
+                const targetPosY = targetHasPos
+                  ? targetEl.placement.y
+                  : (targetDyn ? targetDyn.topPercent : (targetEl.placement?.y ?? 50));
 
                 const itemsToMove = isMulti
                   ? Array.from(selectedSet).map((id) => {
                       const itemEl = (elements || []).find((x) => x.id === id);
                       const dyn = itemEl ? getDynamicPlacement(itemEl) : null;
+                      const ix = (itemEl?.hasMoved || itemEl?.isDragging) && typeof itemEl?.placement?.x === "number"
+                        ? itemEl.placement.x
+                        : (dyn ? dyn.leftPercent : (itemEl?.placement?.x ?? 50));
+                      const iy = (itemEl?.hasMoved || itemEl?.isDragging) && typeof itemEl?.placement?.y === "number"
+                        ? itemEl.placement.y
+                        : (dyn ? dyn.topPercent : (itemEl?.placement?.y ?? 50));
                       return {
                         id,
-                        initX: dyn ? dyn.leftPercent : (itemEl?.placement?.x ?? 50),
-                        initY: dyn ? dyn.topPercent : (itemEl?.placement?.y ?? 50),
+                        initX: ix,
+                        initY: iy,
                         initPlacement: {
                           ...itemEl?.placement,
                           width: itemEl?.placement?.width || dyn?.widthPx,
@@ -1070,19 +1089,19 @@ export function ElementsCanvasOverlay({
                       };
                     })
                   : [{
-                      id: el.id,
-                      initX: dynamic ? dynamic.leftPercent : posX,
-                      initY: dynamic ? dynamic.topPercent : posY,
+                      id: targetId,
+                      initX: targetPosX,
+                      initY: targetPosY,
                       initPlacement: {
-                        ...el.placement,
-                        width: el.placement?.width || dynamic?.widthPx,
-                        height: el.placement?.height || dynamic?.heightPx,
+                        ...targetEl.placement,
+                        width: targetEl.placement?.width || targetDyn?.widthPx,
+                        height: targetEl.placement?.height || targetDyn?.heightPx,
                         isTopLeft: true,
                       },
                     }];
 
                 setDragging({
-                  id: el.id,
+                  id: targetId,
                   startX: e.clientX,
                   startY: e.clientY,
                   hasMovedEnough: false,
