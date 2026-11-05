@@ -3460,6 +3460,31 @@ export function App({ hostSession = null }) {
       setCaptionsEnabled(false);
       setVisualOverlaySegments(Array.isArray(overlays) ? overlays : []);
 
+      // If loading a pure web video directly without project ID
+      if (!targetProjId) {
+        loadedProjectIdRef.current = "";
+        loadedProjectDataRef.current = null;
+        setCompositionUrl(null);
+        setVisualType("video");
+        const effective = videoUrl || videoParam || "";
+        setImageSrc(effective);
+        setVisualSegments([
+          {
+            id: "web-video-segment",
+            start: 0,
+            duration: dur,
+            type: "video",
+            src: effective,
+            assetId: "web-video",
+            assetImages: [],
+            thumbnails: [],
+          }
+        ]);
+        setProjectElements([]);
+        notify(`Loaded web video: ${projectTitle}`);
+        return;
+      }
+
       // Fetch real project data to parse real elements and scenes
       loadedProjectIdRef.current = targetProjId;
       fetch(`/editor/project/${encodeURIComponent(targetProjId)}`)
@@ -3555,14 +3580,24 @@ export function App({ hostSession = null }) {
       videoParam = "";
     }
 
-    if (!autoLoadedVideoRef.current && (projectParam || videoParam)) {
-      loadProjectFromSource({
-        videoUrl: videoParam || "",
-        title: titleParam || (projectParam === "default_reference_video_2" ? "London in 3 Days (Reference Video)" : "Project Video"),
-        duration: durationParam || 40,
-        prompt: promptParam || "",
-        projectId: projectParam || "default_reference_video_2",
-      });
+    if (!autoLoadedVideoRef.current) {
+      if (videoParam && !projectParam) {
+        loadProjectFromSource({
+          videoUrl: videoParam,
+          title: titleParam || "Web Video",
+          duration: durationParam || 60,
+          prompt: promptParam || "",
+          projectId: "",
+        });
+      } else {
+        loadProjectFromSource({
+          videoUrl: videoParam || "",
+          title: titleParam || (projectParam === "default_reference_video_2" || !projectParam ? "London in 3 Days (Reference Video)" : "Project Video"),
+          duration: durationParam || 40,
+          prompt: promptParam || "",
+          projectId: projectParam || "default_reference_video_2",
+        });
+      }
     }
 
     // Listen for postMessage from parent dashboard window or composition iframe
