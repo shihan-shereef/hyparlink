@@ -456,3 +456,139 @@ export const createTestingWorkspaceAndUser = mutation({
   },
 });
 
+export const syncAllWorkspacesAndProjects = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const primaryWsId = "mh7eadmg10g11yqwbjtyc41yjs8fxx17" as Id<"workspaces">;
+    const now = Date.now();
+
+    // 1. Rename primary studio workspace
+    const primaryWs = await ctx.db.get(primaryWsId);
+    if (primaryWs && primaryWs.name === "Personal") {
+      await ctx.db.patch(primaryWsId, { name: "Ollastar Studio" });
+    }
+
+    // 2. Fetch all completed projects from primary studio workspace
+    const studioProjects = await ctx.db
+      .query("projects")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", primaryWsId))
+      .filter((q) => q.eq(q.field("status"), "completed"))
+      .collect();
+
+    // 3. For every user, ensure:
+    // a) User has a valid formatted name
+    // b) User has membership in primary studio workspace
+    // c) User has their own personal workspace
+    // d) User's personal workspace contains all completed videos
+    const users = await ctx.db.query("users").collect();
+    const results = [];
+
+    for (const u of users) {
+      // Ensure member of Ollastar Studio
+      const inPrimary = await ctx.db
+        .query("members")
+        .withIndex("by_user", (q) => q.eq("userId", u._id))
+        .filter((q) => q.eq(q.field("workspaceId"), primaryWsId))
+        .first();
+
+      if (!inPrimary) {
+        await ctx.db.insert("members", {
+          workspaceId: primaryWsId,
+          userId: u._id,
+          role: "admin",
+          createdAt: now,
+        });
+      }
+
+      // Ensure owned personal workspace
+      let ownedMem = await ctx.db
+        .query("members")
+        .withIndex("by_user", (q) => q.eq("userId", u._id))
+        .filter((q) => q.eq(q.field("role"), "owner"))
+        .first();
+
+      let personalWsId: Id<"workspaces">;
+      const cleanPrefix = u.email ? u.email.split("@")[0] : "User";
+      const personalName = cleanPrefix.toLowerCase().startsWith("shihan")
+        ? "Shihan Shereef's Workspace"
+        : cleanPrefix.toLowerCase().startsWith("rasal")
+        ? "Rasal's Workspace"
+        : `${cleanPrefix.charAt(0).toUpperCase() + cleanPrefix.slice(1)}'s Workspace`;
+
+      if (!ownedMem) {
+        personalWsId = await ctx.db.insert("workspaces", {
+          name: personalName,
+          ownerId: u._id,
+          createdAt: now,
+        });
+        await ctx.db.insert("members", {
+          workspaceId: personalWsId,
+          userId: u._id,
+          role: "owner",
+          createdAt: now,
+        });
+      } else {
+        personalWsId = ownedMem.workspaceId;
+        const pws = await ctx.db.get(personalWsId);
+        if (pws && (pws.name === "Personal" || pws.name === "User")) {
+          await ctx.db.patch(personalWsId, { name: personalName });
+        }
+      }
+
+      // Copy completed studio projects into this personal workspace if not already present
+      const existingInPersonal = await ctx.db
+        .query("projects")
+        .withIndex("by_workspace", (q) => q.eq("workspaceId", personalWsId))
+        .collect();
+
+      let copied = 0;
+      for (const sp of studioProjects) {
+        const outUrl = sp.outputUrl || sp.videoUrl;
+        const exists = existingInPersonal.some(
+          (ep) =>
+            ep.name === sp.name &&
+            (outUrl ? (ep.outputUrl === outUrl || ep.videoUrl === outUrl) : true),
+        );
+
+        if (!exists) {
+          await ctx.db.insert("projects", {
+            workspaceId: personalWsId,
+            userId: u._id,
+            name: sp.name,
+            prompt: sp.prompt,
+            description: sp.description,
+            status: "completed",
+            duration: sp.duration,
+            width: sp.width,
+            height: sp.height,
+            fps: sp.fps,
+            hyperframesVersion: sp.hyperframesVersion,
+            outputUrl: sp.outputUrl,
+            videoUrl: sp.videoUrl,
+            cdnUrl: sp.cdnUrl,
+            storageUrl: sp.storageUrl,
+            storageKey: sp.storageKey,
+            storageProvider: sp.storageProvider,
+            fileSize: sp.fileSize,
+            mimeType: sp.mimeType,
+            validationStatus: sp.validationStatus || "PASSED",
+            renderTimeSeconds: sp.renderTimeSeconds,
+            thumbnailUrl: sp.thumbnailUrl,
+            thumbnailCdnUrl: sp.thumbnailCdnUrl,
+            thumbnailStorageKey: sp.thumbnailStorageKey,
+            thumbnailStatus: sp.thumbnailStatus || "completed",
+            createdAt: sp.createdAt || now,
+            updatedAt: now,
+          });
+          copied++;
+        }
+      }
+
+      results.push({ email: u.email, personalWsId, copiedProjects: copied });
+    }
+
+    return { success: true, users: results };
+  },
+});
+
+

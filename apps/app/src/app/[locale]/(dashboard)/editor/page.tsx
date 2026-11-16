@@ -37,7 +37,7 @@ export default function LiveEditorProjectsPage() {
 
   const projects = useQuery(
     api.projects.list,
-    effectiveWs ? { workspaceId: effectiveWs } : "skip",
+    effectiveWs ? { workspaceId: effectiveWs } : {},
   );
 
   const filteredProjects = (projects || []).filter((p) => {

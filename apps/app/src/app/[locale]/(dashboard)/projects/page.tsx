@@ -74,12 +74,12 @@ export default function ProjectsPage() {
 
   const projects = useQuery(
     api.projects.list,
-    effectiveWs ? { workspaceId: effectiveWs } : "skip",
+    effectiveWs ? { workspaceId: effectiveWs } : {},
   );
 
   const trashedProjects = useQuery(
     api.projects.listTrash,
-    effectiveWs ? { workspaceId: effectiveWs } : "skip",
+    effectiveWs ? { workspaceId: effectiveWs } : {},
   );
 
   const duplicateProject = useMutation(api.projects.duplicate);

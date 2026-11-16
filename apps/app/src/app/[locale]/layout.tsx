@@ -18,10 +18,24 @@ function getLiveConvexUrl(): string {
       const match = fs
         .readFileSync(envPath, "utf-8")
         .match(/NEXT_PUBLIC_CONVEX_URL=(.+)/);
-      if (match && match[1]) return match[1].trim();
+      if (
+        match &&
+        match[1] &&
+        !match[1].includes("127.0.0.1") &&
+        !match[1].includes("localhost")
+      ) {
+        return match[1].trim();
+      }
     }
   } catch {}
-  return process.env.NEXT_PUBLIC_CONVEX_URL || "http://127.0.0.1:3210";
+  if (
+    process.env.NEXT_PUBLIC_CONVEX_URL &&
+    !process.env.NEXT_PUBLIC_CONVEX_URL.includes("127.0.0.1") &&
+    !process.env.NEXT_PUBLIC_CONVEX_URL.includes("localhost")
+  ) {
+    return process.env.NEXT_PUBLIC_CONVEX_URL;
+  }
+  return "https://rates-rivers-potato-indicated.trycloudflare.com";
 }
 
 export const metadata: Metadata = {
