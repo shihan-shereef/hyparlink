@@ -38,7 +38,7 @@ export function Sidebar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const activeWorkspace = workspaces.find((w) => w._id === current) || workspaces[0];
-  const emailPrefix = user?.email ? user.email.split("@")[0] : "";
+  const emailPrefix = (user?.email ? user.email.split("@")[0] : "") || "";
   const derivedEmailName = emailPrefix.toLowerCase().startsWith("shihan")
     ? "Shihan Shereef"
     : (emailPrefix ? emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1) : "Personal");

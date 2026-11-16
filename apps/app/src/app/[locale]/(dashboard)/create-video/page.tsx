@@ -506,6 +506,7 @@ window.__timelines["main"] = tl;`);
   const [validationResult, setValidationResult] = useState<{
     valid?: boolean;
     errors?: string[];
+    warnings?: string[];
     parsedErrors?: any[];
   } | null>(null);
   const [isValidatingCode, setIsValidatingCode] = useState<boolean>(false);
