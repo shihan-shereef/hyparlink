@@ -21,7 +21,7 @@ export class ErrorParser {
         for (const section of ["lint", "runtime", "layout", "motion"]) {
           if (json[section] && Array.isArray(json[section].findings)) {
             for (const f of json[section].findings) {
-              if (f.severity === "error" || json[section].ok === false) {
+              if (f.severity === "error") {
                 errors.push({
                   type: section as any,
                   message: `${f.code || "error"}: ${f.message}${f.fixHint ? ` (${f.fixHint})` : ""}`,

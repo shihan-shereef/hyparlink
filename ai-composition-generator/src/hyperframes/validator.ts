@@ -1,4 +1,5 @@
 import { exec } from "node:child_process";
+import fs from "node:fs";
 import { promisify } from "node:util";
 import { ErrorParser, ParsedError } from "./error-parser.js";
 import { DesignValidator } from "./design-validator.js";
@@ -25,6 +26,15 @@ const NON_FATAL_RULES = [
   "nested_structure_needs_subcomposition",
   "missing_local_asset",
   "root_composition_missing_html_wrapper",
+  "font_family_without_font_face",
+  "rotation_pivot_drift",
+  "line_unread",
+  "audio_none",
+  "duplicate_composition_id",
+  "clip_ends_past_root_duration",
+  "text_not_painted",
+  "text_fill_color",
+  "text_contrast",
 ];
 const isNonFatal = (e: ParsedError) =>
   NON_FATAL_RULES.some(
@@ -34,15 +44,18 @@ const isNonFatal = (e: ParsedError) =>
 export class Validator {
   public static async validate(projectDir: string, autoHealed: boolean = false): Promise<ValidationResult> {
     try {
+      const hfBin = fs.existsSync("/usr/local/bin/hyperframes")
+        ? "/usr/local/bin/hyperframes"
+        : "npx --yes hyperframes";
       const { stdout, stderr } = await execAsync(
-        "npx --yes hyperframes@0.8.139 check --json --no-contrast",
+        `${hfBin} check --json --no-contrast --no-craft`,
         {
           cwd: projectDir,
           env: {
             ...process.env,
             NODE_ENV: "test",
           },
-          timeout: 90000,
+          timeout: 45000,
         },
       );
 

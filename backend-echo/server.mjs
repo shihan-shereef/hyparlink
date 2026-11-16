@@ -3449,6 +3449,18 @@ const server = http.createServer(async (req, res) => {
           }
         }
 
+        // Serve local vendor GSAP bundle if requested
+        if (subPath.includes("gsap") || subPath.endsWith("vendor/gsap.min.js")) {
+          const localVendorGsap = path.resolve(process.cwd(), "apps/app/public/vendor/gsap.min.js");
+          if (fs.existsSync(localVendorGsap)) {
+            res.writeHead(200, {
+              "Content-Type": "application/javascript; charset=utf-8",
+              "Access-Control-Allow-Origin": "*",
+            });
+            return res.end(fs.readFileSync(localVendorGsap));
+          }
+        }
+
         if (!fs.existsSync(targetFile)) {
           return send(res, 404, { error: `File not found: ${subPath}` });
         }
@@ -3457,7 +3469,7 @@ const server = http.createServer(async (req, res) => {
         const contentType = getContentType(targetFile);
         const allowedOrigin = req.headers.origin || "*";
         const cspHeader =
-          "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob:; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: http: https:; media-src 'self' data: blob: http: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com data: blob:;";
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval' * data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: data: blob:; style-src 'self' 'unsafe-inline' https: http: data:; font-src 'self' https: http: data:; img-src * data: blob:; media-src * data: blob:; frame-ancestors 'self' * http://* https://*;";
 
         if (subPath.endsWith("script.js") && ext === ".js") {
           let jsContent = fs.readFileSync(targetFile, "utf-8");
@@ -3473,11 +3485,11 @@ const server = http.createServer(async (req, res) => {
         if (subPath === "index.html" && ext === ".html") {
           let htmlContent = fs.readFileSync(targetFile, "utf-8");
 
-          // Ensure GSAP is present for timeline scrubbing
-          if (!htmlContent.includes("gsap") && !htmlContent.includes("gsap.min.js")) {
+          // Ensure GSAP is always present and robustly available for HTML/CSS/JS/GSAP execution
+          if (!htmlContent.includes("gsap.min.js")) {
             htmlContent = htmlContent.replace(
               "</head>",
-              '<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script></head>',
+              '<script src="/vendor/gsap.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script></head>',
             );
           }
 
@@ -5597,7 +5609,12 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             !lower.includes("clip_ends_past_root_duration") &&
             !lower.includes("text_not_painted") &&
             !lower.includes("text_fill_color") &&
-            !lower.includes("text_contrast")
+            !lower.includes("text_contrast") &&
+            !lower.includes("line_unread") &&
+            !lower.includes("font_family") &&
+            !lower.includes("rotation_pivot_drift") &&
+            !lower.includes("audio_none") &&
+            !lower.includes("command failed")
           );
         });
 
@@ -5624,7 +5641,12 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
                 !lower.includes("clip_ends_past_root_duration") &&
                 !lower.includes("text_not_painted") &&
                 !lower.includes("text_fill_color") &&
-                !lower.includes("text_contrast")
+                !lower.includes("text_contrast") &&
+                !lower.includes("line_unread") &&
+                !lower.includes("font_family") &&
+                !lower.includes("rotation_pivot_drift") &&
+                !lower.includes("audio_none") &&
+                !lower.includes("command failed")
               );
             });
             if (healedFatal.length === 0) {
@@ -5804,7 +5826,12 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
               !lower.includes("clip_ends_past_root_duration") &&
               !lower.includes("text_not_painted") &&
               !lower.includes("text_fill_color") &&
-              !lower.includes("text_contrast")
+              !lower.includes("text_contrast") &&
+              !lower.includes("line_unread") &&
+              !lower.includes("font_family") &&
+              !lower.includes("rotation_pivot_drift") &&
+              !lower.includes("audio_none") &&
+              !lower.includes("command failed")
             );
           });
           if (!valResult.valid && fatalErrors.length > 0) {

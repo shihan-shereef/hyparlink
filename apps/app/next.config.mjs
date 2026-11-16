@@ -104,11 +104,17 @@ const nextConfig = {
 };
 
 
-export default withSentryConfig(nextConfig, {
-  silent: !process.env.CI,
-  telemetry: false,
-  widenClientFileUpload: true,
-  hideSourceMaps: true,
-  disableLogger: true,
-  tunnelRoute: "/monitoring",
-});
+const isSentryEnabled =
+  process.env.NODE_ENV === "production" &&
+  Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN);
+
+export default isSentryEnabled
+  ? withSentryConfig(nextConfig, {
+      silent: !process.env.CI,
+      telemetry: false,
+      widenClientFileUpload: true,
+      hideSourceMaps: true,
+      disableLogger: true,
+      tunnelRoute: "/monitoring",
+    })
+  : nextConfig;

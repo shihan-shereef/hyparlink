@@ -1073,7 +1073,8 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                 title="Native Video Canvas"
                 onLoad={handleIframeLoad}
                 className="w-full h-full border-0 pointer-events-auto"
-                allow="clipboard-read; clipboard-write; fullscreen"
+                allow="clipboard-read; clipboard-write; fullscreen; autoplay"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads"
               />
             </div>
           )}
