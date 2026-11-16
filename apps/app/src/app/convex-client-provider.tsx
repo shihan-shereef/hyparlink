@@ -44,13 +44,13 @@ function getConvexUrl(): string {
     // When accessed through public tunnel (HTTPS), connect directly to the WebSocket-enabled Convex tunnel
     return (
       process.env.NEXT_PUBLIC_CONVEX_URL ||
-      "https://upgrade-decent-diabetes-availability.trycloudflare.com"
+      "https://rates-rivers-potato-indicated.trycloudflare.com"
     );
   }
 
   return (
     process.env.NEXT_PUBLIC_CONVEX_URL ||
-    "https://upgrade-decent-diabetes-availability.trycloudflare.com"
+    "https://rates-rivers-potato-indicated.trycloudflare.com"
   );
 }
 
