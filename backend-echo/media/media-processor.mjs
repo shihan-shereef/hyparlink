@@ -44,22 +44,47 @@ export class MediaProcessor {
 
     try {
       const scaleFilter = `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease`;
-      const args = [
-        "-y",
-        "-ss",
-        timestamp,
-        "-i",
-        inputPath,
-        "-vframes",
-        "1",
-        "-vf",
-        scaleFilter,
-        "-c:v",
-        "libwebp",
-        outputPath,
-      ];
+      const isWebp = outputPath.endsWith(".webp");
+      let mimeType = isWebp ? "image/webp" : "image/jpeg";
 
-      await execFileAsync(ffmpeg, args);
+      try {
+        const args = [
+          "-y",
+          "-ss",
+          timestamp,
+          "-i",
+          inputPath,
+          "-vframes",
+          "1",
+          "-vf",
+          scaleFilter,
+          ...(isWebp ? ["-c:v", "libwebp"] : ["-c:v", "mjpeg", "-q:v", "3"]),
+          outputPath,
+        ];
+        await execFileAsync(ffmpeg, args);
+      } catch (webpErr) {
+        // Fallback to mjpeg if libwebp is not supported by host ffmpeg build
+        const fallbackArgs = [
+          "-y",
+          "-ss",
+          timestamp,
+          "-i",
+          inputPath,
+          "-frames:v",
+          "1",
+          "-update",
+          "1",
+          "-vf",
+          scaleFilter,
+          "-c:v",
+          "mjpeg",
+          "-q:v",
+          "3",
+          outputPath,
+        ];
+        await execFileAsync(ffmpeg, fallbackArgs);
+        mimeType = "image/jpeg";
+      }
 
       // Verify thumbnail output file
       if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {

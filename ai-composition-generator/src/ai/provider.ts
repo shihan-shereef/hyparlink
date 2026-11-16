@@ -51,7 +51,7 @@ export class AIProvider {
       model:
         process.env.AI_MODEL ||
         (process.env.AI_PROVIDER?.toLowerCase() === "ollima"
-          ? "glm-5.3-flash"
+          ? "gemma4"
           : "default-model"),
       apiKey: process.env.AI_API_KEY || process.env.OLLAMA_API_KEY,
       endpoint: process.env.AI_ENDPOINT || process.env.OLLAMA_BASE_URL,
@@ -508,27 +508,36 @@ export class AIProvider {
       headers["Authorization"] = `Bearer ${apiKey}`;
     }
 
-    const selectedModel =
-      model && model !== "default-model" ? model : "glm-5.3-flash";
+    let selectedModel =
+      model && model !== "default-model" ? model : (process.env.AI_MODEL || "gemma4");
+    if (
+      selectedModel === "gemini-3-flash" ||
+      selectedModel === "glm-5.3-flash" ||
+      selectedModel === "gemini-2.5-pro" ||
+      selectedModel.includes("gemini") ||
+      selectedModel === "deepseek-v4-flash"
+    ) {
+      selectedModel = "gemma4";
+    }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
+    const timeout = setTimeout(() => controller.abort(), 90000);
 
     try {
-      const requestBody = isV1
+      const requestBody: any = isV1
         ? {
             model: selectedModel,
             messages,
             temperature,
-            response_format: { type: "json_object" },
+            max_tokens: 3000,
           }
         : {
             model: selectedModel,
             messages,
-            format: "json",
             stream: false,
             options: {
               temperature,
+              num_predict: 3000,
             },
           };
 

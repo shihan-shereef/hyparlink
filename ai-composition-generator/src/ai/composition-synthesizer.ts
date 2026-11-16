@@ -193,8 +193,9 @@ export class CompositionSynthesizer {
       2,
     );
 
-    // 4. Concurrently generate authentic, bespoke HTML for all scenes
-    const scenePromises = scenes.map(async (scene, idx) => {
+    // 4. Generate authentic, bespoke HTML for all scenes
+    for (let idx = 0; idx < scenes.length; idx++) {
+      const scene = scenes[idx];
       const sceneId = String(scene.id || `scene_${scene.index || idx}`);
       const sceneFileName = `compositions/${sceneId.replace("-", "_")}.html`;
       const prevScene = idx > 0 ? scenes[idx - 1] : undefined;
@@ -226,7 +227,7 @@ export class CompositionSynthesizer {
             if (hasVisual) {
               console.log(`[CompositionSynthesizer] Scene ${idx + 1} (${scene.id}) synthesized via LLM (${generatedHtml.length} chars).`);
               files[sceneFileName] = generatedHtml;
-              return;
+              continue;
             } else {
               console.warn(
                 `[CompositionSynthesizer] Scene ${idx + 1} (${scene.id}) LLM output lacked visual content (${stripped.length} chars). Falling back to rich presentation slide synthesizer.`,
@@ -249,9 +250,7 @@ export class CompositionSynthesizer {
         height,
         fps,
       );
-    });
-
-    await Promise.all(scenePromises);
+    }
 
     return {
       files,
@@ -438,7 +437,21 @@ MANDATORY ANTIGRAVITY MOTION & HYPERFRAMES COMPLIANCE RULES:
       ) {
         const repaired = jsonrepair(trimmed);
         const parsed = JSON.parse(repaired);
-        const candidate = parsed.html || parsed.code || parsed.content || parsed.sceneHtml || parsed.scene_html;
+        const candidate =
+          parsed.html ||
+          parsed.code ||
+          parsed.content ||
+          parsed.sceneHtml ||
+          parsed.scene_html ||
+          parsed.snippet ||
+          Object.values(parsed).find(
+            (v) =>
+              typeof v === "string" &&
+              (v.includes("<div") ||
+                v.includes("<html") ||
+                v.includes("<svg") ||
+                v.includes("<!DOCTYPE")),
+          );
         if (typeof candidate === "string" && candidate.trim().length > 0) {
           clean = candidate.trim();
         }
@@ -460,6 +473,12 @@ MANDATORY ANTIGRAVITY MOTION & HYPERFRAMES COMPLIANCE RULES:
     if (clean.includes('\\n') && !clean.includes('\n')) {
       clean = clean.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
     }
+
+    // Clean any accidentally injected HTML attributes inside <style> blocks
+    clean = clean.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (_match, cssContent) => {
+      const sanitizedCss = cssContent.replace(/data-[a-z0-9_-]+=["'][^"']*["']/gi, "");
+      return `<style>${sanitizedCss}</style>`;
+    });
 
     // 1. Ensure basic HTML document skeleton if only a fragment was returned
     if (!clean.includes("<html") || !clean.includes("<!DOCTYPE html>")) {

@@ -1646,7 +1646,7 @@ const server = http.createServer(async (req, res) => {
           provider: "ollima",
           total: modelsList.length,
           models: modelsList,
-          defaultModel: process.env.AI_MODEL || "gemini-3-flash",
+          defaultModel: process.env.AI_MODEL || "gemma4",
         });
       } catch (err) {
         return send(res, 500, {
@@ -4549,7 +4549,7 @@ const server = http.createServer(async (req, res) => {
             assets: Array.isArray(body.assets) ? body.assets : [],
             avatarId: body.avatarId,
             voiceId: body.voiceId,
-            model: body.model || process.env.AI_MODEL || "gemini-3-flash",
+            model: body.model || process.env.AI_MODEL || "gemma4",
             mode: body.mode || "plan",
           },
           provider,
@@ -5845,6 +5845,21 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
           if (!renderResult.success || !fs.existsSync(outputMp4Path)) {
             const errStr = renderResult.error || "Rendering output file failed";
             await updateProgress("failed", "failed", errStr);
+            await postWebhook({
+              type: "project.result",
+              projectId,
+              workspaceId,
+              status: "failed",
+              error: errStr,
+              validationStatus: "FAILED",
+            }).catch(() => {});
+            await postWebhook({
+              type: "job.result",
+              jobId,
+              projectId,
+              error: errStr,
+              result: { status: "failed", error: errStr },
+            }).catch(() => {});
             return;
           }
 
@@ -6056,7 +6071,8 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
         const rawBaseUrl = customEndpoint || process.env.AI_BASE_URL || process.env.AI_ENDPOINT || process.env.OLLAMA_BASE_URL || "https://api.ollima.com/v1";
         const baseUrl = rawBaseUrl.replace(/\/+$/, "");
         const targetUrl = baseUrl.endsWith("/chat/completions") ? baseUrl : `${baseUrl}/chat/completions`;
-        const activeModel = model || process.env.AI_MODEL || "gemini-3-flash";
+        const rawModel = model || process.env.AI_MODEL || "gemma4";
+        const activeModel = (rawModel === "gemini-3-flash" || rawModel === "glm-5.3-flash" || rawModel.includes("gemini") || rawModel === "deepseek-v4-flash") ? "gemma4" : rawModel;
 
         // Build target element context snippet
         let elementContext = "No specific element selected. Apply edits across the composition or active scene as requested.";
@@ -6250,7 +6266,7 @@ Return only the JSON object containing the updated code and summary.`;
       const width = Number(body.width) || 1920;
       const height = Number(body.height) || 1080;
       const fps = Number(body.fps) || 30;
-      const model = body.model || "deepseek-v4-flash";
+      const model = body.model || "gemma4";
       let resolvedAssets = Array.isArray(body.assets) ? [...body.assets] : [];
 
       if (resolvedAssets.length === 0) {
@@ -6862,6 +6878,21 @@ Return only the JSON object containing the updated code and summary.`;
             apiProjectStore.set(projectId, { ...pCur, ...failData });
             const jCur = apiJobStore.get(jobId) || {};
             apiJobStore.set(jobId, { ...jCur, ...failData });
+
+            await postWebhook({
+              type: "project.result",
+              projectId,
+              status: "failed",
+              error: errStr,
+              validationStatus: "FAILED",
+            }).catch(() => {});
+            await postWebhook({
+              type: "job.result",
+              jobId,
+              projectId,
+              error: errStr,
+              result: failData,
+            }).catch(() => {});
           }
         } catch (genErr) {
           console.error(`[API Generate Error]:`, genErr);
@@ -6877,6 +6908,21 @@ Return only the JSON object containing the updated code and summary.`;
           apiProjectStore.set(projectId, { ...pCur, ...failData });
           const jCur = apiJobStore.get(jobId) || {};
           apiJobStore.set(jobId, { ...jCur, ...failData });
+
+          await postWebhook({
+            type: "project.result",
+            projectId,
+            status: "failed",
+            error: errStr,
+            validationStatus: "FAILED",
+          }).catch(() => {});
+          await postWebhook({
+            type: "job.result",
+            jobId,
+            projectId,
+            error: errStr,
+            result: failData,
+          }).catch(() => {});
         }
       });
 

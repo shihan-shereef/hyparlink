@@ -256,7 +256,7 @@ ${options.avatarId ? `PRESENTER AVATAR ID: ${options.avatarId} (Voice: ${options
               { role: "user", content: userPrompt },
             ],
             0.2,
-            options.model || process.env.AI_MODEL || "gemini-3-flash",
+            options.model || process.env.AI_MODEL || "gemma4",
           ),
           timeoutPromise,
         ]);

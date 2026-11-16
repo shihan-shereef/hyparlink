@@ -36,14 +36,20 @@ http.route({
           error: typeof payload.error === "string" ? payload.error : undefined,
         });
       } catch {}
-      if (typeof payload.projectId === "string") {
+      const projId =
+        typeof payload.projectId === "string"
+          ? payload.projectId
+          : payload.result && typeof (payload.result as any).projectId === "string"
+            ? (payload.result as any).projectId
+            : undefined;
+      if (projId) {
         const res = (payload.result || {}) as any;
         try {
           await ctx.runMutation(internal.projects.updateProjectResult, {
-            projectId: payload.projectId as any,
+            projectId: projId as any,
             workspaceId: typeof payload.workspaceId === "string" ? payload.workspaceId : undefined,
             name: typeof res.title === "string" ? res.title : undefined,
-            status: typeof res.status === "string" ? res.status : "completed",
+            status: typeof res.status === "string" ? res.status : (payload.error ? "failed" : "completed"),
             outputUrl: typeof res.outputUrl === "string" ? res.outputUrl : (res.videoUrl || undefined),
             cdnUrl: typeof res.cdnUrl === "string" ? res.cdnUrl : (res.videoUrl || undefined),
             storageUrl: typeof res.storageUrl === "string" ? res.storageUrl : (res.videoUrl || undefined),

@@ -1676,7 +1676,7 @@ window.__timelines["main"] = tl;`);
     created?: number;
     isVerifiedFree?: boolean;
   }>>([]);
-  const [selectedModel, setSelectedModel] = useState<string>("gemini-3-flash");
+  const [selectedModel, setSelectedModel] = useState<string>("gemma4");
   const [modelSearch, setModelSearch] = useState<string>("");
   const [isLoadingModels, setIsLoadingModels] = useState<boolean>(false);
   const [modelError, setModelError] = useState<string | null>(null);
@@ -3173,7 +3173,7 @@ window.__timelines["main"] = tl;`);
                       title="Select AI Model"
                     >
                       <Sparkles className="h-3 w-3 text-indigo-500" />
-                      <span>{selectedModel === "gemini-3-flash" ? "Lite" : selectedModel}</span>
+                      <span>{selectedModel === "gemma4" ? "Ultra Fast" : selectedModel === "deepseek-v4-flash" ? "DeepSeek" : selectedModel}</span>
                       <ChevronDown className="h-3 w-3 text-slate-400" />
                     </button>
 
@@ -3187,8 +3187,9 @@ window.__timelines["main"] = tl;`);
                         </div>
                         <div className="space-y-1">
                           {[
-                            { id: "gemini-3-flash", label: "Lite (Fast)", desc: "Gemini Flash 2.5/3" },
-                            { id: "gemini-2.5-pro", label: "Pro (High Quality)", desc: "Gemini Pro Reasoning" },
+                            { id: "gemma4", label: "Ultra Fast AI (1.5s)", desc: "Gemma 4 Fast Inference Engine" },
+                            { id: "deepseek-v4-flash", label: "DeepSeek Flash", desc: "DeepSeek V4" },
+                            { id: "gemini-3-flash", label: "Lite (Fast)", desc: "Auto-routes to Fast AI" },
                             { id: "ollama-local", label: "Ollama (Local)", desc: "Local LLM via port 11434" },
                           ].map((m) => (
                             <button
