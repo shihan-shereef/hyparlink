@@ -1476,6 +1476,7 @@ export const updateProjectResult = internalMutation({
   }
 
   await ctx.db.patch(project._id, {
+      name: args.name ?? project.name,
       status: args.status,
       outputUrl: args.outputUrl ?? project.outputUrl,
       outputStorageId: args.outputStorageId ?? project.outputStorageId,

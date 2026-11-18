@@ -196,6 +196,20 @@ export class DesignValidator {
         let stylesContent = await fs.readFile(stylesPath, "utf-8");
         let stylesModified = false;
 
+        // 0. Clean stray HTML tags, broken comment markers or leading text before valid CSS
+        if (/^[\s\S]*?(?:-->|<\/?(?:meta|link|title|html|head|body)[^>]*>)/i.test(stylesContent)) {
+          const cleaned = stylesContent
+            .replace(/^[\s\S]*?-->/i, "")
+            .replace(/<title[^>]*>[\s\S]*?<\/title>/gi, "")
+            .replace(/<\/?(?:meta|link|style|script|html|head|body)[^>]*>/gi, "")
+            .replace(/^[\s\S]*?(?=\/\*|:root\b|@|#|\.[a-zA-Z]|(?:html|body|main|div|section)\b)/i, "")
+            .trim();
+          if (cleaned && cleaned !== stylesContent) {
+            stylesContent = cleaned;
+            stylesModified = true;
+          }
+        }
+
         // 1. Standardize html, body to fixed canvas resolution (1920x1080)
         if (stylesContent.includes("html, body") || stylesContent.includes("body, html")) {
           const bodyRegex = /(html,\s*body|body,\s*html)\s*\{([^}]*)\}/i;
@@ -628,8 +642,31 @@ export class DesignValidator {
           });
         }
 
-        // A. Ensure root element has id="root", data-width, and data-height
-        const rootMatch = content.match(/<div[^>]+data-composition-id=["']([^"']+)["'][^>]*>/i);
+        // A. Ensure root element has id="root", data-composition-id, data-width, and data-height
+        let rootMatch = content.match(/<div[^>]+data-composition-id=["']([^"']+)["'][^>]*>/i);
+        if (!rootMatch) {
+          const fallbackRoot = content.match(/<(div|main)[^>]*\bid=["'](?:root|composition|film|master)["'][^>]*>/i);
+          if (fallbackRoot) {
+            const compId = file === "index.html" ? "main" : file.replace(/\.html$/i, "");
+            const updated = fallbackRoot[0].replace(/>$/, ` data-composition-id="${compId}" data-start="0" data-width="${width}" data-height="${height}">`);
+            content = content.replace(fallbackRoot[0], updated);
+            modified = true;
+            repairedCount++;
+            rootMatch = content.match(/<div[^>]+data-composition-id=["']([^"']+)["'][^>]*>/i);
+          }
+        }
+
+        // Ensure GSAP script tag is loaded if gsap or timeline is referenced
+        if (file === "index.html" && /(\bgsap\b|window\.gsap|timeline\.)/i.test(content) && !/<script[^>]*\bgsap(\.min)?\.js/i.test(content)) {
+          if (/<head\b[^>]*>/i.test(content)) {
+            content = content.replace(/<head\b[^>]*>/i, '$&\n  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>');
+          } else {
+            content = `<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>\n${content}`;
+          }
+          modified = true;
+          repairedCount++;
+        }
+
         if (rootMatch) {
           let rootTag = rootMatch[0];
           let updatedRootTag = rootTag;

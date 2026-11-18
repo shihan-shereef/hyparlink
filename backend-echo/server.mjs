@@ -3500,10 +3500,13 @@ const server = http.createServer(async (req, res) => {
   .scene, .scene *, section, section * {
     filter: none !important;
   }
-  #flare, .flare, .grain, .bar, .shade, #barTop, #barBot {
+  /* Scenery, background parallax, SVG scene paths, letterbox bars, and overlays must NEVER steal clicks or drag */
+  svg#scene, svg#world, #camera, .par, [id^="L-"], #sky, #sun, #grass, #road, #curb, .blade, .hill-far, .hill-mid, .trunk, .leaf1, .leaf2, .speck, .dash, .post, .lamp, defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout, #flare, .flare, .grain, .shade, #barTop, #barBot {
     pointer-events: none !important;
+    cursor: default !important;
   }
-  h1, h2, h3, h4, h5, h6, p, span, a, button, img, svg, path, circle, rect, line, div, b, strong, em, i, .headline, .title, .mega, .big, .sub, .kicker, .pill, .num, .content, .hero-headline, .hero-subtitle, .badge-pill, .badge, .stat, .note, .spear, .battleline, .rule, .map, [data-hf-id] {
+  /* Interactive text, captions, speech bubbles, callouts, and buttons */
+  .cap, .bubble, [id^="cap"], [id^="say"], #ouch, #brandtag, #end-title, #end-tag, #end-cta, h1, h2, h3, h4, h5, h6, p.sub, p.description, .headline, .title, .mega, .big, .kicker, .pill, .badge-pill, .badge, .stat, .note, button, a.btn, img:not([hidden]), .spear, .battleline, .rule {
     pointer-events: auto !important;
     cursor: pointer !important;
   }
@@ -3536,8 +3539,23 @@ const server = http.createServer(async (req, res) => {
     pointer-events: auto !important;
     z-index: 99 !important;
   }
-  /* Visual hover outline on editable elements */
-  h1:hover, h2:hover, h3:hover, h4:hover, p:hover, div[style*="font"]:hover, .kicker:hover, .note:hover, .spear:hover, .battleline:hover, .map:hover {
+  /* When paused or scrubbing in editor, pause native CSS animations */
+  html.hf-editor-paused *, body.hf-editor-paused * {
+    animation-play-state: paused !important;
+  }
+  /* Root composition elements must always remain fully visible */
+  #root, #main, #stage, svg#world, svg#scene, .clip {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  /* Never let end-fade overlay obscure canvas in editor */
+  #fade, #fadein, #fadeout {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  /* Visual hover outline strictly on editable interactive text & elements */
+  .cap:hover, .bubble:hover, [id^="cap"]:hover, [id^="say"]:hover, #ouch:hover, #brandtag:hover, #end-title:hover, #end-tag:hover, #end-cta:hover, h1:hover, h2:hover, h3:hover, h4:hover, p.description:hover, p.sub:hover, .kicker:hover, .badge:hover, button:hover, a.btn:hover, img:not([hidden]):hover {
     outline: 2px dashed rgba(56, 189, 248, 0.85) !important;
     outline-offset: 4px !important;
   }
@@ -3580,74 +3598,47 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       if (t.id === 'hyperframes-runtime-composer' || t.tagName === 'SCRIPT' || t.tagName === 'STYLE') return;
-      if (t.id === 'root' || t.id === 'scenes' || t.id === 'hud' || t.id === 'barTop' || t.id === 'barBot' || t.id === 'flare') {
+      if (t.id === 'root' || t.id === 'scenes' || t.id === 'hud' || t.id === 'barTop' || t.id === 'barBot' || t.id === 'flare' || t.id === 'end') {
         postToEditor({ type: 'HYPERLINK_CANVAS_CLICKED' });
         return;
       }
       var clsStr = typeof t.className === 'string' ? t.className.toLowerCase() : '';
-      if (clsStr.includes('film-grain') || clsStr.includes('grid-overlay') || clsStr.includes('scene-overlay')) {
+      if (clsStr.includes('film-grain') || clsStr.includes('grid-overlay') || clsStr.includes('scene-overlay') || clsStr.includes('ambient-glow')) {
         postToEditor({ type: 'HYPERLINK_CANVAS_CLICKED' });
         return;
       }
 
-      // Check SVG graphics or icons
-      var svgEl = t.closest('svg, .map, .illustration, .graphic, .diagram');
-      if (svgEl) {
-        e.stopPropagation();
-        var sRect = svgEl.getBoundingClientRect();
-        var sId = svgEl.getAttribute('data-hf-id') || svgEl.id || ('graphic-' + (sceneIndex !== undefined ? sceneIndex : '0') + '-' + Math.round(sRect.left));
-        if (!svgEl.getAttribute('data-hf-id')) svgEl.setAttribute('data-hf-id', sId);
-        postToEditor({
-          type: 'HYPERLINK_ELEMENT_CLICKED',
-          payload: {
-            id: sId,
-            sceneId: sceneId || undefined,
-            sceneIndex: sceneIndex !== undefined ? sceneIndex : undefined,
-            tag: 'svg',
-            type: 'image',
-            classes: Array.from(svgEl.classList || []),
-            text: svgEl.querySelector('text')?.textContent?.trim() || 'Vector Graphic',
-            originalText: svgEl.querySelector('text')?.textContent?.trim() || 'Vector Graphic',
-            rect: { top: sRect.top, left: sRect.left, width: sRect.width, height: sRect.height },
-            styles: { objectFit: 'contain' }
+      // If clicked on or inside background scenery, letterbox bars, or decorative full-screen layers
+      if (t.closest('svg#scene, svg#world, #camera, .par, [id^="L-"], #sky, #sun, #grass, #road, #curb, .blade, .hill-far, .hill-mid, .trunk, .leaf1, .leaf2, .speck, .dash, .post, .lamp, defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout, #barTop, #barBot')) {
+        // Check if an editable foreground element is positioned under this click point
+        var under = targetDoc.elementsFromPoint ? targetDoc.elementsFromPoint(e.clientX, e.clientY) : [];
+        var foundFg = null;
+        for (var ui = 0; ui < under.length; ui++) {
+          var u = under[ui];
+          if (!u || u === targetDoc.body || u === targetDoc.documentElement) continue;
+          var fgMatch = u.closest('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #brandtag, #end-title, #end-tag, #end-cta, h1, h2, h3, h4, h5, h6, p.sub, p.description, button, a.btn');
+          if (fgMatch) {
+            foundFg = fgMatch;
+            break;
           }
-        });
-        return;
+        }
+        if (foundFg) {
+          t = foundFg;
+        } else {
+          postToEditor({ type: 'HYPERLINK_CANVAS_CLICKED' });
+          return;
+        }
       }
 
-      // Check CSS illustration elements (.spear, .battleline, .rule, .arrow, etc.)
-      var illustrEl = t.closest('.spear, .battleline, .rule, .shape, [class*="spear"], [class*="arrow"], [class*="graphic"]');
-      if (illustrEl) {
-        e.stopPropagation();
-        var iRect = illustrEl.getBoundingClientRect();
-        var iId = illustrEl.getAttribute('data-hf-id') || illustrEl.id || ('illustr-' + (sceneIndex !== undefined ? sceneIndex : '0') + '-' + Math.round(iRect.left));
-        if (!illustrEl.getAttribute('data-hf-id')) illustrEl.setAttribute('data-hf-id', iId);
-        var iName = illustrEl.className ? String(illustrEl.className).replace(/\s+/g, ' ').trim() : 'Graphic Element';
-        postToEditor({
-          type: 'HYPERLINK_ELEMENT_CLICKED',
-          payload: {
-            id: iId,
-            sceneId: sceneId || undefined,
-            sceneIndex: sceneIndex !== undefined ? sceneIndex : undefined,
-            tag: 'div',
-            type: 'image',
-            classes: Array.from(illustrEl.classList || []),
-            text: iName,
-            originalText: iName,
-            rect: { top: iRect.top, left: iRect.left, width: iRect.width, height: iRect.height },
-            styles: { objectFit: 'contain' }
-          }
-        });
-        return;
-      }
-
-      // Check text or image elements
-      var textEl = t.closest('.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, .hero-headline, .hero-subtitle, .badge-pill, .badge, .stat, .note, h1, h2, h3, h4, h5, h6, p, button, a, img, b, strong, em, i, span');
-      if (!textEl && (t.innerText || t.textContent || '').trim().length > 0 && t.tagName !== 'BODY' && t.tagName !== 'HTML' && !t.classList.contains('scene') && !t.classList.contains('clip')) {
-        textEl = t;
-      }
-
+      // Check text or interactive elements
+      var textEl = t.closest('.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, .hero-headline, .hero-subtitle, .badge-pill, .badge, .stat, .note, .cap, .bubble, [id^="cap"], [id^="say"], [id^="end"], #brandtag, #ouch, .who, .tip, .quote, h1, h2, h3, h4, h5, h6, p, button, a, img');
       if (textEl && textEl !== targetDoc.body) {
+        // Elevate inner child elements (e.g. em, span, .who) to the outer text container
+        var parentContainer = textEl.parentElement ? textEl.parentElement.closest('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #end-title, #end-tag, #end-cta, h1, h2, h3, h4, h5, h6') : null;
+        if (parentContainer) {
+          textEl = parentContainer;
+        }
+
         e.stopPropagation();
         var rect = textEl.getBoundingClientRect();
         var computed = targetWin ? targetWin.getComputedStyle(textEl) : window.getComputedStyle(textEl);
@@ -3682,9 +3673,36 @@ const server = http.createServer(async (req, res) => {
             }
           }
         });
-      } else {
-        postToEditor({ type: 'HYPERLINK_CANVAS_CLICKED' });
+        return;
       }
+
+      // Check explicit illustration elements (.spear, .battleline, .rule, .arrow)
+      var illustrEl = t.closest('.spear, .battleline, .rule, [class*="spear"], [class*="arrow"]');
+      if (illustrEl) {
+        e.stopPropagation();
+        var iRect = illustrEl.getBoundingClientRect();
+        var iId = illustrEl.getAttribute('data-hf-id') || illustrEl.id || ('illustr-' + (sceneIndex !== undefined ? sceneIndex : '0') + '-' + Math.round(iRect.left));
+        if (!illustrEl.getAttribute('data-hf-id')) illustrEl.setAttribute('data-hf-id', iId);
+        var iName = illustrEl.className ? String(illustrEl.className).replace(/\s+/g, ' ').trim() : 'Graphic Element';
+        postToEditor({
+          type: 'HYPERLINK_ELEMENT_CLICKED',
+          payload: {
+            id: iId,
+            sceneId: sceneId || undefined,
+            sceneIndex: sceneIndex !== undefined ? sceneIndex : undefined,
+            tag: 'div',
+            type: 'image',
+            classes: Array.from(illustrEl.classList || []),
+            text: iName,
+            originalText: iName,
+            rect: { top: iRect.top, left: iRect.left, width: iRect.width, height: iRect.height },
+            styles: { objectFit: 'contain' }
+          }
+        });
+        return;
+      }
+
+      postToEditor({ type: 'HYPERLINK_CANVAS_CLICKED' });
     }, true);
   }
 
@@ -3695,6 +3713,34 @@ const server = http.createServer(async (req, res) => {
 
     // Attach picker to main root document
     attachElementPicker(document, window);
+
+    function syncAllPlayback(timeInSeconds, isPlaying, doc) {
+      var targetDoc = doc || document;
+      var tMs = (Number(timeInSeconds) || 0) * 1000;
+      try {
+        if (targetDoc.getAnimations) {
+          var anims = targetDoc.getAnimations();
+          for (var ai = 0; ai < anims.length; ai++) {
+            var a = anims[ai];
+            if (a && typeof a.currentTime !== 'undefined') {
+              a.currentTime = tMs;
+              a.pause();
+            }
+          }
+        }
+      } catch(err) {}
+      try {
+        targetDoc.documentElement.classList.add('hf-editor-paused');
+        if (targetDoc.body) targetDoc.body.classList.add('hf-editor-paused');
+      } catch(err) {}
+      try {
+        var subIframes = targetDoc.querySelectorAll('iframe');
+        for (var si = 0; si < subIframes.length; si++) {
+          var sDoc = subIframes[si].contentDocument || (subIframes[si].contentWindow ? subIframes[si].contentWindow.document : null);
+          if (sDoc) syncAllPlayback(timeInSeconds, isPlaying, sDoc);
+        }
+      } catch(err) {}
+    }
 
     function stopAllAutoplay(doc) {
       if (!doc) return;
@@ -3707,6 +3753,10 @@ const server = http.createServer(async (req, res) => {
       });
     }
     stopAllAutoplay(document);
+    syncAllPlayback(0, false, document);
+    setTimeout(function() { syncAllPlayback(0, false, document); }, 50);
+    setTimeout(function() { syncAllPlayback(0, false, document); }, 150);
+    setTimeout(function() { syncAllPlayback(0, false, document); }, 400);
 
     setTimeout(function() {
       try {
@@ -3718,24 +3768,28 @@ const server = http.createServer(async (req, res) => {
         var perSceneDur = allScenes.length > 0 ? (totalFilmDur / allScenes.length) : 8;
 
         var candidates = document.querySelectorAll(
-          '.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, .description, .eyebrow, .scene-number, [data-hf-id], h1, h2, h3, h4, h5, h6, p, span.scene-number, button, img:not([hidden]), .product-image, .feature-image, .spear, [class*="spear"], [class*="arrow"], .battleline, .rule, .map, svg, div[style*="font"], div[style*="position"]'
+          '.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #brandtag, #end-title, #end-tag, #end-cta, .headline, .title, .mega, .big, .hero-headline, .hero-subtitle, h1, h2, h3, h4, h5, h6, p.sub, p.description, p:not(.cap *):not(.bubble *), .kicker, .pill, .num, .badge-pill, .badge, .stat, .note, button, a.btn, img:not([hidden]), .product-image, .feature-image, .spear, .battleline, .rule'
         );
+
         candidates.forEach(function(el, idx) {
-          if (el.id === 'root' || el.id === 'scenes' || el.id === 'composition' || el.id === 'hud' || el.id === 'barTop' || el.id === 'barBot' || el.id === 'flare') return;
+          if (!el || el.id === 'root' || el.id === 'scenes' || el.id === 'composition' || el.id === 'hud' || el.id === 'barTop' || el.id === 'barBot' || el.id === 'flare' || el.id === 'end') return;
           if (el.classList && (el.classList.contains('scene-background') || el.classList.contains('grid-overlay') || el.classList.contains('film-grain') || el.classList.contains('grain') || el.classList.contains('progress-track'))) return;
-          if (el.tagName !== 'IMG' && el.querySelector('h1, h2, h3, h4, p, .headline, .description, .card')) return;
+          if (el.closest('svg#scene, svg#world, #camera, .par, [id^="L-"], #sky, #sun, #grass, #road, #curb, .blade, .hill-far, .hill-mid, .trunk, .leaf1, .leaf2, .speck, .dash, .post, .lamp, defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout')) return;
+
+          // Skip inner child elements if an outer selectable text container already wraps this element
+          var parentContainer = el.parentElement ? el.parentElement.closest('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #end-title, #end-tag, #end-cta, h1, h2, h3, h4, h5, h6') : null;
+          if (parentContainer && parentContainer !== el) return;
+
           var tag = el.tagName ? el.tagName.toLowerCase() : 'div';
           var isImg = tag === 'img';
           var clsStr = el.className ? String(el.className) : '';
-          var isIllust = (clsStr.includes('spear') || clsStr.includes('arrow') || clsStr.includes('battleline') || clsStr.includes('rule') || clsStr.includes('map')) || tag === 'svg';
+          var isIllust = (clsStr.includes('spear') || clsStr.includes('arrow') || clsStr.includes('battleline') || clsStr.includes('rule')) || tag === 'svg';
           var txt = isImg
             ? (el.getAttribute('alt') || el.getAttribute('src')?.split('/').pop()?.split('?')[0] || 'Image')
             : (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-          var scEl = el.closest('.scene, .ad-scene, section');
-          var scIdx = scEl ? allScenes.indexOf(scEl) : 0;
-          if (scIdx < 0) scIdx = 0;
-          if (!isIllust && (!txt || txt.length < 1 || seen.has(scIdx + '-' + txt + '-' + tag))) return;
-          if (txt) seen.add(scIdx + '-' + txt + '-' + tag);
+
+          if (!isIllust && (!txt || txt.length < 1 || seen.has(txt))) return;
+          if (txt) seen.add(txt);
 
           var isH = !isImg && !isIllust && (tag.startsWith('h') || (el.className && (String(el.className).includes('title') || String(el.className).includes('headline') || String(el.className).includes('mega') || String(el.className).includes('big'))));
           var isEyebrow = !isImg && !isIllust && el.className && (String(el.className).includes('eyebrow') || String(el.className).includes('kicker') || String(el.className).includes('label'));
@@ -3747,13 +3801,65 @@ const server = http.createServer(async (req, res) => {
             id = (isImg ? 'img-' : isIllust ? 'graphic-' : 'live-el-') + idx + '-' + Math.abs((txt || 'element').split('').reduce(function(a,b){a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
             el.setAttribute('data-hf-id', id);
           }
+
+          // Extract exact start and duration timing
+          var timedEl = el.closest('[style*="--start"], [data-start]');
+          var scStart = 0;
+          var scDur = 5;
+          var hasTiming = false;
+
+          if (timedEl) {
+            var sAttr = timedEl.getAttribute('style') || '';
+            var startMatch = sAttr.match(/--start:\s*([0-9.]+)s/);
+            var durMatch = sAttr.match(/--dur:\s*([0-9.]+)s/);
+            if (!startMatch && timedEl.hasAttribute('data-start')) {
+              startMatch = [null, timedEl.getAttribute('data-start')];
+            }
+            if (!durMatch && timedEl.hasAttribute('data-duration')) {
+              durMatch = [null, timedEl.getAttribute('data-duration')];
+            }
+            if (startMatch) {
+              scStart = parseFloat(startMatch[1]);
+              hasTiming = true;
+            }
+            if (durMatch) {
+              scDur = parseFloat(durMatch[1]);
+            } else {
+              // If inside #end or a scene with duration, calculate remaining duration
+              var parentTimed = timedEl.parentElement ? timedEl.parentElement.closest('[style*="--dur"], [data-duration]') : null;
+              if (parentTimed) {
+                var pAttr = parentTimed.getAttribute('style') || '';
+                var pDurMatch = pAttr.match(/--dur:\s*([0-9.]+)s/) || [null, parentTimed.getAttribute('data-duration')];
+                var pStartMatch = pAttr.match(/--start:\s*([0-9.]+)s/) || [null, parentTimed.getAttribute('data-start')];
+                if (pDurMatch && pStartMatch) {
+                  var pStart = parseFloat(pStartMatch[1]);
+                  var pDur = parseFloat(pDurMatch[1]);
+                  scDur = Math.max(1, (pStart + pDur) - scStart);
+                }
+              } else {
+                scDur = 4;
+              }
+            }
+          }
+
+          var scEl = el.closest('.scene, .ad-scene, section');
           var scIdx = scEl ? allScenes.indexOf(scEl) : 0;
           if (scIdx < 0) scIdx = 0;
-          var scStart = scIdx * perSceneDur;
-          var scDur = perSceneDur;
-          if (videoScenes && videoScenes[scIdx]) {
-            scStart = Number(videoScenes[scIdx].start);
-            scDur = (typeof videoScenes[scIdx].end === 'number') ? (videoScenes[scIdx].end - scStart) : (Number(videoScenes[scIdx].duration) || perSceneDur);
+          if (!hasTiming && scEl) {
+            if (videoScenes && videoScenes[scIdx]) {
+              scStart = Number(videoScenes[scIdx].start) || 0;
+              scDur = (typeof videoScenes[scIdx].end === 'number') ? (videoScenes[scIdx].end - scStart) : (Number(videoScenes[scIdx].duration) || perSceneDur);
+            } else {
+              scStart = scIdx * perSceneDur;
+              scDur = perSceneDur;
+            }
+            hasTiming = true;
+          }
+
+          var isGlobal = (el.id === 'brandtag' || el.classList.contains('brandtag') || el.classList.contains('watermark') || !hasTiming);
+          if (isGlobal && !hasTiming) {
+            scStart = 0;
+            scDur = totalFilmDur;
           }
 
           var clsName = el.className ? String(el.className) : '';
@@ -3764,9 +3870,10 @@ const server = http.createServer(async (req, res) => {
           scanned.push({
             id: id,
             sceneId: scEl ? (scEl.id || ('scene-' + (scIdx + 1))) : 'scene-1',
-            sceneIndex: scIdx,
+            sceneIndex: isGlobal ? -1 : scIdx,
             sceneStart: scStart,
             sceneDuration: scDur,
+            isGlobal: isGlobal,
             tag: tag,
             type: (isImg || isIllust) ? 'image' : (isH ? 'heading' : (isEyebrow || isNum ? 'badge' : (tag === 'button' ? 'button' : 'text'))),
             name: (isImg ? 'Image: ' : isIllust ? 'Graphic: ' : (isH ? 'Title: ' : (isEyebrow ? 'Eyebrow: ' : 'Text: '))) + label,
@@ -3972,6 +4079,7 @@ const server = http.createServer(async (req, res) => {
       if (ev.data.type === 'HYPERLINK_SEEK') {
         var t = Number(ev.data.time) || 0;
         var isPlaying = Boolean(ev.data.isPlaying);
+        syncAllPlayback(t, isPlaying, document);
         forEachTimeline(function(tl) {
           if (typeof tl.seek === 'function') {
             tl.seek(t, false);
@@ -3998,8 +4106,10 @@ const server = http.createServer(async (req, res) => {
         }
 
         // Frame-accurate scene visibility for native HTML scene compositions (e.g. Kerala, Delhi, Coorg, Nike)
-        var scenes = document.querySelectorAll('.scene, .ad-scene, section[data-start], section[data-scene]');
-        if (scenes.length > 0) {
+        var scenes = Array.from(document.querySelectorAll('.scene, .ad-scene, section[data-start], section[data-scene]')).filter(function(el) {
+          return el.id !== 'root' && el.id !== 'main' && el.id !== 'stage' && el.id !== 'composition' && el.id !== 'film';
+        });
+        if (scenes.length > 1) {
           var videoScenes = (window.VIDEO && Array.isArray(window.VIDEO.scenes)) ? window.VIDEO.scenes : null;
           var totalDur = parseFloat(document.getElementById('film')?.getAttribute('data-duration')) || (window.VIDEO && window.VIDEO.duration) || 60;
           scenes.forEach(function(s, idx) {
@@ -4095,6 +4205,7 @@ const server = http.createServer(async (req, res) => {
         });
       } else if (ev.data.type === 'HYPERLINK_PLAY') {
         var t = Number(ev.data.time) || 0;
+        syncAllPlayback(t, true, document);
         forEachTimeline(function(tl) {
           if (typeof tl.seek === 'function') tl.seek(t, false);
           if (typeof tl.play === 'function') tl.play();
@@ -4116,6 +4227,7 @@ const server = http.createServer(async (req, res) => {
         });
       } else if (ev.data.type === 'HYPERLINK_PAUSE') {
         var t = Number(ev.data.time) || 0;
+        syncAllPlayback(t, false, document);
         forEachTimeline(function(tl) {
           if (typeof tl.pause === 'function') tl.pause();
           if (typeof tl.seek === 'function') tl.seek(t, false);
@@ -4145,7 +4257,7 @@ const server = http.createServer(async (req, res) => {
         }
         if (targets.length === 0 && (p.originalText || p.text)) {
           var searchTxt = (p.originalText || p.text).trim();
-          var allNodes = document.querySelectorAll('.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, [data-hf-id], h1, h2, h3, h4, p, span, button, img');
+          var allNodes = document.querySelectorAll('.headline, .title, .mega, .big, .sub, .kicker, .pill, .num, .cap, .bubble, [id^="cap"], [id^="say"], [id^="end"], #brandtag, #ouch, .who, .tip, .quote, [data-hf-id], h1, h2, h3, h4, p, span, button, img, text');
           for (var i = 0; i < allNodes.length; i++) {
             if (allNodes[i].tagName === 'IMG') {
               if (allNodes[i].getAttribute('alt') === searchTxt || (allNodes[i].src && allNodes[i].src.includes(searchTxt))) {
@@ -4187,19 +4299,24 @@ const server = http.createServer(async (req, res) => {
         targets.forEach(function(el) {
           if (p.placement) {
             var pl = p.placement;
-            el.style.position = 'absolute';
-            if (pl.x !== undefined) el.style.left = pl.x + '%';
-            if (pl.y !== undefined) el.style.top = pl.y + '%';
-            if (pl.isTopLeft) {
-              el.style.transform = 'none';
+            var tagL = (el.tagName || '').toLowerCase();
+            // Move position with left & top without wiping out CSS keyframe transforms
+            if (!tagL.match(/^(path|circle|rect|ellipse|line|polygon|polyline|g)$/)) {
+              if (pl.x !== undefined) el.style.left = pl.x + '%';
+              if (pl.y !== undefined) el.style.top = pl.y + '%';
+              if (pl.width && typeof pl.width === 'number') {
+                el.style.width = pl.width + 'px';
+              }
+              if (pl.height && typeof pl.height === 'number' && tagL === 'img') {
+                el.style.height = pl.height + 'px';
+              }
             } else {
-              el.style.transform = 'translate(-50%, -50%)';
-            }
-            if (pl.width) {
-              el.style.width = typeof pl.width === 'number' ? pl.width + 'px' : pl.width;
-            }
-            if (pl.height && el.tagName.toLowerCase() !== 'img') {
-              el.style.height = typeof pl.height === 'number' ? pl.height + 'px' : pl.height;
+              // If SVG group prop is targeted, translate via SVG coordinate system
+              if (pl.x !== undefined && pl.y !== undefined) {
+                var px = (pl.x / 100) * 1920;
+                var py = (pl.y / 100) * 1080;
+                el.setAttribute('transform', 'translate(' + Math.round(px) + ',' + Math.round(py) + ')');
+              }
             }
           }
           if (p.text !== undefined && el.tagName.toLowerCase() !== 'img') {
@@ -4208,7 +4325,12 @@ const server = http.createServer(async (req, res) => {
             } else if (typeof window.split === 'function' && el.classList.contains('mega')) {
               el.innerHTML = window.split(p.text);
             } else {
-              el.innerText = p.text;
+              var em = el.querySelector('em');
+              if (em && !p.text.includes('<')) {
+                el.textContent = p.text;
+              } else {
+                el.innerText = p.text;
+              }
             }
           }
           if (p.styles) {
@@ -5140,16 +5262,35 @@ const server = http.createServer(async (req, res) => {
       let userCss = (css || "").trim();
       let userJs = (js || "").trim();
 
+      function sanitizeCssText(cssText) {
+        if (!cssText) return "";
+        let clean = cssText.trim();
+        clean = clean.replace(/^[\s\S]*?-->/i, "");
+        clean = clean.replace(/<title[^>]*>[\s\S]*?<\/title>/gi, "");
+        clean = clean.replace(/<\/?(?:meta|link|style|script|html|head|body)[^>]*>/gi, "");
+        clean = clean.replace(/^[\s\S]*?(?=\/\*|:root\b|@|#|\.[a-zA-Z]|(?:html|body|main|div|section)\b)/i, "").trim();
+        return clean;
+      }
+      userCss = sanitizeCssText(userCss);
+
       // Strip markdown code fences (```html ... ```)
       userHtml = userHtml.replace(/^```[a-z0-9_-]*\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
       // Strip stray leading markdown hyphens/bullets e.g. "- \n#composition" or "-\n"
       userHtml = userHtml.replace(/^[\s\-\*•]+(?=(?:<!DOCTYPE|<html|<div|<main|<section|#|\.|\/\*|[a-z]))/i, "").trim();
 
+      // Protect HTML comments so text/examples inside comments never trigger tag extractions
+      const savedHtmlComments = [];
+      userHtml = userHtml.replace(/<!--[\s\S]*?-->/g, (match) => {
+        savedHtmlComments.push(match);
+        return `<!--__PROTECTED_COMMENT_${savedHtmlComments.length - 1}__-->`;
+      });
+
       // Extract inline <style>...</style> from HTML and merge into userCss
       const inlineStyles = userHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
       if (inlineStyles) {
         for (const st of inlineStyles) {
-          const content = st.replace(/<\/?style[^>]*>/gi, "").trim();
+          let content = st.replace(/<\/?style[^>]*>/gi, "").trim();
+          content = sanitizeCssText(content);
           if (content && !userCss.includes(content.slice(0, 30))) {
             userCss = (userCss ? userCss + "\n\n" : "") + content;
           }
@@ -5168,6 +5309,11 @@ const server = http.createServer(async (req, res) => {
         }
         userHtml = userHtml.replace(/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/gi, "").trim();
       }
+
+      // Restore protected comments
+      userHtml = userHtml.replace(/<!--__PROTECTED_COMMENT_(\d+)__-->/g, (_, idx) => {
+        return savedHtmlComments[Number(idx)] || "";
+      });
 
       // If user pasted pure CSS into HTML tab (contains CSS rules with no HTML opening/closing tags)
       const hasHtmlTags = /<[a-z0-9_-]+[\s>]/i.test(userHtml);
@@ -5214,6 +5360,7 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
       }
 
       // 6. styles.css
+      userCss = sanitizeCssText(userCss);
       userCss = userCss.replace(/(\.scene-background\s*\{[^}]*?)transform\s*:\s*scale\([^)]+\)\s*;?/gi, '$1');
       await fs.promises.writeFile(path.join(projectDir, "styles.css"), userCss, "utf-8");
 
@@ -5411,9 +5558,11 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             finalHtml = `<link rel="stylesheet" href="styles.css">\n${finalHtml}`;
           }
         }
-        if (!finalHtml.includes("gsap")) {
+        if (!/<script[^>]*\bgsap(\.min)?\.js/i.test(finalHtml)) {
           if (/<head\b[^>]*>/i.test(finalHtml)) {
             finalHtml = finalHtml.replace(/<head\b[^>]*>/i, (m) => `${m}\n  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>`);
+          } else {
+            finalHtml = `<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>\n${finalHtml}`;
           }
         }
         if (!/data-composition-id=/i.test(finalHtml)) {
@@ -5602,6 +5751,8 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             !lower.includes("text_occluded") &&
             !lower.includes("sweep_static") &&
             !lower.includes("root_missing_dimensions") &&
+            !lower.includes("root_missing_composition_id") &&
+            !lower.includes("missing_gsap_script") &&
             !lower.includes("studio_missing") &&
             !lower.includes("nested_structure") &&
             !lower.includes("missing_local_asset") &&
@@ -5634,6 +5785,8 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
                 !lower.includes("text_occluded") &&
                 !lower.includes("sweep_static") &&
                 !lower.includes("root_missing_dimensions") &&
+            !lower.includes("root_missing_composition_id") &&
+            !lower.includes("missing_gsap_script") &&
                 !lower.includes("studio_missing") &&
                 !lower.includes("nested_structure") &&
                 !lower.includes("missing_local_asset") &&
@@ -5808,7 +5961,7 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
           } catch (vErr) {
             console.warn(`[Validator Notice]: ${vErr.message || vErr}`);
           }
-          const fatalErrors = (valResult.errors || []).filter((err) => {
+          const isFatal = (err) => {
             const lower = err.toLowerCase();
             return (
               !lower.includes("composition_file_too_large") &&
@@ -5819,6 +5972,10 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
               !lower.includes("text_occluded") &&
               !lower.includes("sweep_static") &&
               !lower.includes("root_missing_dimensions") &&
+            !lower.includes("root_missing_composition_id") &&
+            !lower.includes("missing_gsap_script") &&
+              !lower.includes("root_missing_composition_id") &&
+              !lower.includes("missing_gsap_script") &&
               !lower.includes("studio_missing") &&
               !lower.includes("nested_structure") &&
               !lower.includes("missing_local_asset") &&
@@ -5833,7 +5990,21 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
               !lower.includes("audio_none") &&
               !lower.includes("command failed")
             );
-          });
+          };
+          let fatalErrors = (valResult.errors || []).filter(isFatal);
+
+          // If there were fatal errors, attempt automated heal
+          if (fatalErrors.length > 0) {
+            try {
+              await DesignValidator.inspectAndRepair(projectDir);
+              const healedVal = await Validator.validate(projectDir);
+              const healedFatal = (healedVal.errors || []).filter(isFatal);
+              if (healedFatal.length === 0) {
+                fatalErrors = [];
+                valResult = { valid: true, errors: [], parsedErrors: [] };
+              }
+            } catch {}
+          }
           if (!valResult.valid && fatalErrors.length > 0) {
             const errorMsg = fatalErrors.join("; ");
             await updateProgress("failed", "failed", `Validation failed: ${errorMsg}`);
@@ -5930,19 +6101,19 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
           let thumbnailFileSize = null;
 
           try {
-            const tempThumbPath = path.join("/tmp", `thumb-${jobId}.webp`);
+            const tempThumbPath = path.join("/tmp", `thumb-${jobId}.jpg`);
             const thumbResult = await MediaProcessor.generateThumbnail(
               outputMp4Path,
               tempThumbPath,
               { width: 1280, height: 720 },
             );
             if (thumbResult && thumbResult.success && fs.existsSync(tempThumbPath)) {
-              const thumbKey = `workspaces/${workspaceId || "default"}/projects/${projectId}/renders/${jobId}/thumbnail.webp`;
+              const thumbKey = `workspaces/${workspaceId || "default"}/projects/${projectId}/renders/${jobId}/thumbnail.jpg`;
               const thumbUpload = await storage.upload(
                 tempThumbPath,
                 thumbKey,
                 {
-                  contentType: "image/webp",
+                  contentType: "image/jpeg",
                   metadata: {
                     projectId: String(projectId),
                     jobId: String(jobId),

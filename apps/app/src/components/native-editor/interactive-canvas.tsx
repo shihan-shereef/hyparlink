@@ -279,8 +279,10 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                 var actId = e.data.activeSceneId;
 
                 // 1. Sync scene container visibility
-                var sceneEls = document.querySelectorAll('[data-composition-src], [data-scene-id], .scene-container, .scene');
-                if (sceneEls.length > 0) {
+                var sceneEls = Array.from(document.querySelectorAll('[data-composition-src], [data-scene-id], .scene-container, .scene')).filter(function(el) {
+                  return el.id !== 'root' && el.id !== 'main' && el.id !== 'stage';
+                });
+                if (sceneEls.length > 1) {
                   sceneEls.forEach(function(sc, idx) {
                     var sStart = parseFloat(sc.getAttribute('data-start'));
                     var sDur = parseFloat(sc.getAttribute('data-duration'));
@@ -311,6 +313,19 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                     if (!m.paused) m.pause();
                   }
                 });
+
+                // 2.5 Sync CSS animations via Web Animations API (frame-accurate locked playback)
+                try {
+                  if (document.getAnimations) {
+                    var tMs = t * 1000;
+                    document.getAnimations().forEach(function(anim) {
+                      if (anim && typeof anim.currentTime !== 'undefined') {
+                        anim.currentTime = tMs;
+                        anim.pause();
+                      }
+                    });
+                  }
+                } catch(err) {}
 
                 // 3. Pause active scene GSAP timeline or global timelines
                 if (window.__timelines) {
@@ -471,25 +486,28 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
 
             // Scan and report composition layers to parent with real bounding boxes
             function scanLayers() {
-              var candidates = document.querySelectorAll('h1, h2, h3, p, span, img, video, svg, .badge-pill, .scene-content');
+              var candidates = document.querySelectorAll('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #brandtag, #end-title, #end-tag, #end-cta, h1, h2, h3, h4, p, img, video, .badge-pill, .scene-content, button');
               var layers = [];
               candidates.forEach(function(el, i) {
-                var uniqueId = 'layer-' + i + '-' + (el.id || el.className.split(' ')[0] || el.tagName.toLowerCase());
+                if (el.closest('svg#scene, svg#world, #camera, .par, [id^="L-"], #sky, #sun, #grass, #road, #curb, .blade, .hill-far, .hill-mid, .trunk, .leaf1, .leaf2, .speck, .dash, .post, .lamp, defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout')) return;
+                var parentContainer = el.parentElement ? el.parentElement.closest('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #end-title, #end-tag, #end-cta, h1, h2, h3, h4') : null;
+                if (parentContainer && parentContainer !== el) return;
+                var uniqueId = 'layer-' + i + '-' + (el.id || (el.className && typeof el.className === 'string' ? el.className.split(' ')[0] : '') || el.tagName.toLowerCase());
                 el.setAttribute('data-hf-layer-id', uniqueId);
                 var tag = el.tagName.toLowerCase();
                 var type = 'container';
-                if (tag === 'h1' || tag === 'h2' || tag === 'h3') type = 'heading';
+                if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4') type = 'heading';
                 else if (tag === 'p' || tag === 'span') type = 'text';
                 else if (tag === 'img') type = 'image';
                 else if (tag === 'video') type = 'video';
-                else if (tag === 'svg') type = 'shape';
+                else if (tag === 'button') type = 'button';
                 
                 var rect = el.getBoundingClientRect();
                 var computed = window.getComputedStyle(el);
 
                 layers.push({
                   id: uniqueId,
-                  name: el.id ? ('#' + el.id) : (el.className ? ('.' + el.className.split(' ')[0]) : (tag + (el.innerText ? (': ' + el.innerText.trim().slice(0, 18)) : ''))),
+                  name: el.id ? ('#' + el.id) : (el.className && typeof el.className === 'string' ? ('.' + el.className.split(' ')[0]) : (tag + (el.innerText ? (': ' + el.innerText.trim().slice(0, 18)) : ''))),
                   tag: tag,
                   type: type,
                   visible: el.style.display !== 'none' && computed.display !== 'none' && computed.visibility !== 'hidden',
@@ -529,6 +547,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
             document.addEventListener('mouseover', function(e) {
               var target = e.target;
               if (!target || target === document.body || target === document.documentElement) return;
+              if (target.closest('svg#scene, svg#world, #camera, .par, [id^="L-"], #sky, #sun, #grass, #road, #curb, .blade, .hill-far, .hill-mid, .trunk, .leaf1, .leaf2, .speck, .dash, .post, .lamp, defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout')) return;
               var rect = target.getBoundingClientRect();
               window.parent.postMessage({
                 type: 'HYPERLINK_ELEMENT_HOVERED',
@@ -547,9 +566,6 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
             }, true);
 
             document.addEventListener('click', function(e) {
-              e.preventDefault();
-              e.stopPropagation();
-
               var raw = e.target;
               var isBodyOrHtml = !raw || raw === document.body || raw === document.documentElement;
               var isOverlay = raw && raw.classList && (
@@ -560,52 +576,40 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                 raw.classList.contains('progress-bar')
               );
 
+              var isScenery = raw && raw.closest && raw.closest('svg#scene, svg#world, #camera, .par, [id^="L-"], #sky, #sun, #grass, #road, #curb, .blade, .hill-far, .hill-mid, .trunk, .leaf1, .leaf2, .speck, .dash, .post, .lamp, defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout');
+
               var target = null;
 
-              if (!isBodyOrHtml && !isOverlay) {
-                // If clicked directly inside or on a heading, select the heading so the whole headline can be edited
+              if (!isBodyOrHtml && !isOverlay && !isScenery) {
                 var heading = raw.closest ? raw.closest('h1, h2, h3, h4, h5, h6') : null;
+                var caption = raw.closest ? raw.closest('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #brandtag, #end-title, #end-tag, #end-cta') : null;
                 var paragraph = raw.closest ? raw.closest('p.description, p.eyebrow, p') : null;
                 var label = raw.closest ? raw.closest('.chapter-label, .corner-label, .badge-pill, .scene-number') : null;
-                var img = raw.closest ? raw.closest('img, video, svg, .product-image, .feature-image, .img') : null;
+                var img = raw.closest ? raw.closest('img, video, .product-image, .feature-image, .img') : null;
 
-                target = heading || paragraph || label || img || raw;
+                target = caption || heading || paragraph || label || img;
               }
 
-              // If clicked on an overlay or empty background space, find element under click point
-              if (!target || target === document.body || target === document.documentElement) {
+              // If clicked on empty background space, find text or prop under click point
+              if (!target) {
                 var pointElements = document.elementsFromPoint ? document.elementsFromPoint(e.clientX, e.clientY) : [];
                 for (var i = 0; i < pointElements.length; i++) {
                   var el = pointElements[i];
                   if (!el || el === document.body || el === document.documentElement) continue;
-                  if (el.classList && (
-                    el.classList.contains('scene-background') || 
-                    el.classList.contains('scene-overlay') || 
-                    el.classList.contains('film-grain') || 
-                    el.classList.contains('progress-track') || 
-                    el.classList.contains('progress-bar')
-                  )) continue;
+                  if (el.closest && el.closest('svg#scene, svg#world, #camera, .par, [id^="L-"], #sky, #sun, #grass, #road, #curb, .blade, .hill-far, .hill-mid, .trunk, .leaf1, .leaf2, .speck, .dash, .post, .lamp, defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout')) continue;
 
+                  var cap = el.closest ? el.closest('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #brandtag, #end-title, #end-tag, #end-cta') : null;
+                  if (cap) { target = cap; break; }
                   var h = el.closest ? el.closest('h1, h2, h3, h4, h5, h6') : null;
-                  var p = el.closest ? el.closest('p.description, p.eyebrow, p') : null;
                   if (h) { target = h; break; }
+                  var p = el.closest ? el.closest('p.description, p.eyebrow, p') : null;
                   if (p) { target = p; break; }
-
-                  var t = el.tagName.toLowerCase();
-                  if (t === 'img' || t === 'video' || t === 'svg' || (el.classList && (el.classList.contains('product-image') || el.classList.contains('feature-image') || el.classList.contains('img')))) {
-                    target = el;
-                    break;
-                  }
-                  if (['h1','h2','h3','h4','h5','h6','p','span','a','button','label','em','strong','b','i','div'].indexOf(t) !== -1) {
-                    if (el.innerText && el.innerText.trim().length > 0) {
-                      target = el;
-                      break;
-                    }
-                  }
                 }
               }
 
-              if (!target || target === document.body || target === document.documentElement) return;
+              if (!target) return;
+              e.preventDefault();
+              e.stopPropagation();
 
               // Ensure element has a stable data-hf-layer-id for live CSS & text updates
               if (!target.getAttribute('data-hf-layer-id')) {
@@ -621,11 +625,11 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
 
               var elType = "unknown";
               var tag = target.tagName.toLowerCase();
-              if (tag === 'h1' || tag === 'h2' || tag === 'h3') elType = 'heading';
-              else if (tag === 'p' || tag === 'span') elType = 'text';
+              if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4') elType = 'heading';
+              else if (tag === 'p' || tag === 'span' || target.classList.contains('cap') || target.classList.contains('bubble')) elType = 'text';
               else if (tag === 'img') elType = 'image';
               else if (tag === 'video') elType = 'video';
-              else if (tag === 'svg' || tag === 'path' || tag === 'circle' || tag === 'rect') elType = 'shape';
+              else if (tag === 'button') elType = 'button';
               else elType = 'container';
 
               window.parent.postMessage({

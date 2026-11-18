@@ -28,6 +28,8 @@ const isPublicRoute = createRouteMatcher([
   "/studio(.*)",
   "/studio-proxy(.*)",
   "/native-editor(.*)",
+  "/report(.*)",
+  "/today_midday_report(.*)",
 ]);
 
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {

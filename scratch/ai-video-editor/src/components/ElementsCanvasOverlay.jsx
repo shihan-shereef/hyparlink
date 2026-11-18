@@ -606,9 +606,10 @@ export function ElementsCanvasOverlay({
                 if (!el || !el.tagName) return true;
                 const tag = el.tagName.toLowerCase();
                 if (["html", "body", "main", "video", "iframe"].includes(tag)) return true;
-                if (["composition", "root", "scenes", "hud", "barTop", "barBot", "flare"].includes(el.id)) return true;
+                if (["composition", "root", "scenes", "hud", "barTop", "barBot", "flare", "stage", "world", "dusk", "vig", "fade", "bootmsg", "errbox"].includes(el.id)) return true;
+                if (el.closest?.("#world, #stage, #dusk, #vig, #fade")) return true;
                 const cls = typeof el.className === "string" ? el.className.toLowerCase() : (typeof el.className === "object" && el.className?.baseVal ? el.className.baseVal.toLowerCase() : "");
-                if (cls.includes("scene-background") || cls.includes("grid-overlay") || cls.includes("film-grain") || cls.includes("grain") || cls.includes("scene-overlay") || cls.includes("progress-track") || cls.includes("progress-bar") || cls.includes("flare") || cls.includes("ambient-glow-orb")) return true;
+                if (cls.includes("scene-background") || cls.includes("grid-overlay") || cls.includes("film-grain") || cls.includes("grain") || cls.includes("scene-overlay") || cls.includes("progress-track") || cls.includes("progress-bar") || cls.includes("flare") || cls.includes("ambient-glow-orb") || cls.includes("sway")) return true;
                 return false;
               };
 
@@ -713,6 +714,7 @@ export function ElementsCanvasOverlay({
                 if (isIgnored(h)) continue;
                 const svgParent = h.closest?.("svg");
                 if (svgParent) {
+                  if (svgParent.id === "world" || isIgnored(svgParent)) continue;
                   // Check child shape first
                   const childShape = h.closest?.("[data-hf-id]");
                   const childId = childShape?.getAttribute("data-hf-id");

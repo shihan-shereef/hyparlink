@@ -54,7 +54,9 @@ export class MediaProcessor {
           timestamp,
           "-i",
           inputPath,
-          "-vframes",
+          "-frames:v",
+          "1",
+          "-update",
           "1",
           "-vf",
           scaleFilter,
@@ -63,6 +65,9 @@ export class MediaProcessor {
         ];
         await execFileAsync(ffmpeg, args);
       } catch (webpErr) {
+        if (outputPath.endsWith(".webp")) {
+          outputPath = outputPath.replace(/\.webp$/, ".jpg");
+        }
         // Fallback to mjpeg if libwebp is not supported by host ffmpeg build
         const fallbackArgs = [
           "-y",

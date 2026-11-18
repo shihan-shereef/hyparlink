@@ -198,6 +198,34 @@ const PIPELINE_STAGES = [
   },
 ];
 
+const DIRECT_CODE_PIPELINE_STAGES = [
+  {
+    id: "code_verification",
+    label: "Direct code syntax & contract verification",
+    desc: "Validating HTML tags, CSS rules, SVG shapes, and HyperFrames attributes",
+  },
+  {
+    id: "scene_assembly",
+    label: "Scene layout & visual composition assembly",
+    desc: "Structuring viewport dimensions, scene clips, layers, and visual assets",
+  },
+  {
+    id: "animation_sync",
+    label: "Animation timeline & seeking synchronization",
+    desc: "Linking GSAP/CSS keyframe timelines to deterministic render clock",
+  },
+  {
+    id: "rendering_video",
+    label: "High-definition rendering & audio mixing",
+    desc: "Headless 1080p composition rendering & balanced soundtrack multiplexing",
+  },
+  {
+    id: "validating_output",
+    label: "Output validation & quality check",
+    desc: "Validating streams, codecs, duration and audiovisual synchronization",
+  },
+];
+
 const getStageIndex = (statusStr: string): number => {
   const s = (statusStr || "").toLowerCase();
   switch (s) {
@@ -679,11 +707,32 @@ window.__timelines["main"] = tl;`);
       .replace(/^[\s\-\*•]+(?=(?:<!DOCTYPE|<html|<div|<main|<section|#|\.|\/\*|[a-z]))/i, "")
       .trim();
 
+    // Helper to sanitize CSS text from stray HTML tags, unclosed comments, or headers
+    const sanitizeCssText = (cssText: string) => {
+      if (!cssText) return "";
+      let clean = cssText.trim();
+      clean = clean.replace(/^[\s\S]*?-->/i, "");
+      clean = clean.replace(/<title[^>]*>[\s\S]*?<\/title>/gi, "");
+      clean = clean.replace(/<\/?(?:meta|link|style|script|html|head|body)[^>]*>/gi, "");
+      clean = clean.replace(/^[\s\S]*?(?=\/\*|:root\b|@|#|\.[a-zA-Z]|(?:html|body|main|div|section)\b)/i, "").trim();
+      return clean;
+    };
+
+    repairedCss = sanitizeCssText(repairedCss);
+
     // 0c. Extract <style>...</style> if present in HTML and copy to repairedCss without deleting from HTML
-    const styleMatches = repairedHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+    // Protect HTML comments so examples or instructions inside comments (e.g. "top of <style>") never trigger tag extraction
+    const savedHtmlComments: string[] = [];
+    const commentMaskedHtml = repairedHtml.replace(/<!--[\s\S]*?-->/g, (match) => {
+      savedHtmlComments.push(match);
+      return `<!--__PROTECTED_COMMENT_${savedHtmlComments.length - 1}__-->`;
+    });
+
+    const styleMatches = commentMaskedHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
     if (styleMatches) {
       for (const match of styleMatches) {
-        const cssContent = match.replace(/<\/?style[^>]*>/gi, "").trim();
+        let cssContent = match.replace(/<\/?style[^>]*>/gi, "").trim();
+        cssContent = sanitizeCssText(cssContent);
         if (cssContent && !repairedCss.includes(cssContent.slice(0, 30))) {
           if (repairedCss.includes(".brand-badge") && !repairedHtml.includes("brand-badge")) {
             repairedCss = cssContent;
@@ -695,7 +744,7 @@ window.__timelines["main"] = tl;`);
     }
 
     // 0d. Extract inline <script>...</script> if present (exclude scripts with src=) and copy to repairedJs without deleting from HTML
-    const scriptMatches = repairedHtml.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi);
+    const scriptMatches = commentMaskedHtml.match(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi);
     if (scriptMatches) {
       for (const match of scriptMatches) {
         const jsContent = match.replace(/<\/?script[^>]*>/gi, "").trim();
@@ -867,6 +916,25 @@ window.__timelines["main"] = tl;`);
     // Safely neutralize timeline.play() calls without comments so keywords never get exposed
     repairedHtml = repairedHtml.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '(void 0);');
     repairedJs = repairedJs.replace(/\btimeline\.play\s*\([^)]*\)\s*;?/g, '(void 0);');
+
+    // 6. Ensure GSAP script tag is present if GSAP is used or expected by HyperFrames
+    if (!/<script[^>]*\bgsap(\.min)?\.js/i.test(repairedHtml)) {
+      if (/<head\b[^>]*>/i.test(repairedHtml)) {
+        repairedHtml = repairedHtml.replace(/<head\b[^>]*>/i, '$&\n  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>');
+      }
+    }
+
+    // 7. Ensure dimensions on root element
+    if (!/data-width=/i.test(repairedHtml) || !/data-height=/i.test(repairedHtml)) {
+      const w = res === "720p" ? 1280 : 1920;
+      const h = res === "720p" ? 720 : 1080;
+      repairedHtml = repairedHtml.replace(/(<[^>]+data-composition-id=["'][^"']*["'][^>]*)/i, (m) => {
+        let u = m;
+        if (!/data-width=/i.test(u)) u += ` data-width="${w}"`;
+        if (!/data-height=/i.test(u)) u += ` data-height="${h}"`;
+        return u;
+      });
+    }
 
     return { repairedHtml, repairedCss, repairedJs, matchedDur };
   };
@@ -2585,13 +2653,22 @@ window.__timelines["main"] = tl;`);
     if (!activeProject) return "waiting";
     const status = (activeProject.status || "").toLowerCase();
     const stageStr = (activeProject.stage || "").toLowerCase();
+    const isDirectCode = pipelineMode === "direct_code" || activeProject?.creationMode === "direct_code" || activeProject?.prompt === "DIRECT_CODE_RENDER";
     let currentIdx = getStageIndex(stageStr && stageStr !== "failed" ? stageStr : status);
 
     if (status === "failed") {
-      if (currentIdx === 0 && (activeProject.error || "").match(/check|validat|overlap|occlu|lint|repair/i)) {
-        currentIdx = 3; // Checking its own work
-      } else if (currentIdx === 0 && (activeProject.error || "").match(/render|ffmpeg|ffprobe/i)) {
-        currentIdx = 4; // Rendering the video
+      if (isDirectCode) {
+        if ((activeProject.error || "").match(/render|ffmpeg|ffprobe/i)) {
+          currentIdx = 3;
+        } else {
+          currentIdx = 0;
+        }
+      } else {
+        if (currentIdx === 0 && (activeProject.error || "").match(/check|validat|overlap|occlu|lint|repair/i)) {
+          currentIdx = 3; // Checking its own work
+        } else if (currentIdx === 0 && (activeProject.error || "").match(/render|ffmpeg|ffprobe/i)) {
+          currentIdx = 4; // Rendering the video
+        }
       }
       if (stepIndex === currentIdx) return "failed";
       if (stepIndex < currentIdx) return "completed";
@@ -2752,7 +2829,7 @@ window.__timelines["main"] = tl;`);
             </div>
 
             <div className="flex flex-col gap-2.5 py-2">
-              {PIPELINE_STAGES.map((st, sIdx) => {
+              {(pipelineMode === "direct_code" || activeProject?.creationMode === "direct_code" || activeProject?.prompt === "DIRECT_CODE_RENDER" ? DIRECT_CODE_PIPELINE_STAGES : PIPELINE_STAGES).map((st, sIdx) => {
                 const sState = getStepStatus(sIdx);
                 const isCorrection =
                   st.id === "checking_composition" &&

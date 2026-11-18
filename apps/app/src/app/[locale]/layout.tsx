@@ -35,7 +35,7 @@ function getLiveConvexUrl(): string {
   ) {
     return process.env.NEXT_PUBLIC_CONVEX_URL;
   }
-  return "https://rates-rivers-potato-indicated.trycloudflare.com";
+  return "https://history-changed-hitachi-invision.trycloudflare.com";
 }
 
 export const metadata: Metadata = {
