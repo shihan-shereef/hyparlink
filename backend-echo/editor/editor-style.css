@@ -4,15 +4,16 @@
   filter: none !important;
 }
 
-/* 2. Interactive text, chips, badges, lower-thirds hover outlines */
-[data-hl-id] {
+/* 2. Interactive text, chips, badges, lower-thirds pointer-events and hover outlines */
+[data-hl-id], .chip, .chips, .pill, .l3, .l3 *, .wipe, .bubble, .cap, b, strong, em, span, text, tspan, h1, h2, h3, h4, h5, h6, p, a, label {
+  pointer-events: auto !important;
+  cursor: pointer !important;
   transition: outline 0.1s ease;
 }
 
 [data-hl-id]:hover {
   outline: 1.5px dashed rgba(16, 185, 129, 0.85) !important;
   outline-offset: 2px !important;
-  cursor: pointer !important;
 }
 
 /* 3. In-place contenteditable styling */

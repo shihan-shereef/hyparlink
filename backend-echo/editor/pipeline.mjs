@@ -146,23 +146,21 @@ export function createEditingCopy(htmlString, customGuestScript = null, customSt
   }
   stripOldComposers(ast);
 
-  // 1. Inject <style id="hl-editor-style"> into <head>
-  head.childNodes.push({
-    nodeName: "style",
-    tagName: "style",
-    attrs: [{ name: "id", value: "hl-editor-style" }],
-    childNodes: [{ nodeName: "#text", value: styleCode }],
-    parentNode: head,
-  });
+  // 1. Inject <style id="hl-editor-style"> into <head> using parseFragment to preserve raw CSS
+  const styleFrag = parse5.parseFragment(`<style id="hl-editor-style">\n${styleCode}\n</style>`);
+  if (styleFrag.childNodes && styleFrag.childNodes[0]) {
+    const styleEl = styleFrag.childNodes[0];
+    styleEl.parentNode = head;
+    head.childNodes.push(styleEl);
+  }
 
-  // 2. Inject <script id="hl-editor-guest"> just before </body>
-  body.childNodes.push({
-    nodeName: "script",
-    tagName: "script",
-    attrs: [{ name: "id", value: "hl-editor-guest" }],
-    childNodes: [{ nodeName: "#text", value: guestCode }],
-    parentNode: body,
-  });
+  // 2. Inject <script id="hl-editor-guest"> just before </body> using parseFragment to preserve raw JS
+  const scriptFrag = parse5.parseFragment(`<script id="hl-editor-guest">\n${guestCode}\n</script>`);
+  if (scriptFrag.childNodes && scriptFrag.childNodes[0]) {
+    const scriptEl = scriptFrag.childNodes[0];
+    scriptEl.parentNode = body;
+    body.childNodes.push(scriptEl);
+  }
 
   return parse5.serialize(ast);
 }
