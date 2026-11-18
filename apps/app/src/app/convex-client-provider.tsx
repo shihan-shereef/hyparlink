@@ -5,7 +5,7 @@ import { ConvexAuthNextjsProvider } from "@convex-dev/auth/nextjs";
 import { ConvexReactClient } from "convex/react";
 import type { ReactNode } from "react";
 
-const PUBLIC_CONVEX_TUNNEL_URL = "https://history-changed-hitachi-invision.trycloudflare.com";
+const PUBLIC_CONVEX_TUNNEL_URL = "https://amended-hundreds-reflections-million.trycloudflare.com";
 
 function getConvexUrl(): string {
   if (typeof window !== "undefined") {

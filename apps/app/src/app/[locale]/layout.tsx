@@ -35,7 +35,7 @@ function getLiveConvexUrl(): string {
   ) {
     return process.env.NEXT_PUBLIC_CONVEX_URL;
   }
-  return "https://history-changed-hitachi-invision.trycloudflare.com";
+  return "https://amended-hundreds-reflections-million.trycloudflare.com";
 }
 
 export const metadata: Metadata = {
