@@ -90,4 +90,11 @@ Icon?
 apps/app/public/cdn/
 apps/app/public/snake-bite-safety/
 
+# Work & QA reports (local only)
+*report*.txt
+*REPORT*.txt
+apps/app/public/*report*.txt
+apps/app/public/*report*.md
+
+
 
