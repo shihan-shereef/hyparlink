@@ -5315,6 +5315,11 @@ const server = http.createServer(async (req, res) => {
         return `<!--__PROTECTED_COMMENT_${savedHtmlComments.length - 1}__-->`;
       });
 
+      // Check if userHtml is a complete self-contained HTML document with its own styles and animations
+      const isSelfContainedAd =
+        (/<!DOCTYPE\b|<html\b/i.test(userHtml)) &&
+        (/<style\b/i.test(userHtml) || /document\.getAnimations/i.test(userHtml) || /window\.seekTo/i.test(userHtml));
+
       // Extract inline <style>...</style> from HTML and merge into userCss
       const inlineStyles = userHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
       if (inlineStyles) {
@@ -5325,7 +5330,9 @@ const server = http.createServer(async (req, res) => {
             userCss = (userCss ? userCss + "\n\n" : "") + content;
           }
         }
-        userHtml = userHtml.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "").trim();
+        if (!isSelfContainedAd) {
+          userHtml = userHtml.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "").trim();
+        }
       }
 
       // Extract inline <script>...</script> (without src) from HTML and merge into userJs
@@ -5337,7 +5344,9 @@ const server = http.createServer(async (req, res) => {
             userJs = (userJs ? userJs + "\n\n" : "") + content;
           }
         }
-        userHtml = userHtml.replace(/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/gi, "").trim();
+        if (!isSelfContainedAd) {
+          userHtml = userHtml.replace(/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/gi, "").trim();
+        }
       }
 
       // Restore protected comments
@@ -5417,7 +5426,7 @@ html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background:
       userJs = userJs.trim();
 
       // Auto-inject GSAP choreography if user provided scenes but JS tab does not animate them
-      if ((userHtml.includes("scene") || userHtml.includes("data-start")) && (!userJs.includes(".scene") && !userJs.includes(".ad-scene"))) {
+      if (!isSelfContainedAd && (userHtml.includes("scene") || userHtml.includes("data-start")) && (!userJs.includes(".scene") && !userJs.includes(".ad-scene"))) {
         userJs = `
 const composition = document.getElementById("composition") || document.getElementById("root") || document.getElementById("ollastar-ad") || document.getElementById("film");
 const scenes = [...document.querySelectorAll(".scene, .ad-scene, [class*='scene'], section[data-start], .clip[data-start]")];
