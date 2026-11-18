@@ -276,10 +276,10 @@ export const RightPropertyPanel: React.FC<RightPropertyPanelProps> = ({
                 </div>
               </div>
 
-              {/* Text Content Editor (supports any text-capable element: h1-h6, p, span, div, label, etc.) */}
+              {/* Text Content Editor (supports any text-capable element: h1-h6, p, span, div, b, strong, em, text, tspan, chip, label, etc.) */}
               {(selectedElement.type === "heading" ||
                 selectedElement.type === "text" ||
-                ["h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "div", "label", "button", "a", "em", "strong"].includes(selectedElement.tag?.toLowerCase() || "") ||
+                ["h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "div", "b", "strong", "em", "text", "tspan", "label", "button", "a"].includes(selectedElement.tag?.toLowerCase() || "") ||
                 (typeof selectedElement.text === "string" && selectedElement.text.trim().length > 0)) && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">

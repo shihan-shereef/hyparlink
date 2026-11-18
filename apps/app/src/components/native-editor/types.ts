@@ -157,3 +157,13 @@ export interface AssetItem {
   size?: string;
 }
 
+export interface EditOperation {
+  id: string;
+  path?: string;
+  kind: "text" | "style" | "translate" | "resize";
+  property?: string;
+  before: any;
+  after: any;
+  t: number;
+}
+

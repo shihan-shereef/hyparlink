@@ -766,16 +766,31 @@
     } else if (data.type === "HYPERLINK_RESIZE") {
       const el = document.querySelector(`[data-hl-id="${data.id}"]`);
       if (el) {
+        let beforeVal, afterVal;
         if (el instanceof SVGElement) {
+          beforeVal = el.style.scale || "1";
           if (data.scale != null) el.style.scale = String(data.scale);
+          afterVal = el.style.scale;
         } else {
+          beforeVal = el.style.fontSize || window.getComputedStyle(el).fontSize;
           if (data.fontSize) el.style.fontSize = data.fontSize;
           if (data.width) el.style.width = typeof data.width === "number" ? `${data.width}px` : data.width;
           if (data.height) el.style.height = typeof data.height === "number" ? `${data.height}px` : data.height;
+          afterVal = data.fontSize || data.width || el.style.fontSize;
         }
         postToHost("HYPERLINK_ELEMENT_BOUNDS_CHANGED", {
           id: data.id,
           box: toStageBox(el),
+        });
+        postToHost("HYPERLINK_EDIT_OP", {
+          op: {
+            id: data.id,
+            path: el.getAttribute("data-hl-path") || getStructuralPath(el),
+            kind: "resize",
+            before: beforeVal,
+            after: afterVal,
+            t: getCurrentTime(),
+          },
         });
       }
     } else if (data.type === "HYPERLINK_SELECT_BY_ID") {

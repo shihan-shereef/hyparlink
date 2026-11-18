@@ -36,6 +36,7 @@ interface InteractiveCanvasProps {
   onOpenPropertiesTab?: (tab: "design" | "layers" | "renders" | "variables") => void;
   playbackSpeed?: number;
   onSpeedChange?: (speed: number) => void;
+  onEditOp?: (op: any) => void;
 }
 
 export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
@@ -57,6 +58,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
   onOpenPropertiesTab,
   playbackSpeed = 1,
   onSpeedChange,
+  onEditOp,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -237,26 +239,42 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
     const handleMessage = (event: MessageEvent) => {
       if (!event.data || typeof event.data !== "object") return;
 
-      if (event.data.type === "HYPERLINK_ELEMENT_CLICKED") {
-        const elData: SelectedElement = event.data.payload;
+      if (event.data.type === "HYPERLINK_ELEMENT_CLICKED" || event.data.type === "HYPERLINK_ELEMENT_SELECTED") {
+        const elData: SelectedElement = event.data.payload || event.data.element;
         onSelectElement(elData);
         if (onOpenPropertiesTab) {
           onOpenPropertiesTab("design");
+        }
+      } else if (event.data.type === "HYPERLINK_EDIT_OP") {
+        if (onEditOp && event.data.op) {
+          onEditOp(event.data.op);
+        }
+      } else if (event.data.type === "HYPERLINK_ELEMENT_BOUNDS_CHANGED") {
+        if (selectedElement && event.data.id === selectedElement.id && event.data.box) {
+          onSelectElement({
+            ...selectedElement,
+            rect: {
+              top: event.data.box.y,
+              left: event.data.box.x,
+              width: event.data.box.width,
+              height: event.data.box.height,
+            },
+          });
         }
       } else if (event.data.type === "HYPERLINK_ELEMENT_HOVERED") {
         setHoverRect(event.data.payload);
       } else if (event.data.type === "HYPERLINK_ELEMENT_UNHOVERED") {
         setHoverRect(null);
-      } else if (event.data.type === "HYPERLINK_LAYERS_LOADED") {
+      } else if (event.data.type === "HYPERLINK_LAYERS_LOADED" || event.data.type === "HYPERLINK_LAYERS_SCANNED") {
         if (onLayersLoaded) {
-          onLayersLoaded(event.data.payload);
+          onLayersLoaded(event.data.payload || event.data.layers);
         }
       }
     };
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [onSelectElement, onLayersLoaded, onOpenPropertiesTab]);
+  }, [onSelectElement, onLayersLoaded, onOpenPropertiesTab, onEditOp, selectedElement]);
 
   // Inject Bridge Script upon iframe load
   const handleIframeLoad = () => {
@@ -265,35 +283,39 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
       const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
       if (!doc) return;
 
-      // Inject interactive bridge script into composition if not already present
-      if (!doc.getElementById("hyperlink-editor-bridge")) {
-        const script = doc.createElement("script");
-        script.id = "hyperlink-editor-bridge";
-        script.textContent = `
-          (function() {
-            window.addEventListener('message', function(e) {
-              if (e.data && e.data.type === 'HYPERLINK_SEEK') {
-                var t = e.data.time;
-                var gTime = e.data.globalTime !== undefined ? e.data.globalTime : t;
-                var isPl = !!e.data.isPlaying;
-                var actId = e.data.activeSceneId;
+      // Skip injecting legacy bridge if hl-editor-guest is already present (Invariant 1 & 5)
+      if (doc.getElementById("hl-editor-guest") || doc.getElementById("hyperlink-editor-bridge")) {
+        return;
+      }
 
-                // 1. Sync scene container visibility only if explicit data-start and data-duration are defined
-                var sceneEls = Array.from(document.querySelectorAll('[data-composition-src], [data-scene-id], .scene-container, .scene')).filter(function(el) {
-                  return el.id !== 'root' && el.id !== 'main' && el.id !== 'stage';
-                });
-                if (sceneEls.length > 1) {
-                  sceneEls.forEach(function(sc) {
-                    if (sc.hasAttribute('data-start') && sc.hasAttribute('data-duration')) {
-                      var sStart = parseFloat(sc.getAttribute('data-start'));
-                      var sDur = parseFloat(sc.getAttribute('data-duration'));
-                      if (!isNaN(sStart) && !isNaN(sDur)) {
-                        var inRange = gTime >= sStart && gTime < (sStart + sDur);
-                        sc.style.display = inRange ? '' : 'none';
-                      }
+      // Inject interactive bridge script into composition if not already present
+      const script = doc.createElement("script");
+      script.id = "hyperlink-editor-bridge";
+      script.textContent = `
+        (function() {
+          window.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'HYPERLINK_SEEK') {
+              var t = e.data.time;
+              var gTime = e.data.globalTime !== undefined ? e.data.globalTime : t;
+              var isPl = !!e.data.isPlaying;
+              var actId = e.data.activeSceneId;
+
+              // 1. Sync scene container visibility without touching .scene classes (Invariant 1)
+              var sceneEls = Array.from(document.querySelectorAll('[data-composition-src], [data-scene-id], .scene-container')).filter(function(el) {
+                return el.id !== 'root' && el.id !== 'main' && el.id !== 'stage' && !el.classList.contains('scene');
+              });
+              if (sceneEls.length > 1) {
+                sceneEls.forEach(function(sc) {
+                  if (sc.hasAttribute('data-start') && sc.hasAttribute('data-duration')) {
+                    var sStart = parseFloat(sc.getAttribute('data-start'));
+                    var sDur = parseFloat(sc.getAttribute('data-duration'));
+                    if (!isNaN(sStart) && !isNaN(sDur)) {
+                      var inRange = gTime >= sStart && gTime < (sStart + sDur);
+                      sc.style.display = inRange ? '' : 'none';
                     }
-                  });
-                }
+                  }
+                });
+              }
 
                 // 1.5 Call page window.seekTo if defined (deterministic frame seek for CSS/SVG code animations)
                 try {
@@ -717,7 +739,6 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
           })();
         `;
         doc.head.appendChild(script);
-      }
     } catch (e) {
       console.warn("Could not inject bridge script directly (cross-origin sandbox)", e);
     }
@@ -1141,11 +1162,15 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
               }}
               className="absolute pointer-events-none border-2 border-emerald-500 z-30 transition-all duration-75"
             >
-              {/* Corner Handles */}
+              {/* 8 Resize Handles (4 Corners + 4 Edges) */}
               <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border border-emerald-600 rounded-xs pointer-events-auto cursor-nwse-resize shadow-xs" />
               <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border border-emerald-600 rounded-xs pointer-events-auto cursor-nesw-resize shadow-xs" />
               <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border border-emerald-600 rounded-xs pointer-events-auto cursor-nesw-resize shadow-xs" />
               <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border border-emerald-600 rounded-xs pointer-events-auto cursor-nwse-resize shadow-xs" />
+              <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border border-emerald-600 rounded-xs pointer-events-auto cursor-ns-resize shadow-xs" />
+              <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-white border border-emerald-600 rounded-xs pointer-events-auto cursor-ns-resize shadow-xs" />
+              <div className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3 h-3 bg-white border border-emerald-600 rounded-xs pointer-events-auto cursor-ew-resize shadow-xs" />
+              <div className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3 h-3 bg-white border border-emerald-600 rounded-xs pointer-events-auto cursor-ew-resize shadow-xs" />
 
               {/* Tag Badge */}
               <div className="absolute -top-6 left-0 bg-emerald-600 text-white font-mono font-bold text-[10px] px-1.5 py-0.5 rounded shadow-sm flex items-center gap-1">

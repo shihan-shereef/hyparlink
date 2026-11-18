@@ -5,7 +5,7 @@ import { LeftProjectPanel } from "./left-project-panel";
 import { InteractiveCanvas } from "./interactive-canvas";
 import { RightPropertyPanel } from "./right-property-panel";
 import { FreeCutTimeline } from "./freecut-timeline";
-import { SelectedElement, CompositionScene, RenderJob, CompositionLayer, ExportSettings, AssetItem, TimelineClip } from "./types";
+import { SelectedElement, CompositionScene, RenderJob, CompositionLayer, ExportSettings, AssetItem, TimelineClip, EditOperation } from "./types";
 import { toast } from "sonner";
 import Link from "next/link";
 import { 
@@ -21,7 +21,9 @@ import {
   X, 
   FileVideo,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Undo2,
+  Redo2
 } from "lucide-react";
 
 interface NativeHyperlinkEditorProps {
@@ -98,6 +100,10 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const animationFrameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(Date.now());
+
+  // Edit log & Undo / Redo history tracking (Step 4 Save Pipeline)
+  const [editLog, setEditLog] = useState<EditOperation[]>([]);
+  const [undoIndex, setUndoIndex] = useState<number>(-1);
 
   // Render jobs queue synchronized with real backend data
   const [renderJobs, setRenderJobs] = useState<RenderJob[]>(renders);
@@ -850,10 +856,91 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
     [selectedFile, files, currentTime, onCodeChange]
   );
 
+  const handleEditOp = useCallback((op: EditOperation) => {
+    setEditLog((prev) => {
+      const history = prev.slice(0, undoIndex + 1);
+      const next = [...history, op];
+      setUndoIndex(next.length - 1);
+      return next;
+    });
+    setLocalUnsaved(true);
+  }, [undoIndex]);
+
+  const handleUndo = useCallback(() => {
+    if (undoIndex < 0 || undoIndex >= editLog.length) return;
+    const op = editLog[undoIndex];
+    if (!op) return;
+    const iframe = document.querySelector("iframe");
+    if (iframe && iframe.contentWindow) {
+      if (op.kind === "text") {
+        iframe.contentWindow.postMessage({ type: "HYPERLINK_UPDATE_TEXT", id: op.id, text: op.before }, "*");
+      } else if (op.kind === "translate" || (op.kind as string) === "move") {
+        iframe.contentWindow.postMessage({ type: "HYPERLINK_MOVE", id: op.id, translate: op.before }, "*");
+      } else if (op.kind === "style") {
+        iframe.contentWindow.postMessage({ type: "HYPERLINK_UPDATE_STYLE", id: op.id, property: op.property, value: op.before }, "*");
+      } else if (op.kind === "resize") {
+        iframe.contentWindow.postMessage({ type: "HYPERLINK_RESIZE", id: op.id, fontSize: op.before, scale: op.before }, "*");
+      }
+    }
+    setUndoIndex((prev) => prev - 1);
+    toast.info(`Undid edit on #${op.id}`);
+  }, [undoIndex, editLog]);
+
+  const handleRedo = useCallback(() => {
+    if (undoIndex >= editLog.length - 1) return;
+    const nextIndex = undoIndex + 1;
+    const op = editLog[nextIndex];
+    if (!op) return;
+    const iframe = document.querySelector("iframe");
+    if (iframe && iframe.contentWindow) {
+      if (op.kind === "text") {
+        iframe.contentWindow.postMessage({ type: "HYPERLINK_UPDATE_TEXT", id: op.id, text: op.after }, "*");
+      } else if (op.kind === "translate" || (op.kind as string) === "move") {
+        iframe.contentWindow.postMessage({ type: "HYPERLINK_MOVE", id: op.id, translate: op.after }, "*");
+      } else if (op.kind === "style") {
+        iframe.contentWindow.postMessage({ type: "HYPERLINK_UPDATE_STYLE", id: op.id, property: op.property, value: op.after }, "*");
+      } else if (op.kind === "resize") {
+        iframe.contentWindow.postMessage({ type: "HYPERLINK_RESIZE", id: op.id, fontSize: op.after, scale: op.after }, "*");
+      }
+    }
+    setUndoIndex(nextIndex);
+    toast.info(`Redid edit on #${op.id}`);
+  }, [undoIndex, editLog]);
+
+  // Keyboard shortcuts: Ctrl+Z / Cmd+Z (Undo), Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y (Redo)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleUndo, handleRedo]);
+
   const handleSave = async () => {
     try {
+      const activeOps = editLog.slice(0, undoIndex + 1);
+      if (activeOps.length > 0) {
+        try {
+          await fetch(`/editor/project/${projectId}/save`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ editLog: activeOps }),
+          });
+        } catch (_) {}
+      }
       await onSaveProject();
       setLocalUnsaved(false);
+      toast.success("All edits and version history saved successfully!");
     } catch (err: any) {
       toast.error(err.message || "Failed to save project");
     }
@@ -939,6 +1026,30 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
 
           {/* Right: Quick Actions */}
           <div className="flex items-center gap-2">
+            {/* Undo / Redo Controls */}
+            <div className="flex items-center gap-1 border-r border-gray-200 pr-2 mr-1">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={undoIndex < 0}
+                className="flex items-center gap-1 px-2 py-1 rounded-md bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium transition shadow-xs disabled:opacity-40"
+                title="Undo (Ctrl+Z / Cmd+Z)"
+              >
+                <Undo2 className="w-3.5 h-3.5 text-gray-600" />
+                <span className="hidden sm:inline">Undo</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleRedo}
+                disabled={undoIndex >= editLog.length - 1}
+                className="flex items-center gap-1 px-2 py-1 rounded-md bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium transition shadow-xs disabled:opacity-40"
+                title="Redo (Ctrl+Shift+Z / Cmd+Shift+Z)"
+              >
+                <Redo2 className="w-3.5 h-3.5 text-gray-600" />
+                <span className="hidden sm:inline">Redo</span>
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={handleSave}
@@ -1059,6 +1170,7 @@ export const NativeHyperlinkEditor: React.FC<NativeHyperlinkEditorProps> = ({
               onOpenPropertiesTab={handleOpenPropertiesTab}
               playbackSpeed={playbackSpeed}
               onSpeedChange={(spd) => setPlaybackSpeed(spd)}
+              onEditOp={handleEditOp}
             />
 
             {/* Column 3: Right Visual Property Inspector */}

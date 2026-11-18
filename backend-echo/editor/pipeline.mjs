@@ -166,8 +166,201 @@ export function createEditingCopy(htmlString, customGuestScript = null, customSt
 }
 
 /**
- * Verify clean HTML contains NO editor markers.
+ * Step 4: Apply Edit Log to original.html and output clean index.html
  */
+export function applyEditLogToOriginal(originalHtml, editLog = []) {
+  if (!editLog || editLog.length === 0) {
+    return originalHtml;
+  }
+
+  const ast = parse5.parse(originalHtml);
+
+  // Helper to get structural path from AST node
+  function getAstPath(node) {
+    const parts = [];
+    let curr = node;
+    while (curr && curr.tagName && curr.tagName !== "html" && curr.tagName !== "body") {
+      const tag = curr.tagName.toLowerCase();
+      let nth = 1;
+      if (curr.parentNode && curr.parentNode.childNodes) {
+        for (const sib of curr.parentNode.childNodes) {
+          if (sib === curr) break;
+          if (sib.tagName && sib.tagName.toLowerCase() === tag) nth++;
+        }
+      }
+      const classAttr = curr.attrs?.find((a) => a.name === "class")?.value || "";
+      const cls = classAttr.trim()
+        ? "." + classAttr.trim().split(/\s+/)[0].replace(/[^a-zA-Z0-9_-]/g, "")
+        : "";
+      parts.unshift(`${tag}${cls}:nth-of-type(${nth})`);
+      curr = curr.parentNode;
+    }
+    return parts.join(" > ");
+  }
+
+  function normalizePath(p) {
+    if (!p) return "";
+    return p
+      .replace(/^html(:nth-of-type\(\d+\))?\s*>\s*/i, "")
+      .replace(/^body(\.[a-zA-Z0-9_-]+)?(:nth-of-type\(\d+\))?\s*>\s*/i, "")
+      .trim();
+  }
+
+  // Set parentNode on all AST nodes for path traversal
+  function setParents(node) {
+    if (node && node.childNodes) {
+      for (const child of node.childNodes) {
+        child.parentNode = node;
+        setParents(child);
+      }
+    }
+  }
+  setParents(ast);
+
+  // Index all AST element nodes
+  const allNodes = [];
+  function collectElements(node) {
+    if (node && node.tagName && node.tagName !== "html" && node.tagName !== "head" && node.tagName !== "body") {
+      allNodes.push({
+        node,
+        path: getAstPath(node),
+        tag: node.tagName.toLowerCase(),
+        text: node.childNodes?.find((c) => c.nodeName === "#text")?.value?.trim() || "",
+      });
+    }
+    if (node && node.childNodes) {
+      for (const c of node.childNodes) collectElements(c);
+    }
+  }
+  collectElements(ast);
+
+  // Group latest ops per element path
+  for (const op of editLog) {
+    if (!op) continue;
+    // Find matching AST node
+    const normOpPath = normalizePath(op.path);
+    let matched = allNodes.find((n) => normalizePath(n.path) === normOpPath);
+    if (!matched && op.before) {
+      // Fallback matching by tag and before text
+      matched = allNodes.find((n) => n.text && n.text === (op.before || "").trim());
+    }
+
+    if (!matched) continue;
+    const node = matched.node;
+
+    // Apply op
+    if (op.kind === "text") {
+      // Update text in node
+      let foundTextChild = false;
+      if (node.childNodes) {
+        for (const child of node.childNodes) {
+          if (child.nodeName === "#text" && child.value.trim().length > 0) {
+            child.value = op.after;
+            foundTextChild = true;
+            break;
+          }
+        }
+      }
+      if (!foundTextChild) {
+        node.childNodes = [{ nodeName: "#text", value: op.after, parentNode: node }];
+      }
+    } else if (op.kind === "translate" || op.kind === "move" || op.kind === "style" || op.kind === "resize") {
+      // Update inline style attribute
+      if (!node.attrs) node.attrs = [];
+      let styleAttr = node.attrs.find((a) => a.name === "style");
+      if (!styleAttr) {
+        styleAttr = { name: "style", value: "" };
+        node.attrs.push(styleAttr);
+      }
+
+      let styleMap = new Map();
+      styleAttr.value.split(";").forEach((s) => {
+        const idx = s.indexOf(":");
+        if (idx > -1) {
+          const k = s.slice(0, idx).trim();
+          const v = s.slice(idx + 1).trim();
+          if (k) styleMap.set(k, v);
+        }
+      });
+
+      if (op.kind === "translate" || op.kind === "move") {
+        styleMap.set("translate", op.after);
+      } else if (op.kind === "style") {
+        const prop = op.property || "color";
+        styleMap.set(prop, op.after);
+      } else if (op.kind === "resize") {
+        if (node.tagName.toLowerCase() === "text" || node.tagName.toLowerCase() === "tspan") {
+          styleMap.set("scale", op.after);
+        } else {
+          styleMap.set("font-size", op.after);
+        }
+      }
+
+      const newStyleStr = Array.from(styleMap.entries())
+        .map(([k, v]) => `${k}: ${v}`)
+        .join("; ");
+      styleAttr.value = newStyleStr;
+    }
+  }
+
+  // Clean any editor markers if any somehow entered AST
+  function cleanNode(node) {
+    if (!node) return;
+    if (node.attrs) {
+      node.attrs = node.attrs.filter((a) => !a.name.startsWith("data-hl-") && a.name !== "contenteditable");
+    }
+    if (node.childNodes) {
+      node.childNodes = node.childNodes.filter((c) => {
+        if (c.attrs?.some((a) => a.name === "id" && (a.value === "hl-editor-style" || a.value === "hl-editor-guest"))) {
+          return false;
+        }
+        cleanNode(c);
+        return true;
+      });
+    }
+  }
+  cleanNode(ast);
+
+  const cleanSavedHtml = parse5.serialize(ast);
+
+  // Assert zero editor markers remain
+  const check = verifyCleanHtml(cleanSavedHtml);
+  if (!check.clean) {
+    throw new Error(`Save verification failed: ${check.issues.join(", ")}`);
+  }
+
+  return cleanSavedHtml;
+}
+
+/**
+ * Save Version History in projectDir/.history/
+ * Keeps last 20 saves.
+ */
+export async function saveVersionHistory(projectDir, cleanHtml, editLog = []) {
+  const historyDir = path.join(projectDir, ".history");
+  await fs.promises.mkdir(historyDir, { recursive: true });
+
+  const timestamp = Date.now();
+  const htmlFile = path.join(historyDir, `index_${timestamp}.html`);
+  const logFile = path.join(historyDir, `edit_log_${timestamp}.json`);
+
+  await fs.promises.writeFile(htmlFile, cleanHtml, "utf-8");
+  await fs.promises.writeFile(logFile, JSON.stringify(editLog, null, 2), "utf-8");
+
+  // Prune older than 20
+  const allFiles = await fs.promises.readdir(historyDir);
+  const htmlSaves = allFiles.filter((f) => f.startsWith("index_") && f.endsWith(".html")).sort();
+  if (htmlSaves.length > 20) {
+    const toRemove = htmlSaves.slice(0, htmlSaves.length - 20);
+    for (const file of toRemove) {
+      const ts = file.replace("index_", "").replace(".html", "");
+      try {
+        await fs.promises.unlink(path.join(historyDir, file));
+        await fs.promises.unlink(path.join(historyDir, `edit_log_${ts}.json`));
+      } catch (e) {}
+    }
+  }
+}
 export function verifyCleanHtml(htmlString) {
   const issues = [];
   if (/data-hl-id=/i.test(htmlString)) issues.push("data-hl-id attribute present");

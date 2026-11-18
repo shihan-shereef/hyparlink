@@ -45,6 +45,13 @@ import { getStorageProvider, buildObjectKey } from "./storage/index.mjs";
 import { MediaProcessor } from "./media/media-processor.mjs";
 import { exec, spawn, execSync } from "node:child_process";
 import { promisify } from "node:util";
+import {
+  ingestProject,
+  createEditingCopy,
+  applyEditLogToOriginal,
+  saveVersionHistory,
+  verifyCleanHtml,
+} from "./editor/pipeline.mjs";
 
 const execAsync = promisify(exec);
 
@@ -3058,7 +3065,7 @@ const server = http.createServer(async (req, res) => {
         }
 
         const body = await readBody(req);
-        const { files = {}, meta, properties, timeline, freecutProject } = body;
+        const { files = {}, meta, properties, timeline, freecutProject, editLog } = body;
 
         // Path traversal guard
         for (const filePath of Object.keys(files)) {
@@ -3070,6 +3077,21 @@ const server = http.createServer(async (req, res) => {
 
         // Automatic timestamped backup
         const backupName = backupProjectDir(targetProjectDir);
+
+        // Apply editLog to original.html if provided (Step 4 Save Pipeline)
+        if (editLog && Array.isArray(editLog) && editLog.length > 0) {
+          const origPath = path.join(targetProjectDir, "original.html");
+          if (!fs.existsSync(origPath) && fs.existsSync(path.join(targetProjectDir, "index.html"))) {
+            fs.copyFileSync(path.join(targetProjectDir, "index.html"), origPath);
+          }
+          if (fs.existsSync(origPath)) {
+            const originalHtml = fs.readFileSync(origPath, "utf-8");
+            const cleanSavedHtml = applyEditLogToOriginal(originalHtml, editLog);
+            fs.writeFileSync(path.join(targetProjectDir, "index.html"), cleanSavedHtml, "utf-8");
+            await saveVersionHistory(targetProjectDir, cleanSavedHtml, editLog);
+            delete files["index.html"]; // prevent overwriting with raw editing copy
+          }
+        }
 
         // Write updated files
         for (const [relPath, content] of Object.entries(files)) {
@@ -3549,6 +3571,21 @@ const server = http.createServer(async (req, res) => {
 
         if (subPath === "index.html" && ext === ".html") {
           let htmlContent = fs.readFileSync(targetFile, "utf-8");
+
+          // Step 1 Ingest / Preview: Self-contained code ads use clean parse5 editing copy
+          const isSelfContainedAd =
+            /<!DOCTYPE\s+html\b|<html\b/i.test(htmlContent) &&
+            (/<style\b/i.test(htmlContent) || /document\.getAnimations/i.test(htmlContent) || /window\.seekTo/i.test(htmlContent) || /@keyframes/i.test(htmlContent));
+
+          if (isSelfContainedAd) {
+            const editingCopyHtml = createEditingCopy(htmlContent);
+            res.writeHead(200, {
+              "Content-Type": "text/html; charset=utf-8",
+              "Access-Control-Allow-Origin": allowedOrigin,
+              "Content-Security-Policy": cspHeader,
+            });
+            return res.end(editingCopyHtml);
+          }
 
           // Ensure GSAP is always present and robustly available for HTML/CSS/JS/GSAP execution
           if (!htmlContent.includes("gsap.min.js")) {
@@ -5396,6 +5433,9 @@ const server = http.createServer(async (req, res) => {
       // If userHtml is a complete self-contained HTML animation document (like chinooo-ad.html, shoe-ad.html, etc.),
       // write the authentic source code directly to index.html without destructive rewrites, slicing, or overrides.
       if (isSelfContainedAd) {
+        // Step 1: Store original uploaded bytes byte-for-byte as original.html (Invariant 5)
+        await fs.promises.writeFile(path.join(projectDir, "original.html"), html, "utf-8");
+
         let finalSelfContainedHtml = userHtml;
         if (!finalSelfContainedHtml.includes("window.seekTo")) {
           const seekScript = `\n<script>
