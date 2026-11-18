@@ -92,6 +92,21 @@ async def render_job_async(
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html)
 
+    # Dynamic duration detection if unspecified or invalid
+    if duration is None or duration <= 0:
+        import re
+        m = re.search(r'Total\s*=\s*(\d+)s', html, re.I)
+        if m:
+            duration = float(m.group(1))
+        else:
+            # Check maximum --start + --dur
+            dur_matches = re.findall(r'--start:\s*([0-9.]+)s.*?--dur:\s*([0-9.]+)s', html, re.S)
+            if dur_matches:
+                max_end = max(float(s) + float(d) for s, d in dur_matches)
+                duration = max_end if max_end > 0 else 27.0
+            else:
+                duration = 27.0
+
     total_frames = int(math.ceil(duration * fps))
     num_workers = min(os.cpu_count() or 4, 4)
     rendered_frames_count = 0
@@ -152,6 +167,7 @@ async def render_job_async(
         "ffmpeg", "-y",
         "-framerate", str(fps),
         "-i", os.path.join(frames_dir, "f_%05d.jpg"),
+        "-vf", "format=yuv420p",
         "-c:v", "libx264",
         "-preset", "medium",
         "-crf", "19",
