@@ -707,6 +707,22 @@ window.__timelines["main"] = tl;`);
       .replace(/^[\s\-\*•]+(?=(?:<!DOCTYPE|<html|<div|<main|<section|#|\.|\/\*|[a-z]))/i, "")
       .trim();
 
+    // Check if user entered a self-contained HTML animation (like chinooo-ad.html, shoe-ad.html, london-trip-ad.html)
+    // Direct Code compiler mode: Pass user's pristine code verbatim without regex mutilation,
+    // scene duration recalibration, or class mutations. Exactly like a standalone HTML compiler.
+    const isSelfContainedAd =
+      (/<!DOCTYPE\s+html\b|<html\b/i.test(repairedHtml)) &&
+      (/<style\b/i.test(repairedHtml) || /document\.getAnimations/i.test(repairedHtml) || /window\.seekTo/i.test(repairedHtml) || /@keyframes/i.test(repairedHtml) || /<svg\b/i.test(repairedHtml));
+
+    if (isSelfContainedAd) {
+      return {
+        repairedHtml,
+        repairedCss,
+        repairedJs,
+        matchedDur,
+      };
+    }
+
     // Helper to sanitize CSS text from stray HTML tags, unclosed comments, or headers
     const sanitizeCssText = (cssText: string) => {
       if (!cssText) return "";

@@ -278,20 +278,29 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                 var isPl = !!e.data.isPlaying;
                 var actId = e.data.activeSceneId;
 
-                // 1. Sync scene container visibility
+                // 1. Sync scene container visibility only if explicit data-start and data-duration are defined
                 var sceneEls = Array.from(document.querySelectorAll('[data-composition-src], [data-scene-id], .scene-container, .scene')).filter(function(el) {
                   return el.id !== 'root' && el.id !== 'main' && el.id !== 'stage';
                 });
                 if (sceneEls.length > 1) {
-                  sceneEls.forEach(function(sc, idx) {
-                    var sStart = parseFloat(sc.getAttribute('data-start'));
-                    var sDur = parseFloat(sc.getAttribute('data-duration'));
-                    if (isNaN(sStart)) sStart = idx * 5;
-                    if (isNaN(sDur)) sDur = 5;
-                    var inRange = gTime >= sStart && gTime < (sStart + sDur);
-                    sc.style.display = inRange ? '' : 'none';
+                  sceneEls.forEach(function(sc) {
+                    if (sc.hasAttribute('data-start') && sc.hasAttribute('data-duration')) {
+                      var sStart = parseFloat(sc.getAttribute('data-start'));
+                      var sDur = parseFloat(sc.getAttribute('data-duration'));
+                      if (!isNaN(sStart) && !isNaN(sDur)) {
+                        var inRange = gTime >= sStart && gTime < (sStart + sDur);
+                        sc.style.display = inRange ? '' : 'none';
+                      }
+                    }
                   });
                 }
+
+                // 1.5 Call page window.seekTo if defined (deterministic frame seek for CSS/SVG code animations)
+                try {
+                  if (typeof window.seekTo === 'function') {
+                    window.seekTo(gTime);
+                  }
+                } catch(err) {}
 
                 // 2. Sync embedded video and audio elements
                 var mediaEls = document.querySelectorAll('video, audio');
@@ -317,11 +326,11 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                 // 2.5 Sync CSS animations via Web Animations API (frame-accurate locked playback)
                 try {
                   if (document.getAnimations) {
-                    var tMs = t * 1000;
+                    var tMs = gTime * 1000;
                     document.getAnimations().forEach(function(anim) {
                       if (anim && typeof anim.currentTime !== 'undefined') {
                         anim.currentTime = tMs;
-                        anim.pause();
+                        if (!isPl) anim.pause();
                       }
                     });
                   }
@@ -399,7 +408,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                   if (!el && id.indexOf('layer-') === 0) {
                     var parts = id.split('-');
                     var idx = parseInt(parts[1], 10);
-                    var candidates = document.querySelectorAll('h1, h2, h3, p, span, img, video, svg, .badge-pill, .scene-content');
+                    var candidates = document.querySelectorAll('h1, h2, h3, h4, h5, h6, b, strong, em, span, p, text, tspan, .chip, .pill, [class*="chip"]');
                     if (!isNaN(idx) && candidates[idx]) el = candidates[idx];
                     if (!el && parts.length >= 3 && parts[2]) {
                       el = document.querySelector('.' + parts.slice(2).join('-'));
@@ -409,7 +418,12 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                 };
                 var el = findEl(e.data.elementId);
                 if (el) {
-                  el.innerText = e.data.text;
+                  var tag = (el.tagName || '').toLowerCase();
+                  if (tag === 'text' || tag === 'tspan') {
+                    el.textContent = e.data.text;
+                  } else {
+                    el.innerText = e.data.text;
+                  }
                 }
               } else if (e.data && e.data.type === 'HYPERLINK_TOGGLE_LAYER') {
                 var el = document.getElementById(e.data.elementId) || 
@@ -486,33 +500,47 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
 
             // Scan and report composition layers to parent with real bounding boxes
             function scanLayers() {
-              var candidates = document.querySelectorAll('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #brandtag, #end-title, #end-tag, #end-cta, h1, h2, h3, h4, p, img, video, .badge-pill, .scene-content, button');
+              var candidates = document.querySelectorAll(
+                '.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #brandtag, #end-title, #end-tag, #end-cta, ' +
+                '.chip, .l3 b, .l3 span, .l3 em, .l3, .wipe, .pill, b, strong, em, span, ' +
+                'h1, h2, h3, h4, h5, h6, p, .badge-pill, .badge, .scene-content, button, text, tspan, ' +
+                '[class*="chip"], [class*="card"], [class*="tag"], [class*="title"], [class*="label"], [class*="caption"]'
+              );
               var layers = [];
+              var seenIds = new Set();
               candidates.forEach(function(el, i) {
-                if (el.closest('svg#scene, svg#world, #camera, .par, [id^="L-"], #sky, #sun, #grass, #road, #curb, .blade, .hill-far, .hill-mid, .trunk, .leaf1, .leaf2, .speck, .dash, .post, .lamp, defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout')) return;
-                var parentContainer = el.parentElement ? el.parentElement.closest('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #end-title, #end-tag, #end-cta, h1, h2, h3, h4') : null;
-                if (parentContainer && parentContainer !== el) return;
-                var uniqueId = 'layer-' + i + '-' + (el.id || (el.className && typeof el.className === 'string' ? el.className.split(' ')[0] : '') || el.tagName.toLowerCase());
+                if (!el || el.id === 'root' || el.id === 'main' || el.id === 'stage') return;
+                if (el.closest('defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout')) return;
+                var txt = (el.innerText || el.textContent || el.getAttribute('alt') || el.getAttribute('title') || '').replace(/\s+/g, ' ').trim();
+                var tag = (el.tagName || 'div').toLowerCase();
+                if (!txt && tag !== 'img' && tag !== 'video') return;
+
+                var parentContainer = el.parentElement ? el.parentElement.closest('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #end-title, #end-tag, #end-cta, h1, h2, h3, h4, .chip') : null;
+                if (parentContainer && parentContainer !== el && (parentContainer.innerText || '').trim() === txt) return;
+
+                var uniqueId = el.getAttribute('data-hf-layer-id') || el.getAttribute('data-hf-id') || el.id || ('layer-' + i + '-' + (el.className && typeof el.className === 'string' && el.className ? el.className.split(' ')[0] : tag));
+                if (seenIds.has(uniqueId)) return;
+                seenIds.add(uniqueId);
                 el.setAttribute('data-hf-layer-id', uniqueId);
-                var tag = el.tagName.toLowerCase();
-                var type = 'container';
-                if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4') type = 'heading';
-                else if (tag === 'p' || tag === 'span') type = 'text';
+
+                var type = 'text';
+                if (tag.startsWith('h')) type = 'heading';
                 else if (tag === 'img') type = 'image';
                 else if (tag === 'video') type = 'video';
                 else if (tag === 'button') type = 'button';
-                
+                else if (el.classList && (el.classList.contains('chip') || el.classList.contains('pill') || el.classList.contains('badge'))) type = 'badge';
+
                 var rect = el.getBoundingClientRect();
                 var computed = window.getComputedStyle(el);
 
                 layers.push({
                   id: uniqueId,
-                  name: el.id ? ('#' + el.id) : (el.className && typeof el.className === 'string' ? ('.' + el.className.split(' ')[0]) : (tag + (el.innerText ? (': ' + el.innerText.trim().slice(0, 18)) : ''))),
+                  name: el.id ? ('#' + el.id) : (el.className && typeof el.className === 'string' && el.className ? ('.' + el.className.split(' ')[0]) : (tag + ': ' + txt.slice(0, 18))),
                   tag: tag,
                   type: type,
                   visible: el.style.display !== 'none' && computed.display !== 'none' && computed.visibility !== 'hidden',
                   locked: el.style.pointerEvents === 'none',
-                  text: el.innerText || el.alt || el.title || '',
+                  text: txt,
                   rect: {
                     top: rect.top,
                     left: rect.left,
@@ -537,7 +565,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
 
               window.parent.postMessage({
                 type: 'HYPERLINK_LAYERS_LOADED',
-                payload: layers.slice(0, 20)
+                payload: layers.slice(0, 30)
               }, '*');
             }
 
@@ -547,7 +575,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
             document.addEventListener('mouseover', function(e) {
               var target = e.target;
               if (!target || target === document.body || target === document.documentElement) return;
-              if (target.closest('svg#scene, svg#world, #camera, .par, [id^="L-"], #sky, #sun, #grass, #road, #curb, .blade, .hill-far, .hill-mid, .trunk, .leaf1, .leaf2, .speck, .dash, .post, .lamp, defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout')) return;
+              if (target.closest('defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout')) return;
               var rect = target.getBoundingClientRect();
               window.parent.postMessage({
                 type: 'HYPERLINK_ELEMENT_HOVERED',
@@ -576,18 +604,32 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                 raw.classList.contains('progress-bar')
               );
 
-              var isScenery = raw && raw.closest && raw.closest('svg#scene, svg#world, #camera, .par, [id^="L-"], #sky, #sun, #grass, #road, #curb, .blade, .hill-far, .hill-mid, .trunk, .leaf1, .leaf2, .speck, .dash, .post, .lamp, defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout');
+              var isScenery = raw && raw.closest && raw.closest('defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout');
 
               var target = null;
 
               if (!isBodyOrHtml && !isOverlay && !isScenery) {
-                var heading = raw.closest ? raw.closest('h1, h2, h3, h4, h5, h6') : null;
-                var caption = raw.closest ? raw.closest('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #brandtag, #end-title, #end-tag, #end-cta') : null;
-                var paragraph = raw.closest ? raw.closest('p.description, p.eyebrow, p') : null;
-                var label = raw.closest ? raw.closest('.chapter-label, .corner-label, .badge-pill, .scene-number') : null;
-                var img = raw.closest ? raw.closest('img, video, .product-image, .feature-image, .img') : null;
+                var rawText = (raw.innerText || raw.textContent || '').trim();
+                var rawTag = (raw.tagName || '').toLowerCase();
 
-                target = caption || heading || paragraph || label || img;
+                // Direct hit on text, chip, or graphic element
+                if (
+                  ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'b', 'strong', 'em', 'span', 'p', 'button', 'a', 'text', 'tspan'].includes(rawTag) ||
+                  (raw.classList && (raw.classList.contains('chip') || raw.classList.contains('pill') || raw.classList.contains('cap') || raw.classList.contains('bubble'))) ||
+                  (rawText.length > 0 && rawText.length < 200 && raw.childElementCount <= 1)
+                ) {
+                  target = raw;
+                } else {
+                  var heading = raw.closest ? raw.closest('h1, h2, h3, h4, h5, h6') : null;
+                  var caption = raw.closest ? raw.closest('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #brandtag, #end-title, #end-tag, #end-cta') : null;
+                  var chipOrL3 = raw.closest ? raw.closest('.chip, .l3, .wipe, .pill, [class*="chip"], [class*="badge"], [class*="card"], [class*="tag"]') : null;
+                  var paragraph = raw.closest ? raw.closest('p.description, p.eyebrow, p') : null;
+                  var inlineText = raw.closest ? raw.closest('b, strong, em, span, a, label, button, text, tspan') : null;
+                  var label = raw.closest ? raw.closest('.chapter-label, .corner-label, .badge-pill, .scene-number') : null;
+                  var img = raw.closest ? raw.closest('img, video, .product-image, .feature-image, .img') : null;
+
+                  target = inlineText || caption || chipOrL3 || heading || paragraph || label || img;
+                }
               }
 
               // If clicked on empty background space, find text or prop under click point
@@ -596,14 +638,18 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
                 for (var i = 0; i < pointElements.length; i++) {
                   var el = pointElements[i];
                   if (!el || el === document.body || el === document.documentElement) continue;
-                  if (el.closest && el.closest('svg#scene, svg#world, #camera, .par, [id^="L-"], #sky, #sun, #grass, #road, #curb, .blade, .hill-far, .hill-mid, .trunk, .leaf1, .leaf2, .speck, .dash, .post, .lamp, defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout')) continue;
+                  if (el.closest && el.closest('defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout')) continue;
 
-                  var cap = el.closest ? el.closest('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #brandtag, #end-title, #end-tag, #end-cta') : null;
-                  if (cap) { target = cap; break; }
-                  var h = el.closest ? el.closest('h1, h2, h3, h4, h5, h6') : null;
-                  if (h) { target = h; break; }
-                  var p = el.closest ? el.closest('p.description, p.eyebrow, p') : null;
-                  if (p) { target = p; break; }
+                  var pText = (el.innerText || el.textContent || '').trim();
+                  var pTag = (el.tagName || '').toLowerCase();
+                  if (
+                    ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'b', 'strong', 'em', 'span', 'p', 'button', 'a', 'text', 'tspan'].includes(pTag) ||
+                    (el.classList && (el.classList.contains('chip') || el.classList.contains('pill'))) ||
+                    (pText.length > 0 && pText.length < 200 && el.childElementCount <= 1)
+                  ) {
+                    target = el;
+                    break;
+                  }
                 }
               }
 
@@ -623,12 +669,13 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
               var firstClass = classNameStr ? classNameStr.split(/\s+/)[0] : '';
               var id = target.getAttribute('data-hf-layer-id') || target.getAttribute('data-hf-id') || target.id || firstClass;
 
-              var elType = "unknown";
+              var elType = "text";
               var tag = target.tagName.toLowerCase();
               if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4') elType = 'heading';
-              else if (tag === 'p' || tag === 'span' || target.classList.contains('cap') || target.classList.contains('bubble')) elType = 'text';
               else if (tag === 'img') elType = 'image';
               else if (tag === 'video') elType = 'video';
+              else if (tag === 'button') elType = 'button';
+              else if (target.classList && (target.classList.contains('chip') || target.classList.contains('pill') || target.classList.contains('badge'))) elType = 'badge';
               else if (tag === 'button') elType = 'button';
               else elType = 'container';
 

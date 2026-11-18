@@ -3216,12 +3216,47 @@ const server = http.createServer(async (req, res) => {
         );
 
         console.log(`[Editor] Rendering updated video to ${outputPath} (${resOption}, ${fpsOption}fps, ${formatOption})...`);
-        const renderResult = await Renderer.render({
-          projectDir,
-          outputPath,
-          resolution: resOption,
-          format: formatOption,
-        });
+        let renderResult = { success: false, error: null };
+        const indexHtmlPath = path.join(projectDir, "index.html");
+        const isSelfContainedAd = fs.existsSync(indexHtmlPath) && (() => {
+          try {
+            const c = fs.readFileSync(indexHtmlPath, "utf-8");
+            return /window\.seekTo|document\.getAnimations|@keyframes/i.test(c);
+          } catch { return false; }
+        })();
+
+        if (isSelfContainedAd) {
+          try {
+            console.log(`[Editor] Using deterministic Playwright frame seek worker for ${indexHtmlPath}...`);
+            const jobTempDir = path.join(OUTPUTS_DIR, `job_editor_playwright_${jobId}`);
+            const dur = Number(meta.duration) || 60;
+            const pythonBin = fs.existsSync("/opt/miniconda3/bin/python3") ? "/opt/miniconda3/bin/python3" : "python3";
+            const renderCmd = `"${pythonBin}" render-service/worker.py "${indexHtmlPath}" "${jobTempDir}" ${dur} ${fpsOption}`;
+            await execAsync(renderCmd, { 
+              timeout: 600000,
+              env: {
+                ...process.env,
+                PATH: `/opt/miniconda3/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ""}`
+              }
+            });
+            const expectedOut = path.join(jobTempDir, "out.mp4");
+            if (fs.existsSync(expectedOut)) {
+              fs.copyFileSync(expectedOut, outputPath);
+              renderResult = { success: true };
+            }
+          } catch (pErr) {
+            console.warn(`[Editor] Playwright frame seek fallback warning:`, pErr);
+          }
+        }
+
+        if (!renderResult.success) {
+          renderResult = await Renderer.render({
+            projectDir,
+            outputPath,
+            resolution: resOption,
+            format: formatOption,
+          });
+        }
 
         if (!renderResult.success || !fs.existsSync(outputPath)) {
           console.error(`[Editor] Rendering failed: ${renderResult.error}`);
@@ -3798,17 +3833,21 @@ const server = http.createServer(async (req, res) => {
         var perSceneDur = allScenes.length > 0 ? (totalFilmDur / allScenes.length) : 8;
 
         var candidates = document.querySelectorAll(
-          '.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #brandtag, #end-title, #end-tag, #end-cta, .headline, .title, .mega, .big, .hero-headline, .hero-subtitle, h1, h2, h3, h4, h5, h6, p.sub, p.description, p:not(.cap *):not(.bubble *), .kicker, .pill, .num, .badge-pill, .badge, .stat, .note, button, a.btn, img:not([hidden]), .product-image, .feature-image, .spear, .battleline, .rule'
+          '.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #brandtag, #end-title, #end-tag, #end-cta, ' +
+          '.chip, .l3 b, .l3 span, .l3 em, .l3, .wipe, b, strong, em, span.bold, .stamp, .dest, .location, .feature, .highlight, ' +
+          '.headline, .title, .mega, .big, .hero-headline, .hero-subtitle, h1, h2, h3, h4, h5, h6, ' +
+          'p.sub, p.description, p:not(.cap *):not(.bubble *), .kicker, .pill, .num, .badge-pill, .badge, .stat, .note, button, a.btn, ' +
+          'img:not([hidden]), .product-image, .feature-image, text, tspan, [class*="chip"], [class*="card"], [class*="tag"], [class*="title"], [class*="label"], [class*="caption"]'
         );
 
         candidates.forEach(function(el, idx) {
           if (!el || el.id === 'root' || el.id === 'scenes' || el.id === 'composition' || el.id === 'hud' || el.id === 'barTop' || el.id === 'barBot' || el.id === 'flare' || el.id === 'end') return;
           if (el.classList && (el.classList.contains('scene-background') || el.classList.contains('grid-overlay') || el.classList.contains('film-grain') || el.classList.contains('grain') || el.classList.contains('progress-track'))) return;
-          if (el.closest('svg#scene, svg#world, #camera, .par, [id^="L-"], #sky, #sun, #grass, #road, #curb, .blade, .hill-far, .hill-mid, .trunk, .leaf1, .leaf2, .speck, .dash, .post, .lamp, defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout')) return;
+          if (el.closest('defs, clipPath, #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout')) return;
 
-          // Skip inner child elements if an outer selectable text container already wraps this element
-          var parentContainer = el.parentElement ? el.parentElement.closest('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #end-title, #end-tag, #end-cta, h1, h2, h3, h4, h5, h6') : null;
-          if (parentContainer && parentContainer !== el) return;
+          var parentContainer = el.parentElement ? el.parentElement.closest('.cap, .bubble, [id^="cap"], [id^="say"], #ouch, #end-title, #end-tag, #end-cta, h1, h2, h3, h4, h5, h6, .chip') : null;
+          var elTxt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+          if (parentContainer && parentContainer !== el && (parentContainer.innerText || '').trim() === elTxt) return;
 
           var tag = el.tagName ? el.tagName.toLowerCase() : 'div';
           var isImg = tag === 'img';
@@ -5354,6 +5393,32 @@ const server = http.createServer(async (req, res) => {
         return savedHtmlComments[Number(idx)] || "";
       });
 
+      // If userHtml is a complete self-contained HTML animation document (like chinooo-ad.html, shoe-ad.html, etc.),
+      // write the authentic source code directly to index.html without destructive rewrites, slicing, or overrides.
+      if (isSelfContainedAd) {
+        let finalSelfContainedHtml = userHtml;
+        if (!finalSelfContainedHtml.includes("window.seekTo")) {
+          const seekScript = `\n<script>
+window.seekTo = window.seekTo || function(t) {
+  if (document.getAnimations) {
+    document.getAnimations().forEach(function(a) {
+      try { a.pause(); a.currentTime = t * 1000; } catch(e) {}
+    });
+  }
+};
+</script>`;
+          if (/<\/head>/i.test(finalSelfContainedHtml)) {
+            finalSelfContainedHtml = finalSelfContainedHtml.replace(/<\/head>/i, `${seekScript}\n</head>`);
+          } else {
+            finalSelfContainedHtml = `${seekScript}\n${finalSelfContainedHtml}`;
+          }
+        }
+        await fs.promises.writeFile(path.join(projectDir, "index.html"), finalSelfContainedHtml, "utf-8");
+        await fs.promises.writeFile(path.join(projectDir, "styles.css"), userCss || "/* self-contained */", "utf-8");
+        await fs.promises.writeFile(path.join(projectDir, "script.js"), userJs || "// self-contained", "utf-8");
+        return;
+      }
+
       // If user pasted pure CSS into HTML tab (contains CSS rules with no HTML opening/closing tags)
       const hasHtmlTags = /<[a-z0-9_-]+[\s>]/i.test(userHtml);
       const looksLikeCss = /(?:^|\n)\s*(?:#[a-z0-9_-]+|\.[a-z0-9_-]+|[a-z0-9_-]+)\s*\{[^}]*\}/i.test(userHtml);
@@ -6079,8 +6144,15 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
             try {
               console.log(`[DirectCode] Running deterministic Playwright frame seek on ${directHtmlPath}...`);
               const jobTempDir = path.join(OUTPUTS_DIR, `job_playwright_${jobId}`);
-              const renderCmd = `python3 render-service/worker.py "${directHtmlPath}" "${jobTempDir}" ${duration} ${fps}`;
-              await execAsync(renderCmd, { timeout: 600000 });
+              const pythonBin = fs.existsSync("/opt/miniconda3/bin/python3") ? "/opt/miniconda3/bin/python3" : "python3";
+              const renderCmd = `"${pythonBin}" render-service/worker.py "${directHtmlPath}" "${jobTempDir}" ${duration} ${fps}`;
+              await execAsync(renderCmd, { 
+                timeout: 600000,
+                env: {
+                  ...process.env,
+                  PATH: `/opt/miniconda3/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ""}`
+                }
+              });
               const expectedOut = path.join(jobTempDir, "out.mp4");
               if (fs.existsSync(expectedOut)) {
                 fs.copyFileSync(expectedOut, outputMp4Path);
