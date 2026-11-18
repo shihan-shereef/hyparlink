@@ -1,0 +1,65 @@
+/* HyperFrames-Native Studio Injected Editor Styles */
+/* 1. Never blur scenes or hide elements while editing */
+.scene, .scene *, section, section * {
+  filter: none !important;
+}
+
+/* 2. Interactive text, chips, badges, lower-thirds hover outlines */
+[data-hl-id] {
+  transition: outline 0.1s ease;
+}
+
+[data-hl-id]:hover {
+  outline: 1.5px dashed rgba(16, 185, 129, 0.85) !important;
+  outline-offset: 2px !important;
+  cursor: pointer !important;
+}
+
+/* 3. In-place contenteditable styling */
+[contenteditable="plaintext-only"] {
+  outline: 2px solid #10b981 !important;
+  outline-offset: 3px !important;
+  background: rgba(16, 185, 129, 0.12) !important;
+  border-radius: 3px !important;
+  cursor: text !important;
+  caret-color: #10b981 !important;
+  user-select: text !important;
+}
+
+/* 4. Paused state when in-place editing */
+html.hl-editing-paused *, body.hl-editing-paused * {
+  animation-play-state: paused !important;
+}
+
+/* 5. In-place SVG text editor overlay */
+.hl-svg-editor-overlay {
+  position: absolute;
+  z-index: 999999;
+  border: 2px solid #10b981;
+  background: #0f172a;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  outline: none;
+}
+
+/* 6. Alignment & Snapping Guidelines */
+.hl-guide-line {
+  position: fixed;
+  pointer-events: none;
+  z-index: 999998;
+  background: rgba(244, 63, 94, 0.85);
+}
+.hl-guide-line.v {
+  width: 1px;
+  top: 0;
+  bottom: 0;
+}
+.hl-guide-line.h {
+  height: 1px;
+  left: 0;
+  right: 0;
+}
