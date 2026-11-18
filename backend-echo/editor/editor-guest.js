@@ -18,7 +18,7 @@
   const STAGE_WIDTH = 1920;
   const STAGE_HEIGHT = 1080;
   const EDITABLE_SELECTOR =
-    '.chip, .pill, .l3 b, .l3 span, .l3 em, .wipe, .bubble, .cap, b, strong, em, span, text, tspan, h1, h2, h3, h4, h5, h6, p, a, label, .hud .pill';
+    '.chip, .pill, .l3, .l3 b, .l3 span, .l3 em, .wipe, .bubble, .cap, b, strong, em, span, text, tspan, h1, h2, h3, h4, h5, h6, p, a, label, .hud .pill';
 
   let selectedElement = null;
   let activeStackIndex = 0;
@@ -111,6 +111,20 @@
     });
   }
 
+  // Calculate effective opacity up the ancestor DOM chain
+  function getEffectiveOpacity(el) {
+    let curr = el;
+    let eff = 1;
+    while (curr && curr.nodeType === Node.ELEMENT_NODE && curr !== document.documentElement) {
+      const cs = window.getComputedStyle(curr);
+      if (cs.display === "none" || cs.visibility === "hidden") return 0;
+      eff *= parseFloat(cs.opacity || "1");
+      if (eff < 0.02) return 0;
+      curr = curr.parentElement;
+    }
+    return eff;
+  }
+
   // 4. Hit-Testing: Deepest Leaf First + Alt+Click Stack Cycling
   function pickLeaf(clientX, clientY, isAltCycle = false) {
     const elements = document.elementsFromPoint(clientX, clientY);
@@ -139,8 +153,7 @@
       const all = document.querySelectorAll(EDITABLE_SELECTOR);
       for (const el of all) {
         if (el.closest("defs, clipPath, #camera, .par, [id^=\"L-\"], #mood, #grade, #vignette, #speedlines, .flash, .bar, #fade, #fadein, #fadeout")) continue;
-        const cs = window.getComputedStyle(el);
-        if (cs.display === "none" || cs.visibility === "hidden" || parseFloat(cs.opacity || "1") < 0.05) continue;
+        if (getEffectiveOpacity(el) < 0.05) continue;
         const r = el.getBoundingClientRect();
         if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
           candidates.push(el);
@@ -150,8 +163,15 @@
 
     if (candidates.length === 0) return null;
 
-    // Prioritize deepest leaf nodes (b, span, em, text, tspan, chip, pill) over large containers
+    // Prioritize visible elements at current time over invisible elements with effective opacity: 0
+    // And prioritize deepest leaf nodes (b, span, em, text, tspan, chip, pill) over large containers
     candidates.sort((a, b) => {
+      const aVis = getEffectiveOpacity(a) > 0.05;
+      const bVis = getEffectiveOpacity(b) > 0.05;
+
+      if (aVis && !bVis) return -1;
+      if (!aVis && bVis) return 1;
+
       const aLeaf = ["b", "span", "em", "text", "tspan", "a", "label"].includes(a.tagName.toLowerCase()) || a.classList.contains("chip") || a.classList.contains("pill");
       const bLeaf = ["b", "span", "em", "text", "tspan", "a", "label"].includes(b.tagName.toLowerCase()) || b.classList.contains("chip") || b.classList.contains("pill");
       if (aLeaf && !bLeaf) return -1;
@@ -411,6 +431,7 @@
     if (e.button !== 0) return;
     const isAlt = e.altKey;
     const leaf = pickLeaf(e.clientX, e.clientY, isAlt);
+    console.log("GUEST POINTERDOWN at", e.clientX, e.clientY, "leaf:", leaf ? leaf.getAttribute("data-hl-id") : null);
 
     if (leaf) {
       // If Shift key is pressed and parent is a semantic group, offer whole word/group
@@ -477,8 +498,44 @@
 
     showGuide(snappedX, snappedY);
 
+    // Check if element animates 'translate' directly in keyframes
+    let moveTarget = dragStart.el;
+    const anims = moveTarget.getAnimations ? moveTarget.getAnimations() : [];
+    const animatesTranslate = anims.some((a) => {
+      try {
+        const kfs = a.effect?.getKeyframes?.() || [];
+        return kfs.some((kf) => kf.translate !== undefined);
+      } catch (e) {
+        return false;
+      }
+    });
+
+    if (animatesTranslate) {
+      let wrap = moveTarget.parentElement;
+      if (!wrap || !wrap.hasAttribute("data-hl-wrap")) {
+        if (moveTarget instanceof SVGElement) {
+          wrap = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        } else {
+          wrap = document.createElement("div");
+          wrap.style.display = "contents";
+        }
+        wrap.setAttribute("data-hl-wrap", "true");
+        moveTarget.parentElement.insertBefore(wrap, moveTarget);
+        wrap.appendChild(moveTarget);
+      }
+      moveTarget = wrap;
+    }
+
+    // Clamp within 1920x1080 stage bounds
+    const minX = -curBox.x + 10;
+    const maxX = STAGE_WIDTH - curBox.x - 10;
+    const minY = -curBox.y + 10;
+    const maxY = STAGE_HEIGHT - curBox.y - 10;
+    finalX = Math.max(minX, Math.min(maxX, finalX));
+    finalY = Math.max(minY, Math.min(maxY, finalY));
+
     // Apply individual CSS translate property without touching keyframe transform
-    dragStart.el.style.translate = `${Math.round(finalX)}px ${Math.round(finalY)}px`;
+    moveTarget.style.translate = `${Math.round(finalX)}px ${Math.round(finalY)}px`;
 
     // Re-report bounds to host
     postToHost("HYPERLINK_ELEMENT_BOUNDS_CHANGED", {
