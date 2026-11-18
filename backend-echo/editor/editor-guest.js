@@ -722,8 +722,9 @@
       }
     } else if (data.type === "HYPERLINK_UPDATE_STYLE") {
       const el = document.querySelector(`[data-hl-id="${data.id}"]`);
-      if (el && data.styles) {
-        for (const [prop, val] of Object.entries(data.styles)) {
+      if (el) {
+        const stylesToApply = data.styles || (data.property ? { [data.property]: data.value } : {});
+        for (const [prop, val] of Object.entries(stylesToApply)) {
           const oldVal = el.style[prop] || window.getComputedStyle(el)[prop];
           el.style[prop] = val;
           postToHost("HYPERLINK_EDIT_OP", {
