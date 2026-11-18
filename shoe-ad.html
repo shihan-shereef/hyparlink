@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!--
+==========================================================================================
+  STRIDE  -  "NO SHOES? NO SPEED."   27-second cinematic shoe ad   (1920x1080)
+  Pure HTML + CSS + SVG shapes. No images. No libraries needed.
+
+  HOW TO EDIT
+   * Colours ........ the :root block at the top of <style>  (--ray-shirt, --shoe-glow, --sky-top ...)
+   * Words .......... the <div id="cap1..4">, the speech bubbles and the END CARD in <body>
+   * Timing ......... every text/effect has  style="--start:Xs;--dur:Ys"  (start second + length)
+   * Characters ..... each pose is its own commented <g id="ray-..."> / <g id="max-..."> block
+   * Camera/scroll .. @keyframes cam, par*, maxmove (bottom of <style>) - each row shows its second
+   * Total length = 27s.  In the baked tracks, percentage = seconds / 27 * 100.
+==========================================================================================
+-->
+<meta name="viewport" content="width=1920, height=1080">
+<title>Stride X1 - Shoe Ad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   1. COLOURS & FONTS  -  change these to restyle the whole ad
+   ============================================================ */
+:root{
+  --font:"Poppins","Arial Black",Impact,sans-serif;
+  --accent:#ffd23f;            /* highlighted words in captions */
+
+  /* sky + scenery */
+  --sky-top:#3f86d6; --sky-mid:#ffc999; --sky-low:#ffe6c4; --sun:#fff3cf;
+  --hill-far:#8db4c8; --hill-mid:#6f9e84;
+  --trunk:#5a3a28; --leaf1:#3d7a48; --leaf2:#2f6a3d;
+  --grass-top:#6fae52; --grass-low:#2f7234;
+  --road:#3a3e49; --curb:#cfd4de; --road-dash:#f4e4a4; --post:#394150;
+
+  /* Ray (the runner) */
+  --ray-skin:#f1c7a0; --ray-shirt:#ff5533; --ray-shorts:#243049; --ray-hair:#1b1b1f;
+  /* Max (the friend) */
+  --max-skin:#8c5a3c; --max-shirt:#2d7ff0; --max-shorts:#1c2430; --max-hair:#15151a; --max-hat:#f2c230;
+
+  /* the shoes + the box */
+  --shoe:#b8ff3d; --shoe-2:#14171f; --shoe-glow:#c8ff4d;
+  --box:#ff7a1a; --box-dark:#14171f;
+  --mood:#2a5a92;              /* cold tint while Ray is hurt */
+}
+
+/* ============================================================
+   2. PAGE + LAYOUT
+   ============================================================ */
+*{box-sizing:border-box}
+html,body{margin:0;background:#000;overflow:hidden}
+#root{position:relative;width:1920px;height:1080px;overflow:hidden;background:#000;font-family:var(--font)}
+section.clip{position:absolute;left:0;top:0;width:1920px;height:1080px}
+#scene{position:absolute;left:0;top:0}
+#camera{transform-origin:960px 540px;animation:cam 27s linear both}
+#root > section > div{pointer-events:none}
+
+/* parallax layers: each one scrolls at a fraction of the world speed (see baked tracks at the bottom) */
+.par{animation-duration:27s;animation-timing-function:linear;animation-fill-mode:both}
+.par005{animation-name:par005}.par008{animation-name:par008}.par02{animation-name:par02}
+.par045{animation-name:par045}.par07{animation-name:par07}.par10{animation-name:par10}.par15{animation-name:par15}
+.maxmove{animation:maxmove 27s linear both}
+
+/* ============================================================
+   3. SCENERY COLOURS
+   ============================================================ */
+.cloud{fill:#fff;opacity:.88}
+.hill-far{fill:var(--hill-far)} .hill-mid{fill:var(--hill-mid)}
+.trunk{fill:var(--trunk)} .leaf1{fill:var(--leaf1)} .leaf2{fill:var(--leaf2)}
+.dash{fill:var(--road-dash)} .speck{fill:rgba(255,255,255,.1)}
+.blade{fill:#4f9a43} .post{fill:var(--post)} .lamp{fill:#fff1b8}
+.bokeh{fill:rgba(255,236,170,.55)}
+.stone{fill:#8a8f99} .stone-hi{stroke:#c3c8d2;stroke-width:5;stroke-linecap:round}
+.shadow{fill:#000;opacity:.28}
+
+/* ============================================================
+   4. CHARACTERS  (colours come from the variables above)
+   ============================================================ */
+.ray{--skin:var(--ray-skin);--shirt:var(--ray-shirt);--shorts:var(--ray-shorts);--hair:var(--ray-hair)}
+.max{--skin:var(--max-skin);--shirt:var(--max-shirt);--shorts:var(--max-shorts);--hair:var(--max-hair)}
+.skin{fill:var(--skin)} .shirt{fill:var(--shirt)} .shorts{fill:var(--shorts)} .hair{fill:var(--hair)}
+.shirt-acc{stroke:rgba(255,255,255,.75);stroke-width:7;stroke-linecap:round}
+.hat{fill:var(--max-hat)} .hat2{fill:#d9a91c}
+.ln{fill:none;stroke:#1a1a22;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
+.ln2{fill:none;stroke:#1a1a22;stroke-width:3}
+.nose,.toe{fill:none;stroke:rgba(0,0,0,.28);stroke-width:3;stroke-linecap:round}
+.blister{fill:#e0453c;opacity:.9}
+.sweat{fill:#8fdcff;animation:drip .8s ease-in infinite}
+.sweat.s2{animation-delay:-.4s}
+.ache path{fill:none;stroke:#ff3b30;stroke-width:6;stroke-linecap:round}
+.ache{animation:ache .45s ease-in-out infinite alternate}
+
+/* shoes */
+.shoe-sole{fill:#fff} .shoe-up{fill:var(--shoe)} .shoe-tip{fill:var(--shoe-2)}
+.shoe-swoosh{stroke:var(--shoe-2);stroke-width:7;stroke-linecap:round}
+.shoe-lace{stroke:#fff;stroke-width:4;stroke-linecap:round}
+.shoe-glow{animation:glow 1s ease-in-out infinite alternate}
+/* shoe box */
+.box-base{fill:var(--box)} .box-lid{fill:var(--box-dark)}
+.box-txt{font:900 22px var(--font);letter-spacing:.12em;fill:#fff}
+
+/* ---- pose switching: a pose is only visible between --start and --start+--dur ---- */
+.pose-seq{opacity:0;animation:vis var(--dur) linear var(--start)}
+@keyframes vis{from,to{opacity:1}}
+
+/* ---- run / jog cycle (leg + arm swing driven by variables set on each pose) ---- */
+.cyc .thigh{animation:thigh var(--T) ease-in-out infinite}
+.cyc .shin{animation:shin var(--T) ease-in-out infinite}
+.cyc .foot{animation:footc var(--T) ease-in-out infinite}
+.cyc .leg.b .thigh,.cyc .leg.b .shin,.cyc .leg.b .foot{animation-delay:calc(var(--T) / -2)}
+.cyc .uarm{animation:uarm var(--T) ease-in-out infinite}
+.cyc .arm.f .uarm{animation-delay:calc(var(--T) / -2)}
+.cyc .farm{transform:rotate(calc(var(--el) * 1deg))}
+.cyc .bob{animation:bob calc(var(--T) / 2) ease-in-out infinite}
+.static-arms .uarm,.static-arms .arm.f .uarm,.static-arms .arm.b .uarm{animation:none!important}
+.wave .arm.f .uarm{animation:wave1 .5s ease-in-out infinite}
+.wave .arm.f .farm{animation:wave2 .5s ease-in-out infinite}
+@keyframes thigh{0%,100%{transform:rotate(calc(var(--tf) * 1deg))}50%{transform:rotate(calc(var(--tb) * 1deg))}}
+@keyframes shin{0%{transform:rotate(calc(var(--kf) * 1deg))}30%{transform:rotate(calc(var(--kf) * .6deg))}
+  55%{transform:rotate(calc(var(--kb) * 1deg))}78%{transform:rotate(calc(var(--kp) * 1deg))}100%{transform:rotate(calc(var(--kf) * 1deg))}}
+@keyframes footc{0%{transform:rotate(-4deg)}30%{transform:rotate(0deg)}55%{transform:rotate(24deg)}78%{transform:rotate(8deg)}100%{transform:rotate(-4deg)}}
+@keyframes uarm{0%,100%{transform:rotate(calc(var(--uf) * 1deg))}50%{transform:rotate(calc(var(--ub) * 1deg))}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes wave1{0%,100%{transform:rotate(-150deg)}50%{transform:rotate(-122deg)}}
+@keyframes wave2{0%,100%{transform:rotate(-30deg)}50%{transform:rotate(26deg)}}
+@keyframes drip{0%{opacity:0;transform:translateY(0)}20%{opacity:1}100%{opacity:0;transform:translateY(34px)}}
+@keyframes ache{from{opacity:.25}to{opacity:1}}
+@keyframes glow{from{opacity:.45}to{opacity:1}}
+
+/* ---- Ray trips on the stone and slides  (5.7s) ---- */
+.fall{animation:fall 1.3s linear var(--start) forwards}
+@keyframes fall{
+  0%{transform:translate(0,0) rotate(0deg);animation-timing-function:ease-in}
+  18%{transform:translate(40px,0) rotate(30deg);animation-timing-function:ease-in}
+  40%{transform:translate(200px,0) rotate(82deg);animation-timing-function:ease-out}
+  52%{transform:translate(214px,-10px) rotate(74deg);animation-timing-function:ease-in}
+  66%{transform:translate(234px,-14px) rotate(83deg);animation-timing-function:ease-out}
+  100%{transform:translate(240px,-26px) rotate(82deg)}
+}
+/* ---- Ray drifts forward on screen while sprinting ---- */
+.runmove{animation:runmove var(--dur) ease-in-out var(--start) both}
+@keyframes runmove{from{transform:translateX(0)}to{transform:translateX(190px)}}
+
+/* ---- dust, sparkles, shoe box ---- */
+.puff,.dust{transform-box:fill-box;transform-origin:center}
+.puff{fill:#eadfc8;animation:puff 1.1s ease-out var(--start) both}
+@keyframes puff{0%{opacity:0;transform:translate(0,0) scale(.3)}12%{opacity:.85}100%{opacity:0;transform:translate(calc(var(--dx) * 1px),-70px) scale(1.8)}}
+.dust{fill:#e6d9bd;animation:dustl .46s ease-out infinite}
+@keyframes dustl{0%{opacity:.75;transform:translate(0,0) scale(.4)}100%{opacity:0;transform:translate(-170px,-26px) scale(1.7)}}
+.streak{fill:var(--shoe-glow);transform-box:fill-box;transform-origin:100% 50%;animation:streak .23s linear infinite}
+@keyframes streak{0%{opacity:.85;transform:scaleX(.15)}100%{opacity:0;transform:scaleX(1) translateX(-60px)}}
+.burst path,.spk path{fill:#fff7b0;stroke:var(--shoe-glow);stroke-width:3}
+.burst{animation:burst .9s ease-out var(--start) both}
+@keyframes burst{0%{opacity:0;transform:translate(0,0) scale(0)}15%{opacity:1;transform:translate(0,0) scale(1.4)}
+  100%{opacity:0;transform:translate(calc(var(--dx) * 1px),calc(var(--dy) * 1px)) scale(.3) rotate(120deg)}}
+.spk{animation:spk var(--dur) ease-in-out var(--start) both}
+@keyframes spk{0%{opacity:0;transform:translate(var(--x,0),var(--y,0)) scale(0)}50%{opacity:1;transform:scale(1.4)}100%{opacity:0;transform:scale(0) rotate(90deg)}}
+.lid{animation:lid .45s ease-out var(--start) forwards}
+@keyframes lid{from{transform:rotate(0deg)}to{transform:rotate(-112deg)}}
+.shoes-pop{animation:shoespop 1s cubic-bezier(.2,1.3,.4,1) var(--start) both}
+@keyframes shoespop{0%{opacity:0;transform:translate(0,20px) scale(.3)}100%{opacity:1;transform:translate(0,-110px) scale(1.9) rotate(-6deg)}}
+.shoes-fly{animation:shoesfly .35s ease-in var(--start) forwards}
+@keyframes shoesfly{from{opacity:1;transform:translate(0,0) scale(1)}to{opacity:0;transform:translate(-113px,117px) scale(.3)}}
+
+/* ============================================================
+   5. TEXT, BUBBLES, OVERLAYS   (each has --start and --dur)
+   ============================================================ */
+div.cap{position:absolute;left:0;top:140px;width:1920px;padding:0 120px;text-align:center;font:900 78px/1.08 var(--font);
+  color:#fff;letter-spacing:.01em;text-shadow:0 8px 34px rgba(0,0,0,.55);opacity:0;
+  animation:capIn var(--dur) cubic-bezier(.2,.7,.2,1) var(--start) both}
+div.cap em{font-style:normal;color:var(--accent)}
+@keyframes capIn{0%{opacity:0;transform:translateY(46px);letter-spacing:.16em;filter:blur(10px)}
+  14%{opacity:1;transform:none;letter-spacing:.01em;filter:none}86%{opacity:1;transform:none;filter:none}
+  100%{opacity:0;transform:translateY(-24px);filter:blur(6px)}}
+
+.bubble{position:absolute;padding:20px 32px 22px;background:#fff;color:#161a22;font:700 44px/1.18 var(--font);border-radius:34px;
+  box-shadow:0 16px 44px rgba(0,0,0,.38);opacity:0;transform-origin:var(--tail) 100%;animation:pop var(--dur) ease-out var(--start) both}
+.bubble.ray{border:7px solid var(--ray-shirt)} .bubble.max{border:7px solid var(--max-shirt)}
+.bubble .who{display:block;font-size:20px;letter-spacing:.24em;margin-bottom:6px}
+.bubble.ray .who{color:var(--ray-shirt)} .bubble.max .who{color:var(--max-shirt)}
+.bubble::after{content:"";position:absolute;bottom:-34px;left:var(--tail);border-left:18px solid transparent;border-right:18px solid transparent;border-top:36px solid #fff}
+@keyframes pop{0%{opacity:0;transform:scale(.4) translateY(30px)}12%{opacity:1;transform:scale(1.07)}18%{transform:scale(1)}
+  88%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.92) translateY(-12px)}}
+
+#ouch{position:absolute;width:500px;height:500px;background:#ffd23f;clip-path:polygon(50.0% 0.0%,57.3% 17.8%,71.7% 5.0%,70.6% 24.2%,89.1% 18.8%,79.7% 35.7%,98.7% 38.9%,83.0% 50.0%,98.7% 61.1%,79.7% 64.3%,89.1% 81.2%,70.6% 75.8%,71.7% 95.0%,57.3% 82.2%,50.0% 100.0%,42.7% 82.2%,28.3% 95.0%,29.4% 75.8%,10.9% 81.2%,20.3% 64.3%,1.3% 61.1%,17.0% 50.0%,1.3% 38.9%,20.3% 35.7%,10.9% 18.8%,29.4% 24.2%,28.3% 5.0%,42.7% 17.8%);opacity:0;animation:ouch var(--dur) ease-out var(--start) both}
+#ouch .ouch-in{position:absolute;inset:34px;background:#ff2d2d;clip-path:polygon(50.0% 0.0%,57.3% 17.8%,71.7% 5.0%,70.6% 24.2%,89.1% 18.8%,79.7% 35.7%,98.7% 38.9%,83.0% 50.0%,98.7% 61.1%,79.7% 64.3%,89.1% 81.2%,70.6% 75.8%,71.7% 95.0%,57.3% 82.2%,50.0% 100.0%,42.7% 82.2%,28.3% 95.0%,29.4% 75.8%,10.9% 81.2%,20.3% 64.3%,1.3% 61.1%,17.0% 50.0%,1.3% 38.9%,20.3% 35.7%,10.9% 18.8%,29.4% 24.2%,28.3% 5.0%,42.7% 17.8%);display:grid;place-items:center}
+#ouch span{font:900 104px var(--font);color:#fff;transform:rotate(-8deg);text-shadow:0 6px 0 rgba(0,0,0,.25)}
+@keyframes ouch{0%{opacity:0;transform:scale(0) rotate(-25deg)}14%{opacity:1;transform:scale(1.18) rotate(6deg)}24%{transform:scale(1) rotate(-3deg)}
+  84%{opacity:1;transform:scale(1) rotate(-3deg)}100%{opacity:0;transform:scale(.8) rotate(-3deg)}}
+
+#speedlines{position:absolute;inset:0;overflow:hidden;opacity:0;animation:envl var(--dur) linear var(--start)}
+#speedlines i{position:absolute;left:0;height:4px;border-radius:2px;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.85));
+  transform:translateX(2100px);animation:sl linear infinite}
+@keyframes sl{from{transform:translateX(2100px)}to{transform:translateX(-900px)}}
+@keyframes envl{0%{opacity:0}10%{opacity:1}85%{opacity:1}100%{opacity:0}}
+
+.flash{position:absolute;inset:0;background:#fff;opacity:0;animation:flash .55s ease-out var(--start)}
+.flash.small{animation:flashS .3s ease-out var(--start)}
+@keyframes flash{0%{opacity:0}12%{opacity:.9}100%{opacity:0}}
+@keyframes flashS{0%{opacity:0}10%{opacity:.5}100%{opacity:0}}
+
+#mood{position:absolute;inset:0;background:var(--mood);opacity:0;animation:mood 27s linear both}
+#grade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,170,90,.2),rgba(30,60,120,.2));mix-blend-mode:soft-light}
+#vignette{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 52%,rgba(0,0,0,.6) 100%)}
+#brandtag{position:absolute;left:96px;top:128px;font:800 26px var(--font);letter-spacing:.38em;color:#fff;opacity:.8;text-shadow:0 2px 12px rgba(0,0,0,.5)}
+
+/* ---- end card ---- */
+#end{position:absolute;inset:0;opacity:0;background:radial-gradient(ellipse at 50% 38%,#18344f 0%,#0a121c 62%,#05080d 100%);
+  animation:endIn var(--dur) linear var(--start) forwards}
+@keyframes endIn{0%{opacity:0}9%{opacity:1}100%{opacity:1}}
+#end-shoe{overflow:visible;position:absolute;left:560px;top:118px;filter:drop-shadow(0 34px 40px rgba(0,0,0,.6))}
+#end-shoe .float{animation:floaty 3s ease-in-out infinite}
+@keyframes floaty{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-14px) rotate(-3deg)}}
+#end-title{position:absolute;left:0;top:540px;width:1920px;margin:0;text-align:center;font:900 132px/1 var(--font);letter-spacing:.06em;color:#fff;
+  animation:titleIn .9s cubic-bezier(.2,.9,.2,1) var(--start) both}
+#end-title .x1{color:var(--shoe)}
+#end-tag{position:absolute;left:0;top:706px;width:1920px;margin:0;text-align:center;font:600 44px var(--font);letter-spacing:.22em;color:#dfe8f2;
+  animation:fadeUp .8s ease-out var(--start) both}
+#end-tag em{font-style:normal;color:var(--shoe)}
+#end-cta{position:absolute;left:660px;top:808px;width:600px;padding:18px 0;text-align:center;font:800 32px var(--font);letter-spacing:.08em;
+  color:#14171f;background:var(--shoe);border-radius:60px;animation:fadeUp .8s ease-out var(--start) both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:none}}
+@keyframes titleIn{from{opacity:0;transform:scale(1.5);letter-spacing:.3em}to{opacity:1;transform:none}}
+
+/* ---- cinematic bars + fades ---- */
+.bar{position:absolute;left:0;width:1920px;height:110px;background:#000}
+.bar.top{top:0;animation:bar 1.6s cubic-bezier(.7,0,.2,1) both}
+.bar.bot{bottom:0;animation:bar 1.6s cubic-bezier(.7,0,.2,1) both}
+@keyframes bar{from{height:540px}to{height:110px}}
+#fadein{position:absolute;inset:0;background:#000;animation:fin 1.1s ease-out both}
+@keyframes fin{from{opacity:1}to{opacity:0}}
+#fadeout{position:absolute;inset:0;background:#000;opacity:0;animation:fout .8s ease-in 26.2s both}
+@keyframes fout{from{opacity:0}to{opacity:1}}
+
+/* ================= BAKED TIMELINE TRACKS (advanced; every row has its time in seconds) ================= */
+@keyframes par005{
+  0%{transform:translateX(0px)} /* 0s */
+  0.37%{transform:translateX(-0.02px)} /* 0.1s */
+  0.741%{transform:translateX(-0.18px)} /* 0.2s */
+  1.111%{transform:translateX(-0.57px)} /* 0.3s */
+  1.481%{transform:translateX(-1.24px)} /* 0.4s */
+  1.852%{transform:translateX(-2.22px)} /* 0.5s */
+  2.222%{transform:translateX(-3.48px)} /* 0.6s */
+  2.593%{transform:translateX(-4.97px)} /* 0.7s */
+  2.963%{transform:translateX(-6.6px)} /* 0.8s */
+  21.111%{transform:translateX(-87.45px)} /* 5.7s */
+  21.481%{transform:translateX(-89.09px)} /* 5.8s */
+  21.852%{transform:translateX(-90.67px)} /* 5.9s */
+  22.222%{transform:translateX(-92.13px)} /* 6s */
+  22.593%{transform:translateX(-93.44px)} /* 6.1s */
+  22.963%{transform:translateX(-94.57px)} /* 6.2s */
+  23.333%{transform:translateX(-95.49px)} /* 6.3s */
+  23.704%{transform:translateX(-96.22px)} /* 6.4s */
+  24.074%{transform:translateX(-96.74px)} /* 6.5s */
+  24.444%{transform:translateX(-97.08px)} /* 6.6s */
+  24.815%{transform:translateX(-97.27px)} /* 6.7s */
+  25.185%{transform:translateX(-97.34px)} /* 6.8s */
+  25.556%{transform:translateX(-97.35px)} /* 6.9s */
+  63.704%{transform:translateX(-97.35px)} /* 17.2s */
+  64.074%{transform:translateX(-97.38px)} /* 17.3s */
+  64.444%{transform:translateX(-97.59px)} /* 17.4s */
+  64.815%{transform:translateX(-98.13px)} /* 17.5s */
+  65.185%{transform:translateX(-99.11px)} /* 17.6s */
+  65.556%{transform:translateX(-100.61px)} /* 17.7s */
+  65.926%{transform:translateX(-102.69px)} /* 17.8s */
+  66.296%{transform:translateX(-105.36px)} /* 17.9s */
+  66.667%{transform:translateX(-108.61px)} /* 18s */
+  67.037%{transform:translateX(-112.38px)} /* 18.1s */
+  67.407%{transform:translateX(-116.59px)} /* 18.2s */
+  67.778%{transform:translateX(-121.13px)} /* 18.3s */
+  68.148%{transform:translateX(-125.85px)} /* 18.4s */
+  82.222%{transform:translateX(-306.35px)} /* 22.2s */
+  100%{transform:translateX(-306.35px)} /* 27s */
+}
+@keyframes par008{
+  0%{transform:translateX(0px)} /* 0s */
+  0.37%{transform:translateX(-0.04px)} /* 0.1s */
+  0.741%{transform:translateX(-0.29px)} /* 0.2s */
+  1.111%{transform:translateX(-0.9px)} /* 0.3s */
+  1.481%{transform:translateX(-1.98px)} /* 0.4s */
+  1.852%{transform:translateX(-3.54px)} /* 0.5s */
+  2.222%{transform:translateX(-5.57px)} /* 0.6s */
+  2.593%{transform:translateX(-7.96px)} /* 0.7s */
+  2.963%{transform:translateX(-10.56px)} /* 0.8s */
+  21.111%{transform:translateX(-139.92px)} /* 5.7s */
+  21.481%{transform:translateX(-142.54px)} /* 5.8s */
+  21.852%{transform:translateX(-145.07px)} /* 5.9s */
+  22.222%{transform:translateX(-147.41px)} /* 6s */
+  22.593%{transform:translateX(-149.5px)} /* 6.1s */
+  22.963%{transform:translateX(-151.31px)} /* 6.2s */
+  23.333%{transform:translateX(-152.79px)} /* 6.3s */
+  23.704%{transform:translateX(-153.95px)} /* 6.4s */
+  24.074%{transform:translateX(-154.78px)} /* 6.5s */
+  24.444%{transform:translateX(-155.33px)} /* 6.6s */
+  24.815%{transform:translateX(-155.63px)} /* 6.7s */
+  25.185%{transform:translateX(-155.74px)} /* 6.8s */
+  25.556%{transform:translateX(-155.76px)} /* 6.9s */
+  63.704%{transform:translateX(-155.76px)} /* 17.2s */
+  64.074%{transform:translateX(-155.81px)} /* 17.3s */
+  64.444%{transform:translateX(-156.15px)} /* 17.4s */
+  64.815%{transform:translateX(-157.01px)} /* 17.5s */
+  65.185%{transform:translateX(-158.57px)} /* 17.6s */
+  65.556%{transform:translateX(-160.98px)} /* 17.7s */
+  65.926%{transform:translateX(-164.31px)} /* 17.8s */
+  66.296%{transform:translateX(-168.58px)} /* 17.9s */
+  66.667%{transform:translateX(-173.77px)} /* 18s */
+  67.037%{transform:translateX(-179.81px)} /* 18.1s */
+  67.407%{transform:translateX(-186.55px)} /* 18.2s */
+  67.778%{transform:translateX(-193.81px)} /* 18.3s */
+  68.148%{transform:translateX(-201.36px)} /* 18.4s */
+  82.222%{transform:translateX(-490.16px)} /* 22.2s */
+  100%{transform:translateX(-490.16px)} /* 27s */
+}
+@keyframes par02{
+  0%{transform:translateX(0px)} /* 0s */
+  0.37%{transform:translateX(-0.1px)} /* 0.1s */
+  0.741%{transform:translateX(-0.72px)} /* 0.2s */
+  1.111%{transform:translateX(-2.26px)} /* 0.3s */
+  1.481%{transform:translateX(-4.95px)} /* 0.4s */
+  1.852%{transform:translateX(-8.86px)} /* 0.5s */
+  2.222%{transform:translateX(-13.92px)} /* 0.6s */
+  2.593%{transform:translateX(-19.9px)} /* 0.7s */
+  2.963%{transform:translateX(-26.4px)} /* 0.8s */
+  21.111%{transform:translateX(-349.8px)} /* 5.7s */
+  21.481%{transform:translateX(-356.36px)} /* 5.8s */
+  21.852%{transform:translateX(-362.66px)} /* 5.9s */
+  22.222%{transform:translateX(-368.52px)} /* 6s */
+  22.593%{transform:translateX(-373.76px)} /* 6.1s */
+  22.963%{transform:translateX(-378.26px)} /* 6.2s */
+  23.333%{transform:translateX(-381.98px)} /* 6.3s */
+  23.704%{transform:translateX(-384.86px)} /* 6.4s */
+  24.074%{transform:translateX(-386.96px)} /* 6.5s */
+  24.444%{transform:translateX(-388.32px)} /* 6.6s */
+  24.815%{transform:translateX(-389.06px)} /* 6.7s */
+  25.185%{transform:translateX(-389.36px)} /* 6.8s */
+  25.556%{transform:translateX(-389.4px)} /* 6.9s */
+  63.704%{transform:translateX(-389.4px)} /* 17.2s */
+  64.074%{transform:translateX(-389.53px)} /* 17.3s */
+  64.444%{transform:translateX(-390.37px)} /* 17.4s */
+  64.815%{transform:translateX(-392.52px)} /* 17.5s */
+  65.185%{transform:translateX(-396.44px)} /* 17.6s */
+  65.556%{transform:translateX(-402.46px)} /* 17.7s */
+  65.926%{transform:translateX(-410.77px)} /* 17.8s */
+  66.296%{transform:translateX(-421.46px)} /* 17.9s */
+  66.667%{transform:translateX(-434.44px)} /* 18s */
+  67.037%{transform:translateX(-449.52px)} /* 18.1s */
+  67.407%{transform:translateX(-466.37px)} /* 18.2s */
+  67.778%{transform:translateX(-484.53px)} /* 18.3s */
+  68.148%{transform:translateX(-503.4px)} /* 18.4s */
+  82.222%{transform:translateX(-1225.4px)} /* 22.2s */
+  100%{transform:translateX(-1225.4px)} /* 27s */
+}
+@keyframes par045{
+  0%{transform:translateX(0px)} /* 0s */
+  0.37%{transform:translateX(-0.22px)} /* 0.1s */
+  0.741%{transform:translateX(-1.62px)} /* 0.2s */
+  1.111%{transform:translateX(-5.09px)} /* 0.3s */
+  1.481%{transform:translateX(-11.14px)} /* 0.4s */
+  1.852%{transform:translateX(-19.94px)} /* 0.5s */
+  2.222%{transform:translateX(-31.32px)} /* 0.6s */
+  2.593%{transform:translateX(-44.77px)} /* 0.7s */
+  2.963%{transform:translateX(-59.4px)} /* 0.8s */
+  21.111%{transform:translateX(-787.05px)} /* 5.7s */
+  21.481%{transform:translateX(-801.8px)} /* 5.8s */
+  21.852%{transform:translateX(-815.99px)} /* 5.9s */
+  22.222%{transform:translateX(-829.16px)} /* 6s */
+  22.593%{transform:translateX(-840.95px)} /* 6.1s */
+  22.963%{transform:translateX(-851.1px)} /* 6.2s */
+  23.333%{transform:translateX(-859.44px)} /* 6.3s */
+  23.704%{transform:translateX(-865.95px)} /* 6.4s */
+  24.074%{transform:translateX(-870.65px)} /* 6.5s */
+  24.444%{transform:translateX(-873.71px)} /* 6.6s */
+  24.815%{transform:translateX(-875.39px)} /* 6.7s */
+  25.185%{transform:translateX(-876.05px)} /* 6.8s */
+  25.556%{transform:translateX(-876.15px)} /* 6.9s */
+  63.704%{transform:translateX(-876.15px)} /* 17.2s */
+  64.074%{transform:translateX(-876.43px)} /* 17.3s */
+  64.444%{transform:translateX(-878.33px)} /* 17.4s */
+  64.815%{transform:translateX(-883.16px)} /* 17.5s */
+  65.185%{transform:translateX(-891.98px)} /* 17.6s */
+  65.556%{transform:translateX(-905.53px)} /* 17.7s */
+  65.926%{transform:translateX(-924.24px)} /* 17.8s */
+  66.296%{transform:translateX(-948.28px)} /* 17.9s */
+  66.667%{transform:translateX(-977.48px)} /* 18s */
+  67.037%{transform:translateX(-1011.41px)} /* 18.1s */
+  67.407%{transform:translateX(-1049.33px)} /* 18.2s */
+  67.778%{transform:translateX(-1090.18px)} /* 18.3s */
+  68.148%{transform:translateX(-1132.65px)} /* 18.4s */
+  82.222%{transform:translateX(-2757.15px)} /* 22.2s */
+  100%{transform:translateX(-2757.15px)} /* 27s */
+}
+@keyframes par07{
+  0%{transform:translateX(0px)} /* 0s */
+  0.37%{transform:translateX(-0.34px)} /* 0.1s */
+  0.741%{transform:translateX(-2.53px)} /* 0.2s */
+  1.111%{transform:translateX(-7.92px)} /* 0.3s */
+  1.481%{transform:translateX(-17.32px)} /* 0.4s */
+  1.852%{transform:translateX(-31.02px)} /* 0.5s */
+  2.222%{transform:translateX(-48.73px)} /* 0.6s */
+  2.593%{transform:translateX(-69.64px)} /* 0.7s */
+  2.963%{transform:translateX(-92.4px)} /* 0.8s */
+  21.111%{transform:translateX(-1224.3px)} /* 5.7s */
+  21.481%{transform:translateX(-1247.25px)} /* 5.8s */
+  21.852%{transform:translateX(-1269.32px)} /* 5.9s */
+  22.222%{transform:translateX(-1289.81px)} /* 6s */
+  22.593%{transform:translateX(-1308.14px)} /* 6.1s */
+  22.963%{transform:translateX(-1323.93px)} /* 6.2s */
+  23.333%{transform:translateX(-1336.91px)} /* 6.3s */
+  23.704%{transform:translateX(-1347.03px)} /* 6.4s */
+  24.074%{transform:translateX(-1354.34px)} /* 6.5s */
+  24.444%{transform:translateX(-1359.11px)} /* 6.6s */
+  24.815%{transform:translateX(-1361.72px)} /* 6.7s */
+  25.185%{transform:translateX(-1362.75px)} /* 6.8s */
+  25.556%{transform:translateX(-1362.9px)} /* 6.9s */
+  63.704%{transform:translateX(-1362.9px)} /* 17.2s */
+  64.074%{transform:translateX(-1363.34px)} /* 17.3s */
+  64.444%{transform:translateX(-1366.29px)} /* 17.4s */
+  64.815%{transform:translateX(-1373.81px)} /* 17.5s */
+  65.185%{transform:translateX(-1387.53px)} /* 17.6s */
+  65.556%{transform:translateX(-1408.6px)} /* 17.7s */
+  65.926%{transform:translateX(-1437.71px)} /* 17.8s */
+  66.296%{transform:translateX(-1475.1px)} /* 17.9s */
+  66.667%{transform:translateX(-1520.53px)} /* 18s */
+  67.037%{transform:translateX(-1573.31px)} /* 18.1s */
+  67.407%{transform:translateX(-1632.29px)} /* 18.2s */
+  67.778%{transform:translateX(-1695.84px)} /* 18.3s */
+  68.148%{transform:translateX(-1761.9px)} /* 18.4s */
+  82.222%{transform:translateX(-4288.9px)} /* 22.2s */
+  100%{transform:translateX(-4288.9px)} /* 27s */
+}
+@keyframes par10{
+  0%{transform:translateX(0px)} /* 0s */
+  0.37%{transform:translateX(-0.48px)} /* 0.1s */
+  0.741%{transform:translateX(-3.61px)} /* 0.2s */
+  1.111%{transform:translateX(-11.31px)} /* 0.3s */
+  1.481%{transform:translateX(-24.75px)} /* 0.4s */
+  1.852%{transform:translateX(-44.31px)} /* 0.5s */
+  2.222%{transform:translateX(-69.61px)} /* 0.6s */
+  2.593%{transform:translateX(-99.48px)} /* 0.7s */
+  2.963%{transform:translateX(-132px)} /* 0.8s */
+  21.111%{transform:translateX(-1749px)} /* 5.7s */
+  21.481%{transform:translateX(-1781.78px)} /* 5.8s */
+  21.852%{transform:translateX(-1813.32px)} /* 5.9s */
+  22.222%{transform:translateX(-1842.59px)} /* 6s */
+  22.593%{transform:translateX(-1868.78px)} /* 6.1s */
+  22.963%{transform:translateX(-1891.32px)} /* 6.2s */
+  23.333%{transform:translateX(-1909.88px)} /* 6.3s */
+  23.704%{transform:translateX(-1924.32px)} /* 6.4s */
+  24.074%{transform:translateX(-1934.78px)} /* 6.5s */
+  24.444%{transform:translateX(-1941.59px)} /* 6.6s */
+  24.815%{transform:translateX(-1945.32px)} /* 6.7s */
+  25.185%{transform:translateX(-1946.78px)} /* 6.8s */
+  25.556%{transform:translateX(-1947px)} /* 6.9s */
+  63.704%{transform:translateX(-1947px)} /* 17.2s */
+  64.074%{transform:translateX(-1947.63px)} /* 17.3s */
+  64.444%{transform:translateX(-1951.84px)} /* 17.4s */
+  64.815%{transform:translateX(-1962.59px)} /* 17.5s */
+  65.185%{transform:translateX(-1982.18px)} /* 17.6s */
+  65.556%{transform:translateX(-2012.28px)} /* 17.7s */
+  65.926%{transform:translateX(-2053.87px)} /* 17.8s */
+  66.296%{transform:translateX(-2107.28px)} /* 17.9s */
+  66.667%{transform:translateX(-2172.18px)} /* 18s */
+  67.037%{transform:translateX(-2247.59px)} /* 18.1s */
+  67.407%{transform:translateX(-2331.84px)} /* 18.2s */
+  67.778%{transform:translateX(-2422.63px)} /* 18.3s */
+  68.148%{transform:translateX(-2517px)} /* 18.4s */
+  82.222%{transform:translateX(-6127px)} /* 22.2s */
+  100%{transform:translateX(-6127px)} /* 27s */
+}
+@keyframes par15{
+  0%{transform:translateX(0px)} /* 0s */
+  0.37%{transform:translateX(-0.72px)} /* 0.1s */
+  0.741%{transform:translateX(-5.41px)} /* 0.2s */
+  1.111%{transform:translateX(-16.97px)} /* 0.3s */
+  1.481%{transform:translateX(-37.12px)} /* 0.4s */
+  1.852%{transform:translateX(-66.47px)} /* 0.5s */
+  2.222%{transform:translateX(-104.41px)} /* 0.6s */
+  2.593%{transform:translateX(-149.22px)} /* 0.7s */
+  2.963%{transform:translateX(-198px)} /* 0.8s */
+  21.111%{transform:translateX(-2623.5px)} /* 5.7s */
+  21.481%{transform:translateX(-2672.67px)} /* 5.8s */
+  21.852%{transform:translateX(-2719.98px)} /* 5.9s */
+  22.222%{transform:translateX(-2763.88px)} /* 6s */
+  22.593%{transform:translateX(-2803.17px)} /* 6.1s */
+  22.963%{transform:translateX(-2836.98px)} /* 6.2s */
+  23.333%{transform:translateX(-2864.81px)} /* 6.3s */
+  23.704%{transform:translateX(-2886.48px)} /* 6.4s */
+  24.074%{transform:translateX(-2902.17px)} /* 6.5s */
+  24.444%{transform:translateX(-2912.38px)} /* 6.6s */
+  24.815%{transform:translateX(-2917.98px)} /* 6.7s */
+  25.185%{transform:translateX(-2920.17px)} /* 6.8s */
+  25.556%{transform:translateX(-2920.5px)} /* 6.9s */
+  63.704%{transform:translateX(-2920.5px)} /* 17.2s */
+  64.074%{transform:translateX(-2921.45px)} /* 17.3s */
+  64.444%{transform:translateX(-2927.76px)} /* 17.4s */
+  64.815%{transform:translateX(-2943.88px)} /* 17.5s */
+  65.185%{transform:translateX(-2973.28px)} /* 17.6s */
+  65.556%{transform:translateX(-3018.43px)} /* 17.7s */
+  65.926%{transform:translateX(-3080.81px)} /* 17.8s */
+  66.296%{transform:translateX(-3160.93px)} /* 17.9s */
+  66.667%{transform:translateX(-3258.28px)} /* 18s */
+  67.037%{transform:translateX(-3371.38px)} /* 18.1s */
+  67.407%{transform:translateX(-3497.76px)} /* 18.2s */
+  67.778%{transform:translateX(-3633.95px)} /* 18.3s */
+  68.148%{transform:translateX(-3775.5px)} /* 18.4s */
+  82.222%{transform:translateX(-9190.5px)} /* 22.2s */
+  100%{transform:translateX(-9190.5px)} /* 27s */
+}
+@keyframes cam{
+  0%{transform:translate(0px,0px) scale(1.0);animation-timing-function:ease-in-out} /* 0s */
+  20.37%{transform:translate(70px,-20px) scale(1.1);animation-timing-function:ease-in-out} /* 5.5s */
+  23.704%{transform:translate(40px,-40px) scale(1.18);animation-timing-function:ease-in-out} /* 6.4s */
+  31.481%{transform:translate(-40px,-60px) scale(1.22);animation-timing-function:ease-in-out} /* 8.5s */
+  38.519%{transform:translate(-60px,-55px) scale(1.2);animation-timing-function:ease-in-out} /* 10.4s */
+  48.148%{transform:translate(-30px,0px) scale(1.0);animation-timing-function:ease-in-out} /* 13s */
+  55.556%{transform:translate(-20px,-10px) scale(1.06);animation-timing-function:ease-in-out} /* 15s */
+  63.704%{transform:translate(0px,0px) scale(1.0);animation-timing-function:ease-in-out} /* 17.2s */
+  68.519%{transform:translate(90px,-10px) scale(1.12);animation-timing-function:ease-in-out} /* 18.5s */
+  81.481%{transform:translate(40px,-30px) scale(1.2);animation-timing-function:ease-in-out} /* 22s */
+  100%{transform:translate(40px,-30px) scale(1.2);animation-timing-function:ease-in-out} /* 27s */
+}
+@keyframes maxmove{
+  0%{transform:translateX(2400px)} /* 0s */
+  38.519%{transform:translateX(2400px)} /* 10.4s */
+  47.778%{transform:translateX(1230px)} /* 12.9s */
+  63.704%{transform:translateX(1230px)} /* 17.2s */
+  64.074%{transform:translateX(1229.37px)} /* 17.3s */
+  64.444%{transform:translateX(1225.16px)} /* 17.4s */
+  64.815%{transform:translateX(1214.41px)} /* 17.5s */
+  65.185%{transform:translateX(1194.82px)} /* 17.6s */
+  65.556%{transform:translateX(1164.72px)} /* 17.7s */
+  65.926%{transform:translateX(1123.13px)} /* 17.8s */
+  66.296%{transform:translateX(1069.72px)} /* 17.9s */
+  66.667%{transform:translateX(1004.82px)} /* 18s */
+  67.037%{transform:translateX(929.41px)} /* 18.1s */
+  67.407%{transform:translateX(845.16px)} /* 18.2s */
+  67.778%{transform:translateX(754.37px)} /* 18.3s */
+  68.148%{transform:translateX(660px)} /* 18.4s */
+  82.222%{transform:translateX(-2950px)} /* 22.2s */
+  100%{transform:translateX(-2950px)} /* 27s */
+}
+@keyframes mood{
+  0%{opacity:0} /* 0s */
+  21.111%{opacity:0} /* 5.7s */
+  24.444%{opacity:0.42} /* 6.6s */
+  48.148%{opacity:0.42} /* 13s */
+  55.556%{opacity:0} /* 15s */
+  100%{opacity:0} /* 27s */
+}
+
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="shoe-ad" data-start="0" data-duration="27" data-width="1920" data-height="1080">
+<section class="clip" data-start="0" data-duration="27" data-track-index="0">
+
+<svg id="scene" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+<defs>
+  <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" style="stop-color:var(--sky-top)"/><stop offset=".55" style="stop-color:var(--sky-mid)"/><stop offset="1" style="stop-color:var(--sky-low)"/>
+  </linearGradient>
+  <radialGradient id="sunGlow"><stop offset="0" stop-color="#fff2c8" stop-opacity=".95"/><stop offset=".35" stop-color="#ffd08a" stop-opacity=".45"/><stop offset="1" stop-color="#ffb066" stop-opacity="0"/></radialGradient>
+  <radialGradient id="glowG"><stop offset="0" style="stop-color:var(--shoe-glow)" stop-opacity=".95"/><stop offset="1" style="stop-color:var(--shoe-glow)" stop-opacity="0"/></radialGradient>
+  <radialGradient id="glowW"><stop offset="0" stop-color="#fff1b8" stop-opacity=".8"/><stop offset="1" stop-color="#fff1b8" stop-opacity="0"/></radialGradient>
+  <linearGradient id="grassG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--grass-top)"/><stop offset="1" style="stop-color:var(--grass-low)"/></linearGradient>
+  <filter id="blurBig" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="9"/></filter>
+  <filter id="blurSm" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>
+</defs>
+<g id="camera">
+<!-- ===== SKY ===== -->
+<rect id="sky" width="1920" height="1080" fill="url(#skyG)"/>
+<g id="sun"><circle cx="1440" cy="330" r="420" fill="url(#sunGlow)"/><circle cx="1440" cy="330" r="82" style="fill:var(--sun)"/></g>
+<!-- parallax layer: clouds (moves at 0.05x world speed) -->
+<defs><g id="tile-clouds"><g class="cloud" transform="translate(300,230) scale(1.2)"><ellipse cx="0" cy="0" rx="120" ry="34"/><ellipse cx="-50" cy="-26" rx="62" ry="38"/><ellipse cx="30" cy="-34" rx="74" ry="44"/><ellipse cx="80" cy="-8" rx="62" ry="30"/></g><g class="cloud" transform="translate(800,330) scale(0.8)"><ellipse cx="0" cy="0" rx="120" ry="34"/><ellipse cx="-50" cy="-26" rx="62" ry="38"/><ellipse cx="30" cy="-34" rx="74" ry="44"/><ellipse cx="80" cy="-8" rx="62" ry="30"/></g><g class="cloud" transform="translate(1280,200) scale(1.0)"><ellipse cx="0" cy="0" rx="120" ry="34"/><ellipse cx="-50" cy="-26" rx="62" ry="38"/><ellipse cx="30" cy="-34" rx="74" ry="44"/><ellipse cx="80" cy="-8" rx="62" ry="30"/></g></g></defs>
+<g id="L-clouds" class="par par005 "><use href="#tile-clouds" x="0"/><use href="#tile-clouds" x="1600"/><use href="#tile-clouds" x="3200"/></g>
+<!-- parallax layer: hills-far (moves at 0.08x world speed) -->
+<defs><g id="tile-hf"><path class="hill-far" d="M0,695.7 L40,693.8 L80,690.5 L120,686.6 L160,682.8 L200,679.9 L240,678.1 L280,677.5 L320,677.9 L360,678.9 L400,680.0 L440,680.6 L480,680.4 L520,679.2 L560,676.8 L600,673.6 L640,669.7 L680,665.8 L720,662.2 L760,659.4 L800,657.6 L840,656.7 L880,656.5 L920,656.4 L960,655.9 L1000,654.2 L1040,650.8 L1080,645.1 L1120,637.2 L1160,627.0 L1200,615.2 L1240,602.7 L1280,590.5 L1320,579.9 L1360,572.0 L1400,567.8 L1440,568.0 L1480,572.7 L1520,581.9 L1560,594.7 L1600,610.3 L1640,627.3 L1680,644.5 L1720,660.4 L1760,674.0 L1800,684.5 L1840,691.5 L1880,695.1 L1920,695.7 L1920,1080 L0,1080 Z"/></g></defs>
+<g id="L-hills-far" class="par par008 "><use href="#tile-hf" x="0"/><use href="#tile-hf" x="1920"/><use href="#tile-hf" x="3840"/></g>
+<!-- parallax layer: hills-mid (moves at 0.2x world speed) -->
+<defs><g id="tile-hm"><path class="hill-mid" d="M0,759.0 L40,759.2 L80,759.4 L120,759.4 L160,758.9 L200,757.6 L240,755.1 L280,751.0 L320,745.0 L360,737.2 L400,727.7 L440,716.8 L480,705.3 L520,693.9 L560,683.6 L600,675.1 L640,669.2 L680,666.3 L720,666.8 L760,670.4 L800,676.8 L840,685.2 L880,694.7 L920,704.5 L960,713.6 L1000,721.1 L1040,726.7 L1080,730.0 L1120,731.0 L1160,730.1 L1200,727.9 L1240,725.1 L1280,722.3 L1320,720.2 L1360,719.3 L1400,719.9 L1440,722.1 L1480,725.7 L1520,730.4 L1560,735.6 L1600,741.0 L1640,745.9 L1680,750.2 L1720,753.6 L1760,755.9 L1800,757.5 L1840,758.3 L1880,758.8 L1920,759.0 L1920,1080 L0,1080 Z"/></g></defs>
+<g id="L-hills-mid" class="par par02 "><use href="#tile-hm" x="0"/><use href="#tile-hm" x="1920"/><use href="#tile-hm" x="3840"/></g>
+<!-- parallax layer: trees (moves at 0.45x world speed) -->
+<defs><g id="tile-trees"><g transform="translate(90,800)"><rect class="trunk" x="-12" y="-123" width="24" height="123" rx="6"/><circle class="leaf1" cx="0" cy="-247" r="105"/><circle class="leaf2" cx="52" cy="-217" r="73"/><circle class="leaf2" cx="-52" cy="-223" r="68"/></g><g transform="translate(330,800)"><rect class="trunk" x="-12" y="-149" width="24" height="149" rx="6"/><circle class="leaf1" cx="0" cy="-299" r="99"/><circle class="leaf2" cx="49" cy="-269" r="69"/><circle class="leaf2" cx="-49" cy="-275" r="64"/></g><g transform="translate(610,800)"><rect class="trunk" x="-12" y="-123" width="24" height="123" rx="6"/><circle class="leaf1" cx="0" cy="-247" r="102"/><circle class="leaf2" cx="51" cy="-217" r="71"/><circle class="leaf2" cx="-51" cy="-223" r="66"/></g><g transform="translate(840,800)"><rect class="trunk" x="-12" y="-149" width="24" height="149" rx="6"/><circle class="leaf1" cx="0" cy="-299" r="107"/><circle class="leaf2" cx="53" cy="-269" r="74"/><circle class="leaf2" cx="-53" cy="-275" r="69"/></g><g transform="translate(1100,800)"><rect class="trunk" x="-12" y="-107" width="24" height="107" rx="6"/><circle class="leaf1" cx="0" cy="-214" r="81"/><circle class="leaf2" cx="40" cy="-184" r="56"/><circle class="leaf2" cx="-40" cy="-190" r="52"/></g><g transform="translate(1290,800)"><rect class="trunk" x="-12" y="-146" width="24" height="146" rx="6"/><circle class="leaf1" cx="0" cy="-292" r="102"/><circle class="leaf2" cx="51" cy="-262" r="71"/><circle class="leaf2" cx="-51" cy="-268" r="66"/></g></g></defs>
+<g id="L-trees" class="par par045 "><use href="#tile-trees" x="0"/><use href="#tile-trees" x="1400"/><use href="#tile-trees" x="2800"/><use href="#tile-trees" x="4200"/><use href="#tile-trees" x="5600"/></g>
+<!-- ===== GROUND ===== -->
+<rect id="grass" y="760" width="1920" height="320" fill="url(#grassG)"/>
+<!-- parallax layer: lamps (moves at 0.7x world speed) -->
+<defs><g id="tile-lamp"><g transform="translate(420,792)"><rect class="post" x="-8" y="-330" width="16" height="330" rx="4"/><rect class="post" x="-8" y="-336" width="70" height="12" rx="5"/><circle class="lamp" cx="56" cy="-318" r="12"/><circle cx="56" cy="-318" r="46" fill="url(#glowW)"/></g></g></defs>
+<g id="L-lamps" class="par par07 "><use href="#tile-lamp" x="0"/><use href="#tile-lamp" x="900"/><use href="#tile-lamp" x="1800"/><use href="#tile-lamp" x="2700"/><use href="#tile-lamp" x="3600"/><use href="#tile-lamp" x="4500"/><use href="#tile-lamp" x="5400"/><use href="#tile-lamp" x="6300"/></g>
+<!-- parallax layer: grass-edge (moves at 1.0x world speed) -->
+<defs><g id="tile-grass"><path class="blade" d="M0,792 L9,755 L20,792Z"/><path class="blade" d="M34,792 L43,750 L54,792Z"/><path class="blade" d="M68,792 L77,751 L88,792Z"/><path class="blade" d="M102,792 L111,765 L122,792Z"/><path class="blade" d="M136,792 L145,767 L156,792Z"/><path class="blade" d="M170,792 L179,756 L190,792Z"/><path class="blade" d="M204,792 L213,761 L224,792Z"/><path class="blade" d="M238,792 L247,766 L258,792Z"/><path class="blade" d="M272,792 L281,768 L292,792Z"/></g></defs>
+<g id="L-grass-edge" class="par par10 "><use href="#tile-grass" x="0"/><use href="#tile-grass" x="300"/><use href="#tile-grass" x="600"/><use href="#tile-grass" x="900"/><use href="#tile-grass" x="1200"/><use href="#tile-grass" x="1500"/><use href="#tile-grass" x="1800"/><use href="#tile-grass" x="2100"/><use href="#tile-grass" x="2400"/><use href="#tile-grass" x="2700"/><use href="#tile-grass" x="3000"/><use href="#tile-grass" x="3300"/><use href="#tile-grass" x="3600"/><use href="#tile-grass" x="3900"/><use href="#tile-grass" x="4200"/><use href="#tile-grass" x="4500"/><use href="#tile-grass" x="4800"/><use href="#tile-grass" x="5100"/><use href="#tile-grass" x="5400"/><use href="#tile-grass" x="5700"/><use href="#tile-grass" x="6000"/><use href="#tile-grass" x="6300"/><use href="#tile-grass" x="6600"/><use href="#tile-grass" x="6900"/><use href="#tile-grass" x="7200"/><use href="#tile-grass" x="7500"/><use href="#tile-grass" x="7800"/><use href="#tile-grass" x="8100"/></g>
+<rect id="road" y="792" width="1920" height="260" style="fill:var(--road)"/><rect id="curb" y="788" width="1920" height="9" style="fill:var(--curb)"/>
+<!-- parallax layer: road-marks (moves at 1.0x world speed) -->
+<defs><g id="tile-road"><rect class="dash" x="50" y="926" width="190" height="13" rx="5"/><circle class="speck" cx="275" cy="985" r="2"/><circle class="speck" cx="304" cy="909" r="5"/><circle class="speck" cx="334" cy="965" r="3"/><circle class="speck" cx="319" cy="811" r="2"/><circle class="speck" cx="30" cy="817" r="3"/><circle class="speck" cx="123" cy="961" r="2"/><circle class="speck" cx="398" cy="926" r="4"/><circle class="speck" cx="225" cy="959" r="3"/><circle class="speck" cx="265" cy="867" r="4"/><circle class="speck" cx="255" cy="809" r="2"/><circle class="speck" cx="234" cy="975" r="4"/><circle class="speck" cx="208" cy="949" r="2"/><circle class="speck" cx="362" cy="873" r="4"/><circle class="speck" cx="388" cy="866" r="4"/><circle class="speck" cx="15" cy="825" r="2"/><circle class="speck" cx="205" cy="835" r="4"/></g></defs>
+<g id="L-road-marks" class="par par10 "><use href="#tile-road" x="0"/><use href="#tile-road" x="400"/><use href="#tile-road" x="800"/><use href="#tile-road" x="1200"/><use href="#tile-road" x="1600"/><use href="#tile-road" x="2000"/><use href="#tile-road" x="2400"/><use href="#tile-road" x="2800"/><use href="#tile-road" x="3200"/><use href="#tile-road" x="3600"/><use href="#tile-road" x="4000"/><use href="#tile-road" x="4400"/><use href="#tile-road" x="4800"/><use href="#tile-road" x="5200"/><use href="#tile-road" x="5600"/><use href="#tile-road" x="6000"/><use href="#tile-road" x="6400"/><use href="#tile-road" x="6800"/><use href="#tile-road" x="7200"/><use href="#tile-road" x="7600"/><use href="#tile-road" x="8000"/><use href="#tile-road" x="8400"/></g>
+<!-- stone that trips Ray (moves with the road) -->
+<g id="L-stone" class="par par1"><g transform="translate(2449,858)"><path class="stone" d="M-44 0 Q-40 -34 -6 -44 Q34 -46 48 -12 Q52 0 44 6 L-38 6Z"/><path class="stone-hi" d="M-22 -26 Q-4 -38 20 -34" fill="none"/></g></g>
+<!-- ===== MAX (friend with the shoes) ===== -->
+<g id="max-world" transform="translate(0,860)"><g class="maxmove"><g transform="scale(-1,1)">
+<!-- Max jogs in carrying the shoe box  (10.4s -> 12.9s) -->
+<g id="max-jog" class="char max pose-seq cyc static-arms" style="--start:10.4s;--dur:2.5s;--T:.58s;--tf:-36;--tb:30;--kf:12;--kb:40;--kp:105;--uf:0;--ub:0;--el:0;">
+<ellipse class="shadow" cx="10" cy="28" rx="95" ry="13"/>
+<g class="">
+<g transform="translate(0,-216)"><g class="bob">
+<g class="leg b" style="filter:brightness(.82)"><g class="thigh"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot"><g class="bare">
+  <path class="skin" d="M-17 6 L-15 -6 Q-2 -13 9 -4 Q32 6 54 17 Q60 24 54 29 L-13 29 Q-23 24 -17 6Z"/>
+  <path class="toe" d="M42 20 q6 3 8 9 M32 15 q6 5 7 14" fill="none"/>
+  <circle class="blister" cx="6" cy="23" r="5"/><circle class="blister" cx="-7" cy="17" r="4"/>
+</g></g></g></g></g></g></g>
+<g class="torso" style="transform:rotate(12deg)">
+<g class="arm b" style="filter:brightness(.82)" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-14.93deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-84.03deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+<path class="shirt" d="M-35 -138 Q-42 -60 -33 -6 L37 -6 Q44 -60 35 -138 Q0 -152 -35 -138Z"/>
+<path class="shirt-acc" d="M-38 -96 Q0 -88 41 -96" fill="none"/>
+<rect class="shorts" x="-36" y="-26" width="74" height="36" rx="11"/>
+<rect class="skin" x="-10" y="-166" width="23" height="38" rx="8"/>
+<g transform="translate(8,-190) scale(1.1)"><g class="head" style="transform:rotate(0deg)">
+<circle class="skin" cx="0" cy="0" r="35"/>
+<path class="hat" d="M-35 -6 Q-36 -44 2 -44 Q36 -42 36 -6Z"/><path class="hat2" d="M18 -14 L66 -6 Q68 2 60 3 L22 -2Z"/><path class="hair" d="M-34 -4 Q-40 6 -30 14 Q-26 2 -26 -6Z"/>
+<ellipse class="skin" cx="-12" cy="3" rx="7" ry="10"/><path class="nose" d="M33 1 Q41 8 33 11" fill="none"/><ellipse cx="15" cy="-5" rx="8" ry="9.5" fill="#fff"/><circle cx="18" cy="-4" r="4.6" fill="#1a1a22"/><circle cx="19.6" cy="-6.2" r="1.4" fill="#fff"/><path class="ln" d="M5 -21 Q15 -28 27 -21"/><path d="M6 12 Q20 36 35 10 Z" fill="#fff" stroke="#1a1a22" stroke-width="3" stroke-linejoin="round"/>
+</g></g>
+<g class="arm f" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-25.42deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-83.01deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+</g>
+<g class="leg f"><g class="thigh"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot"><g class="bare">
+  <path class="skin" d="M-17 6 L-15 -6 Q-2 -13 9 -4 Q32 6 54 17 Q60 24 54 29 L-13 29 Q-23 24 -17 6Z"/>
+  <path class="toe" d="M42 20 q6 3 8 9 M32 15 q6 5 7 14" fill="none"/>
+  <circle class="blister" cx="6" cy="23" r="5"/><circle class="blister" cx="-7" cy="17" r="4"/>
+</g></g></g></g></g></g></g>
+<g transform="translate(116,-60)"><rect class="box-base" x="-46" y="-26" width="92" height="56" rx="7"/><rect class="box-lid" x="-50" y="-36" width="100" height="18" rx="6"/><text class="box-txt" x="0" y="14" text-anchor="middle" transform="scale(-1,1)">STRIDE</text></g>
+</g></g></g></g>
+<!-- Max stops and holds out the box  (12.9s -> 16.4s) -->
+<g id="max-give" class="char max pose-seq" style="--start:12.9s;--dur:3.5s;">
+<ellipse class="shadow" cx="10" cy="28" rx="95" ry="13"/>
+<g class="">
+<g transform="translate(0,-216)"><g class="bob">
+<g class="leg b" style="filter:brightness(.82)"><g class="thigh" style="transform:rotate(-3.83deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(14.96deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(-11.13deg)"><g class="bare">
+  <path class="skin" d="M-17 6 L-15 -6 Q-2 -13 9 -4 Q32 6 54 17 Q60 24 54 29 L-13 29 Q-23 24 -17 6Z"/>
+  <path class="toe" d="M42 20 q6 3 8 9 M32 15 q6 5 7 14" fill="none"/>
+  <circle class="blister" cx="6" cy="23" r="5"/><circle class="blister" cx="-7" cy="17" r="4"/>
+</g></g></g></g></g></g></g>
+<g class="torso" style="transform:rotate(4deg)">
+<g class="arm b" style="filter:brightness(.82)" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-18.09deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-1.03deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+<path class="shirt" d="M-35 -138 Q-42 -60 -33 -6 L37 -6 Q44 -60 35 -138 Q0 -152 -35 -138Z"/>
+<path class="shirt-acc" d="M-38 -96 Q0 -88 41 -96" fill="none"/>
+<rect class="shorts" x="-36" y="-26" width="74" height="36" rx="11"/>
+<rect class="skin" x="-10" y="-166" width="23" height="38" rx="8"/>
+<g transform="translate(8,-190) scale(1.1)"><g class="head" style="transform:rotate(-4deg)">
+<circle class="skin" cx="0" cy="0" r="35"/>
+<path class="hat" d="M-35 -6 Q-36 -44 2 -44 Q36 -42 36 -6Z"/><path class="hat2" d="M18 -14 L66 -6 Q68 2 60 3 L22 -2Z"/><path class="hair" d="M-34 -4 Q-40 6 -30 14 Q-26 2 -26 -6Z"/>
+<ellipse class="skin" cx="-12" cy="3" rx="7" ry="10"/><path class="nose" d="M33 1 Q41 8 33 11" fill="none"/><ellipse cx="15" cy="-5" rx="8" ry="9.5" fill="#fff"/><circle cx="18" cy="-4" r="4.6" fill="#1a1a22"/><circle cx="19.6" cy="-6.2" r="1.4" fill="#fff"/><path class="ln" d="M5 -21 Q15 -28 27 -21"/><path d="M6 12 Q20 36 35 10 Z" fill="#fff" stroke="#1a1a22" stroke-width="3" stroke-linejoin="round"/>
+</g></g>
+<g class="arm f" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-74.64deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-1.25deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+</g>
+<g class="leg f"><g class="thigh" style="transform:rotate(-11.41deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(14.31deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(-2.9deg)"><g class="bare">
+  <path class="skin" d="M-17 6 L-15 -6 Q-2 -13 9 -4 Q32 6 54 17 Q60 24 54 29 L-13 29 Q-23 24 -17 6Z"/>
+  <path class="toe" d="M42 20 q6 3 8 9 M32 15 q6 5 7 14" fill="none"/>
+  <circle class="blister" cx="6" cy="23" r="5"/><circle class="blister" cx="-7" cy="17" r="4"/>
+</g></g></g></g></g></g></g>
+</g></g></g></g>
+<!-- Max waves as Ray runs past  (16.4s -> 22.4s) -->
+<g id="max-wave" class="char max pose-seq wave" style="--start:16.4s;--dur:6s;">
+<ellipse class="shadow" cx="10" cy="28" rx="95" ry="13"/>
+<g class="">
+<g transform="translate(0,-216)"><g class="bob">
+<g class="leg b" style="filter:brightness(.82)"><g class="thigh" style="transform:rotate(-3.83deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(14.96deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(-11.13deg)"><g class="bare">
+  <path class="skin" d="M-17 6 L-15 -6 Q-2 -13 9 -4 Q32 6 54 17 Q60 24 54 29 L-13 29 Q-23 24 -17 6Z"/>
+  <path class="toe" d="M42 20 q6 3 8 9 M32 15 q6 5 7 14" fill="none"/>
+  <circle class="blister" cx="6" cy="23" r="5"/><circle class="blister" cx="-7" cy="17" r="4"/>
+</g></g></g></g></g></g></g>
+<g class="torso" style="transform:rotate(2deg)">
+<g class="arm b" style="filter:brightness(.82)" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-4deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-10deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+<path class="shirt" d="M-35 -138 Q-42 -60 -33 -6 L37 -6 Q44 -60 35 -138 Q0 -152 -35 -138Z"/>
+<path class="shirt-acc" d="M-38 -96 Q0 -88 41 -96" fill="none"/>
+<rect class="shorts" x="-36" y="-26" width="74" height="36" rx="11"/>
+<rect class="skin" x="-10" y="-166" width="23" height="38" rx="8"/>
+<g transform="translate(8,-190) scale(1.1)"><g class="head" style="transform:rotate(0deg)">
+<circle class="skin" cx="0" cy="0" r="35"/>
+<path class="hat" d="M-35 -6 Q-36 -44 2 -44 Q36 -42 36 -6Z"/><path class="hat2" d="M18 -14 L66 -6 Q68 2 60 3 L22 -2Z"/><path class="hair" d="M-34 -4 Q-40 6 -30 14 Q-26 2 -26 -6Z"/>
+<ellipse class="skin" cx="-12" cy="3" rx="7" ry="10"/><path class="nose" d="M33 1 Q41 8 33 11" fill="none"/><ellipse cx="15" cy="-5" rx="8" ry="9.5" fill="#fff"/><circle cx="18" cy="-4" r="4.6" fill="#1a1a22"/><circle cx="19.6" cy="-6.2" r="1.4" fill="#fff"/><path class="ln" d="M5 -21 Q15 -28 27 -21"/><path d="M6 12 Q20 36 35 10 Z" fill="#fff" stroke="#1a1a22" stroke-width="3" stroke-linejoin="round"/>
+</g></g>
+<g class="arm f" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-150deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-20deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+</g>
+<g class="leg f"><g class="thigh" style="transform:rotate(-11.41deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(14.31deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(-2.9deg)"><g class="bare">
+  <path class="skin" d="M-17 6 L-15 -6 Q-2 -13 9 -4 Q32 6 54 17 Q60 24 54 29 L-13 29 Q-23 24 -17 6Z"/>
+  <path class="toe" d="M42 20 q6 3 8 9 M32 15 q6 5 7 14" fill="none"/>
+  <circle class="blister" cx="6" cy="23" r="5"/><circle class="blister" cx="-7" cy="17" r="4"/>
+</g></g></g></g></g></g></g>
+</g></g></g></g>
+</g></g></g>
+<!-- ===== SHOE BOX opens and the shoes pop out  (13.1s -> 16s) ===== -->
+<g id="box-seq" transform="translate(1080,564)"><g class="pose-seq" style="--start:12.9s;--dur:3.1s">
+<rect class="box-base" x="-52" y="-20" width="104" height="62" rx="8"/><text class="box-txt" x="0" y="26" text-anchor="middle">STRIDE</text>
+<g transform="translate(-52,-20)"><g class="lid" style="--start:13.9s"><rect class="box-lid" x="0" y="-18" width="104" height="20" rx="6"/></g></g>
+<g class="shoes-pop" style="--start:14.0s"><g class="shoes-fly" style="--start:14.95s"><g transform="translate(-30,0) scale(.95)"><g class="shoe">
+  <ellipse class="shoe-glow" cx="16" cy="10" rx="78" ry="44" fill="url(#glowG)"/>
+  <path class="shoe-sole" d="M-26 16 H56 Q66 16 63 25 Q60 30 52 30 H-22 Q-30 30 -26 16Z"/>
+  <path class="shoe-up" d="M-24 18 L-22 -12 Q-8 -20 8 -9 Q28 4 48 6 Q66 10 62 18Z"/>
+  <path class="shoe-tip" d="M44 6 Q66 10 62 18 L38 18 Q42 10 44 6Z"/>
+  <path class="shoe-swoosh" d="M-18 12 Q8 4 44 12" fill="none"/>
+  <path class="shoe-lace" d="M-2 -8 l12 8 M8 -13 l12 8 M-12 -6 l8 6" fill="none"/>
+</g></g><g transform="translate(46,10) scale(.85)"><g class="shoe">
+  <ellipse class="shoe-glow" cx="16" cy="10" rx="78" ry="44" fill="url(#glowG)"/>
+  <path class="shoe-sole" d="M-26 16 H56 Q66 16 63 25 Q60 30 52 30 H-22 Q-30 30 -26 16Z"/>
+  <path class="shoe-up" d="M-24 18 L-22 -12 Q-8 -20 8 -9 Q28 4 48 6 Q66 10 62 18Z"/>
+  <path class="shoe-tip" d="M44 6 Q66 10 62 18 L38 18 Q42 10 44 6Z"/>
+  <path class="shoe-swoosh" d="M-18 12 Q8 4 44 12" fill="none"/>
+  <path class="shoe-lace" d="M-2 -8 l12 8 M8 -13 l12 8 M-12 -6 l8 6" fill="none"/>
+</g></g><g transform="translate(-60,-40)"><g class="spk" style="--start:14.1s;--dur:.9s"><path d="M0 -22 Q3 -3 22 0 Q3 3 0 22 Q-3 3 -22 0 Q-3 -3 0 -22Z"/></g></g><g transform="translate(70,-46)"><g class="spk" style="--start:14.5s;--dur:.9s"><path d="M0 -22 Q3 -3 22 0 Q3 3 0 22 Q-3 3 -22 0 Q-3 -3 0 -22Z"/></g></g></g></g>
+</g></g>
+<!-- ===== RAY ===== -->
+<g id="ray-run-wrap" transform="translate(520,860)">
+<!-- Ray jogs BAREFOOT  (0s -> 5.7s) -->
+<g id="ray-run" class="char ray pose-seq cyc" style="--start:0s;--dur:5.7s;--T:.7s;--tf:-28;--tb:22;--kf:12;--kb:38;--kp:100;--uf:-38;--ub:34;--el:-88;">
+<ellipse class="shadow" cx="10" cy="28" rx="95" ry="13"/>
+<g class="">
+<g transform="translate(0,-216)"><g class="bob">
+<g class="leg b" style="filter:brightness(.82)"><g class="thigh"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot"><g class="bare">
+  <path class="skin" d="M-17 6 L-15 -6 Q-2 -13 9 -4 Q32 6 54 17 Q60 24 54 29 L-13 29 Q-23 24 -17 6Z"/>
+  <path class="toe" d="M42 20 q6 3 8 9 M32 15 q6 5 7 14" fill="none"/>
+  <circle class="blister" cx="6" cy="23" r="5"/><circle class="blister" cx="-7" cy="17" r="4"/>
+</g></g></g></g></g></g></g>
+<g class="torso" style="transform:rotate(10deg)">
+<g class="arm b" style="filter:brightness(.82)" transform="translate(0,-128)"><g class="uarm"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+<path class="shirt" d="M-35 -138 Q-42 -60 -33 -6 L37 -6 Q44 -60 35 -138 Q0 -152 -35 -138Z"/>
+<path class="shirt-acc" d="M-38 -96 Q0 -88 41 -96" fill="none"/>
+<rect class="shorts" x="-36" y="-26" width="74" height="36" rx="11"/>
+<rect class="skin" x="-10" y="-166" width="23" height="38" rx="8"/>
+<g transform="translate(8,-190) scale(1.1)"><g class="head" style="transform:rotate(4deg)">
+<circle class="skin" cx="0" cy="0" r="35"/>
+<path class="hair" d="M-35 -2 Q-40 -42 0 -40 Q36 -40 37 -8 Q22 -24 0 -22 Q-20 -20 -35 -2Z"/><path class="hair" d="M-34 -4 Q-42 8 -30 16 Q-26 4 -26 -6Z"/>
+<ellipse class="skin" cx="-12" cy="3" rx="7" ry="10"/><path class="nose" d="M33 1 Q41 8 33 11" fill="none"/><ellipse cx="15" cy="-3" rx="8" ry="6.5" fill="#fff"/><circle cx="18" cy="-3" r="4" fill="#1a1a22"/><path class="ln" d="M2 -22 L28 -13"/><path d="M8 14 L33 12 L32 25 L10 26Z" fill="#fff" stroke="#1a1a22" stroke-width="3" stroke-linejoin="round"/><path class="ln2" d="M16 13 V25 M24 12 V25"/>
+<path class="sweat" d="M-27 -30 q7 11 0 16 q-7 -5 0 -16z"/><path class="sweat s2" d="M-38 -12 q6 9 0 13 q-6 -4 0 -13z"/>
+</g></g>
+<g class="arm f" transform="translate(0,-128)"><g class="uarm"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+</g>
+<g class="leg f"><g class="thigh"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot"><g class="bare">
+  <path class="skin" d="M-17 6 L-15 -6 Q-2 -13 9 -4 Q32 6 54 17 Q60 24 54 29 L-13 29 Q-23 24 -17 6Z"/>
+  <path class="toe" d="M42 20 q6 3 8 9 M32 15 q6 5 7 14" fill="none"/>
+  <circle class="blister" cx="6" cy="23" r="5"/><circle class="blister" cx="-7" cy="17" r="4"/>
+</g></g></g></g></g></g></g>
+</g></g></g></g>
+<!-- Ray trips on the stone and falls  (5.7s -> 7.9s) -->
+<g id="ray-fall" class="char ray pose-seq" style="--start:5.7s;--dur:2.2s;">
+<g class="fall">
+<g transform="translate(0,-216)"><g class="bob">
+<g class="leg b" style="filter:brightness(.82)"><g class="thigh" style="transform:rotate(58deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(74deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(50deg)"><g class="bare">
+  <path class="skin" d="M-17 6 L-15 -6 Q-2 -13 9 -4 Q32 6 54 17 Q60 24 54 29 L-13 29 Q-23 24 -17 6Z"/>
+  <path class="toe" d="M42 20 q6 3 8 9 M32 15 q6 5 7 14" fill="none"/>
+  <circle class="blister" cx="6" cy="23" r="5"/><circle class="blister" cx="-7" cy="17" r="4"/>
+</g></g></g></g></g></g></g>
+<g class="torso" style="transform:rotate(30deg)">
+<g class="arm b" style="filter:brightness(.82)" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-126deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-18deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+<path class="shirt" d="M-35 -138 Q-42 -60 -33 -6 L37 -6 Q44 -60 35 -138 Q0 -152 -35 -138Z"/>
+<path class="shirt-acc" d="M-38 -96 Q0 -88 41 -96" fill="none"/>
+<rect class="shorts" x="-36" y="-26" width="74" height="36" rx="11"/>
+<rect class="skin" x="-10" y="-166" width="23" height="38" rx="8"/>
+<g transform="translate(8,-190) scale(1.1)"><g class="head" style="transform:rotate(-6deg)">
+<circle class="skin" cx="0" cy="0" r="35"/>
+<path class="hair" d="M-35 -2 Q-40 -42 0 -40 Q36 -40 37 -8 Q22 -24 0 -22 Q-20 -20 -35 -2Z"/><path class="hair" d="M-34 -4 Q-42 8 -30 16 Q-26 4 -26 -6Z"/>
+<ellipse class="skin" cx="-12" cy="3" rx="7" ry="10"/><path class="nose" d="M33 1 Q41 8 33 11" fill="none"/><ellipse cx="15" cy="-5" rx="9.5" ry="11.5" fill="#fff"/><circle cx="18" cy="-4" r="4.6" fill="#1a1a22"/><circle cx="19.6" cy="-6.2" r="1.4" fill="#fff"/><path class="ln" d="M4 -27 Q14 -34 27 -28"/><ellipse cx="21" cy="21" rx="7" ry="10" fill="#5a1620" stroke="#1a1a22" stroke-width="3"/>
+</g></g>
+<g class="arm f" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-142deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-10deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+</g>
+<g class="leg f"><g class="thigh" style="transform:rotate(-72deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(28deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(40deg)"><g class="bare">
+  <path class="skin" d="M-17 6 L-15 -6 Q-2 -13 9 -4 Q32 6 54 17 Q60 24 54 29 L-13 29 Q-23 24 -17 6Z"/>
+  <path class="toe" d="M42 20 q6 3 8 9 M32 15 q6 5 7 14" fill="none"/>
+  <circle class="blister" cx="6" cy="23" r="5"/><circle class="blister" cx="-7" cy="17" r="4"/>
+</g></g></g></g></g></g></g>
+</g></g></g></g>
+</g>
+<g id="ray-sit-wrap" transform="translate(760,860)">
+<!-- Ray sits holding his sore foot  (7.9s -> 15.0s) -->
+<g id="ray-sit" class="char ray pose-seq" style="--start:7.9s;--dur:7.1s;">
+<ellipse class="shadow" cx="80" cy="28" rx="150" ry="13"/>
+<g class="">
+<g transform="translate(-10,-30)"><g class="bob">
+<g class="leg b" style="filter:brightness(.82)"><g class="thigh" style="transform:rotate(-108.02deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(37.32deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(70.7deg)"><g class="bare">
+  <path class="skin" d="M-17 6 L-15 -6 Q-2 -13 9 -4 Q32 6 54 17 Q60 24 54 29 L-13 29 Q-23 24 -17 6Z"/>
+  <path class="toe" d="M42 20 q6 3 8 9 M32 15 q6 5 7 14" fill="none"/>
+  <circle class="blister" cx="6" cy="23" r="5"/><circle class="blister" cx="-7" cy="17" r="4"/>
+</g></g></g></g></g></g></g>
+<g class="torso" style="transform:rotate(30deg)">
+<g class="arm b" style="filter:brightness(.82)" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-34.69deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-53.06deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+<path class="shirt" d="M-35 -138 Q-42 -60 -33 -6 L37 -6 Q44 -60 35 -138 Q0 -152 -35 -138Z"/>
+<path class="shirt-acc" d="M-38 -96 Q0 -88 41 -96" fill="none"/>
+<rect class="shorts" x="-36" y="-26" width="74" height="36" rx="11"/>
+<rect class="skin" x="-10" y="-166" width="23" height="38" rx="8"/>
+<g transform="translate(8,-190) scale(1.1)"><g class="head" style="transform:rotate(14deg)">
+<circle class="skin" cx="0" cy="0" r="35"/>
+<path class="hair" d="M-35 -2 Q-40 -42 0 -40 Q36 -40 37 -8 Q22 -24 0 -22 Q-20 -20 -35 -2Z"/><path class="hair" d="M-34 -4 Q-42 8 -30 16 Q-26 4 -26 -6Z"/>
+<ellipse class="skin" cx="-12" cy="3" rx="7" ry="10"/><path class="nose" d="M33 1 Q41 8 33 11" fill="none"/><path class="ln" d="M6 -13 L22 -5 L6 3" fill="none"/><path class="ln" d="M3 -19 Q14 -31 28 -26"/><ellipse cx="20" cy="20" rx="8" ry="10" fill="#5a1620" stroke="#1a1a22" stroke-width="3"/>
+<path class="sweat" d="M-27 -30 q7 11 0 16 q-7 -5 0 -16z"/><path class="sweat s2" d="M-38 -12 q6 9 0 13 q-6 -4 0 -13z"/>
+</g></g>
+<g class="arm f" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-8.82deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-82.82deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+</g>
+<g class="leg f"><g class="thigh" style="transform:rotate(-144.29deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(110.71deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(33.59deg)"><g class="bare">
+  <path class="skin" d="M-17 6 L-15 -6 Q-2 -13 9 -4 Q32 6 54 17 Q60 24 54 29 L-13 29 Q-23 24 -17 6Z"/>
+  <path class="toe" d="M42 20 q6 3 8 9 M32 15 q6 5 7 14" fill="none"/>
+  <circle class="blister" cx="6" cy="23" r="5"/><circle class="blister" cx="-7" cy="17" r="4"/>
+</g></g></g></g></g></g></g>
+<g class="ache" transform="translate(150,-6)"><path d="M0 0 l-16 -22 M10 -4 l2 -28 M22 0 l20 -22"/></g>
+</g></g></g></g>
+<!-- NEW SHOES on!  (15.0s -> 16.2s) -->
+<g id="ray-sit-shoes" class="char ray pose-seq" style="--start:15s;--dur:1.2s;">
+<ellipse class="shadow" cx="80" cy="28" rx="150" ry="13"/>
+<g class="">
+<g transform="translate(-10,-30)"><g class="bob">
+<g class="leg b" style="filter:brightness(.82)"><g class="thigh" style="transform:rotate(-108.02deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(37.32deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(70.7deg)"><g class="shoe">
+  <ellipse class="shoe-glow" cx="16" cy="10" rx="78" ry="44" fill="url(#glowG)"/>
+  <path class="shoe-sole" d="M-26 16 H56 Q66 16 63 25 Q60 30 52 30 H-22 Q-30 30 -26 16Z"/>
+  <path class="shoe-up" d="M-24 18 L-22 -12 Q-8 -20 8 -9 Q28 4 48 6 Q66 10 62 18Z"/>
+  <path class="shoe-tip" d="M44 6 Q66 10 62 18 L38 18 Q42 10 44 6Z"/>
+  <path class="shoe-swoosh" d="M-18 12 Q8 4 44 12" fill="none"/>
+  <path class="shoe-lace" d="M-2 -8 l12 8 M8 -13 l12 8 M-12 -6 l8 6" fill="none"/>
+</g></g></g></g></g></g></g>
+<g class="torso" style="transform:rotate(30deg)">
+<g class="arm b" style="filter:brightness(.82)" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-34.69deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-53.06deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+<path class="shirt" d="M-35 -138 Q-42 -60 -33 -6 L37 -6 Q44 -60 35 -138 Q0 -152 -35 -138Z"/>
+<path class="shirt-acc" d="M-38 -96 Q0 -88 41 -96" fill="none"/>
+<rect class="shorts" x="-36" y="-26" width="74" height="36" rx="11"/>
+<rect class="skin" x="-10" y="-166" width="23" height="38" rx="8"/>
+<g transform="translate(8,-190) scale(1.1)"><g class="head" style="transform:rotate(8deg)">
+<circle class="skin" cx="0" cy="0" r="35"/>
+<path class="hair" d="M-35 -2 Q-40 -42 0 -40 Q36 -40 37 -8 Q22 -24 0 -22 Q-20 -20 -35 -2Z"/><path class="hair" d="M-34 -4 Q-42 8 -30 16 Q-26 4 -26 -6Z"/>
+<ellipse class="skin" cx="-12" cy="3" rx="7" ry="10"/><path class="nose" d="M33 1 Q41 8 33 11" fill="none"/><ellipse cx="15" cy="-5" rx="8" ry="9.5" fill="#fff"/><circle cx="18" cy="-4" r="4.6" fill="#1a1a22"/><circle cx="19.6" cy="-6.2" r="1.4" fill="#fff"/><path class="ln" d="M5 -21 Q15 -28 27 -21"/><path d="M6 12 Q20 36 35 10 Z" fill="#fff" stroke="#1a1a22" stroke-width="3" stroke-linejoin="round"/>
+</g></g>
+<g class="arm f" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-8.82deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-82.82deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+</g>
+<g class="leg f"><g class="thigh" style="transform:rotate(-144.29deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(110.71deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(33.59deg)"><g class="shoe">
+  <ellipse class="shoe-glow" cx="16" cy="10" rx="78" ry="44" fill="url(#glowG)"/>
+  <path class="shoe-sole" d="M-26 16 H56 Q66 16 63 25 Q60 30 52 30 H-22 Q-30 30 -26 16Z"/>
+  <path class="shoe-up" d="M-24 18 L-22 -12 Q-8 -20 8 -9 Q28 4 48 6 Q66 10 62 18Z"/>
+  <path class="shoe-tip" d="M44 6 Q66 10 62 18 L38 18 Q42 10 44 6Z"/>
+  <path class="shoe-swoosh" d="M-18 12 Q8 4 44 12" fill="none"/>
+  <path class="shoe-lace" d="M-2 -8 l12 8 M8 -13 l12 8 M-12 -6 l8 6" fill="none"/>
+</g></g></g></g></g></g></g>
+</g></g></g></g>
+<!-- Ray gets up  (16.2s) -->
+<g id="ray-crouch" class="char ray pose-seq" style="--start:16.2s;--dur:0.4s;">
+<ellipse class="shadow" cx="10" cy="28" rx="95" ry="13"/>
+<g class="">
+<g transform="translate(-10,-120)"><g class="bob">
+<g class="leg b" style="filter:brightness(.82)"><g class="thigh" style="transform:rotate(-69.33deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(121.35deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(-52.02deg)"><g class="shoe">
+  <ellipse class="shoe-glow" cx="16" cy="10" rx="78" ry="44" fill="url(#glowG)"/>
+  <path class="shoe-sole" d="M-26 16 H56 Q66 16 63 25 Q60 30 52 30 H-22 Q-30 30 -26 16Z"/>
+  <path class="shoe-up" d="M-24 18 L-22 -12 Q-8 -20 8 -9 Q28 4 48 6 Q66 10 62 18Z"/>
+  <path class="shoe-tip" d="M44 6 Q66 10 62 18 L38 18 Q42 10 44 6Z"/>
+  <path class="shoe-swoosh" d="M-18 12 Q8 4 44 12" fill="none"/>
+  <path class="shoe-lace" d="M-2 -8 l12 8 M8 -13 l12 8 M-12 -6 l8 6" fill="none"/>
+</g></g></g></g></g></g></g>
+<g class="torso" style="transform:rotate(38deg)">
+<g class="arm b" style="filter:brightness(.82)" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-11.55deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-27.82deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+<path class="shirt" d="M-35 -138 Q-42 -60 -33 -6 L37 -6 Q44 -60 35 -138 Q0 -152 -35 -138Z"/>
+<path class="shirt-acc" d="M-38 -96 Q0 -88 41 -96" fill="none"/>
+<rect class="shorts" x="-36" y="-26" width="74" height="36" rx="11"/>
+<rect class="skin" x="-10" y="-166" width="23" height="38" rx="8"/>
+<g transform="translate(8,-190) scale(1.1)"><g class="head" style="transform:rotate(0deg)">
+<circle class="skin" cx="0" cy="0" r="35"/>
+<path class="hair" d="M-35 -2 Q-40 -42 0 -40 Q36 -40 37 -8 Q22 -24 0 -22 Q-20 -20 -35 -2Z"/><path class="hair" d="M-34 -4 Q-42 8 -30 16 Q-26 4 -26 -6Z"/>
+<ellipse class="skin" cx="-12" cy="3" rx="7" ry="10"/><path class="nose" d="M33 1 Q41 8 33 11" fill="none"/><ellipse cx="15" cy="-5" rx="8" ry="9.5" fill="#fff"/><circle cx="18" cy="-4" r="4.6" fill="#1a1a22"/><circle cx="19.6" cy="-6.2" r="1.4" fill="#fff"/><path class="ln" d="M5 -21 Q15 -28 27 -21"/><path d="M6 12 Q20 36 35 10 Z" fill="#fff" stroke="#1a1a22" stroke-width="3" stroke-linejoin="round"/>
+</g></g>
+<g class="arm f" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(-11.94deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-51.95deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+</g>
+<g class="leg f"><g class="thigh" style="transform:rotate(-86.8deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(110.94deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(-24.14deg)"><g class="shoe">
+  <ellipse class="shoe-glow" cx="16" cy="10" rx="78" ry="44" fill="url(#glowG)"/>
+  <path class="shoe-sole" d="M-26 16 H56 Q66 16 63 25 Q60 30 52 30 H-22 Q-30 30 -26 16Z"/>
+  <path class="shoe-up" d="M-24 18 L-22 -12 Q-8 -20 8 -9 Q28 4 48 6 Q66 10 62 18Z"/>
+  <path class="shoe-tip" d="M44 6 Q66 10 62 18 L38 18 Q42 10 44 6Z"/>
+  <path class="shoe-swoosh" d="M-18 12 Q8 4 44 12" fill="none"/>
+  <path class="shoe-lace" d="M-2 -8 l12 8 M8 -13 l12 8 M-12 -6 l8 6" fill="none"/>
+</g></g></g></g></g></g></g>
+</g></g></g></g>
+<!-- Ray ready  (16.6s) -->
+<g id="ray-stand" class="char ray pose-seq" style="--start:16.6s;--dur:0.6s;">
+<ellipse class="shadow" cx="10" cy="28" rx="95" ry="13"/>
+<g class="">
+<g transform="translate(0,-216)"><g class="bob">
+<g class="leg b" style="filter:brightness(.82)"><g class="thigh" style="transform:rotate(-2.9deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(14.31deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(-11.41deg)"><g class="shoe">
+  <ellipse class="shoe-glow" cx="16" cy="10" rx="78" ry="44" fill="url(#glowG)"/>
+  <path class="shoe-sole" d="M-26 16 H56 Q66 16 63 25 Q60 30 52 30 H-22 Q-30 30 -26 16Z"/>
+  <path class="shoe-up" d="M-24 18 L-22 -12 Q-8 -20 8 -9 Q28 4 48 6 Q66 10 62 18Z"/>
+  <path class="shoe-tip" d="M44 6 Q66 10 62 18 L38 18 Q42 10 44 6Z"/>
+  <path class="shoe-swoosh" d="M-18 12 Q8 4 44 12" fill="none"/>
+  <path class="shoe-lace" d="M-2 -8 l12 8 M8 -13 l12 8 M-12 -6 l8 6" fill="none"/>
+</g></g></g></g></g></g></g>
+<g class="torso" style="transform:rotate(8deg)">
+<g class="arm b" style="filter:brightness(.82)" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(16deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-100deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+<path class="shirt" d="M-35 -138 Q-42 -60 -33 -6 L37 -6 Q44 -60 35 -138 Q0 -152 -35 -138Z"/>
+<path class="shirt-acc" d="M-38 -96 Q0 -88 41 -96" fill="none"/>
+<rect class="shorts" x="-36" y="-26" width="74" height="36" rx="11"/>
+<rect class="skin" x="-10" y="-166" width="23" height="38" rx="8"/>
+<g transform="translate(8,-190) scale(1.1)"><g class="head" style="transform:rotate(-4deg)">
+<circle class="skin" cx="0" cy="0" r="35"/>
+<path class="hair" d="M-35 -2 Q-40 -42 0 -40 Q36 -40 37 -8 Q22 -24 0 -22 Q-20 -20 -35 -2Z"/><path class="hair" d="M-34 -4 Q-42 8 -30 16 Q-26 4 -26 -6Z"/>
+<ellipse class="skin" cx="-12" cy="3" rx="7" ry="10"/><path class="nose" d="M33 1 Q41 8 33 11" fill="none"/><ellipse cx="15" cy="-5" rx="8" ry="9.5" fill="#fff"/><circle cx="18" cy="-4" r="4.6" fill="#1a1a22"/><circle cx="19.6" cy="-6.2" r="1.4" fill="#fff"/><path class="ln" d="M5 -21 Q15 -28 27 -21"/><path d="M6 12 Q20 36 35 10 Z" fill="#fff" stroke="#1a1a22" stroke-width="3" stroke-linejoin="round"/>
+</g></g>
+<g class="arm f" transform="translate(0,-128)"><g class="uarm" style="transform:rotate(24deg)"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm" style="transform:rotate(-108deg)"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+</g>
+<g class="leg f"><g class="thigh" style="transform:rotate(-11.62deg)"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin" style="transform:rotate(13.52deg)"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot" style="transform:rotate(-1.89deg)"><g class="shoe">
+  <ellipse class="shoe-glow" cx="16" cy="10" rx="78" ry="44" fill="url(#glowG)"/>
+  <path class="shoe-sole" d="M-26 16 H56 Q66 16 63 25 Q60 30 52 30 H-22 Q-30 30 -26 16Z"/>
+  <path class="shoe-up" d="M-24 18 L-22 -12 Q-8 -20 8 -9 Q28 4 48 6 Q66 10 62 18Z"/>
+  <path class="shoe-tip" d="M44 6 Q66 10 62 18 L38 18 Q42 10 44 6Z"/>
+  <path class="shoe-swoosh" d="M-18 12 Q8 4 44 12" fill="none"/>
+  <path class="shoe-lace" d="M-2 -8 l12 8 M8 -13 l12 8 M-12 -6 l8 6" fill="none"/>
+</g></g></g></g></g></g></g>
+</g></g></g></g>
+</g>
+<g id="ray-fast-wrap" transform="translate(800,860)"><g class="runmove" style="--start:17.2s;--dur:3.2s">
+<!-- Ray sprints in the NEW SHOES  (17.2s -> 22.2s) -->
+<g id="ray-fast" class="char ray pose-seq cyc" style="--start:17.2s;--dur:5s;--T:.46s;--tf:-42;--tb:36;--kf:10;--kb:40;--kp:118;--uf:-62;--ub:52;--el:-92;">
+<ellipse class="shadow" cx="10" cy="28" rx="110" ry="13"/>
+<g class="">
+<g transform="translate(0,-216)"><g class="bob">
+<g class="leg b" style="filter:brightness(.82)"><g class="thigh"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot"><g class="shoe">
+  <ellipse class="shoe-glow" cx="16" cy="10" rx="78" ry="44" fill="url(#glowG)"/>
+  <path class="shoe-sole" d="M-26 16 H56 Q66 16 63 25 Q60 30 52 30 H-22 Q-30 30 -26 16Z"/>
+  <path class="shoe-up" d="M-24 18 L-22 -12 Q-8 -20 8 -9 Q28 4 48 6 Q66 10 62 18Z"/>
+  <path class="shoe-tip" d="M44 6 Q66 10 62 18 L38 18 Q42 10 44 6Z"/>
+  <path class="shoe-swoosh" d="M-18 12 Q8 4 44 12" fill="none"/>
+  <path class="shoe-lace" d="M-2 -8 l12 8 M8 -13 l12 8 M-12 -6 l8 6" fill="none"/>
+</g></g></g></g></g></g></g>
+<g class="torso" style="transform:rotate(24deg)">
+<g class="arm b" style="filter:brightness(.82)" transform="translate(0,-128)"><g class="uarm"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+<path class="shirt" d="M-35 -138 Q-42 -60 -33 -6 L37 -6 Q44 -60 35 -138 Q0 -152 -35 -138Z"/>
+<path class="shirt-acc" d="M-38 -96 Q0 -88 41 -96" fill="none"/>
+<rect class="shorts" x="-36" y="-26" width="74" height="36" rx="11"/>
+<rect class="skin" x="-10" y="-166" width="23" height="38" rx="8"/>
+<g transform="translate(8,-190) scale(1.1)"><g class="head" style="transform:rotate(-6deg)">
+<circle class="skin" cx="0" cy="0" r="35"/>
+<path class="hair" d="M-35 -2 Q-40 -42 0 -40 Q36 -40 37 -8 Q22 -24 0 -22 Q-20 -20 -35 -2Z"/><path class="hair" d="M-34 -4 Q-42 8 -30 16 Q-26 4 -26 -6Z"/>
+<ellipse class="skin" cx="-12" cy="3" rx="7" ry="10"/><path class="nose" d="M33 1 Q41 8 33 11" fill="none"/><ellipse cx="15" cy="-5" rx="8" ry="9.5" fill="#fff"/><circle cx="18" cy="-4" r="4.6" fill="#1a1a22"/><circle cx="19.6" cy="-6.2" r="1.4" fill="#fff"/><path class="ln" d="M5 -21 Q15 -28 27 -21"/><path d="M6 12 Q20 36 35 10 Z" fill="#fff" stroke="#1a1a22" stroke-width="3" stroke-linejoin="round"/>
+</g></g>
+<g class="arm f" transform="translate(0,-128)"><g class="uarm"><rect class="skin" x="-12.5" y="-4" width="25" height="76" rx="12"/><rect class="shirt" x="-16" y="-9" width="32" height="38" rx="14"/><g transform="translate(0,68)"><g class="farm"><rect class="skin" x="-9.5" y="-3" width="19" height="62" rx="9.5"/><circle class="skin" cx="0" cy="62" r="12.5"/></g></g></g></g>
+</g>
+<g class="leg f"><g class="thigh"><rect class="skin" x="-17" y="-6" width="34" height="104" rx="17"/><rect class="shorts" x="-19" y="-8" width="38" height="62" rx="15"/><g transform="translate(0,95)"><g class="shin"><rect class="skin" x="-13.5" y="-4" width="27" height="100" rx="13"/><g transform="translate(0,95)"><g class="foot"><g class="shoe">
+  <ellipse class="shoe-glow" cx="16" cy="10" rx="78" ry="44" fill="url(#glowG)"/>
+  <path class="shoe-sole" d="M-26 16 H56 Q66 16 63 25 Q60 30 52 30 H-22 Q-30 30 -26 16Z"/>
+  <path class="shoe-up" d="M-24 18 L-22 -12 Q-8 -20 8 -9 Q28 4 48 6 Q66 10 62 18Z"/>
+  <path class="shoe-tip" d="M44 6 Q66 10 62 18 L38 18 Q42 10 44 6Z"/>
+  <path class="shoe-swoosh" d="M-18 12 Q8 4 44 12" fill="none"/>
+  <path class="shoe-lace" d="M-2 -8 l12 8 M8 -13 l12 8 M-12 -6 l8 6" fill="none"/>
+</g></g></g></g></g></g></g>
+<circle class="dust" cx="-70" cy="10" r="22" style="animation-delay:0s"/><circle class="dust" cx="-70" cy="10" r="30" style="animation-delay:-0.15s"/><circle class="dust" cx="-70" cy="10" r="38" style="animation-delay:-0.3s"/><circle class="dust" cx="-70" cy="10" r="46" style="animation-delay:-0.45s"/><rect class="streak" x="-330" y="-34" width="300" height="6" rx="4" style="animation-delay:0s"/><rect class="streak" x="-330" y="-18" width="300" height="6" rx="4" style="animation-delay:-0.07s"/><rect class="streak" x="-330" y="-2" width="300" height="6" rx="4" style="animation-delay:-0.14s"/><rect class="streak" x="-330" y="14" width="300" height="6" rx="4" style="animation-delay:-0.21s"/>
+</g></g></g></g>
+</g></g>
+<!-- ===== EFFECTS ===== -->
+<g id="impact-dust" transform="translate(860,864)">
+<circle class="puff" cx="-90" cy="0" r="46" style="--start:6.2s;--dx:-45"/>
+<circle class="puff" cx="-20" cy="-10" r="62" style="--start:6.24s;--dx:-10"/>
+<circle class="puff" cx="70" cy="0" r="54" style="--start:6.28s;--dx:35"/>
+<circle class="puff" cx="150" cy="4" r="44" style="--start:6.32s;--dx:75"/>
+<circle class="puff" cx="-150" cy="6" r="36" style="--start:6.36s;--dx:-75"/>
+<circle class="puff" cx="210" cy="2" r="34" style="--start:6.4s;--dx:105"/>
+</g>
+<g id="sit-dust" transform="translate(760,862)">
+<circle class="puff" cx="-60" cy="0" r="40" style="--start:7.85s;--dx:-20"/>
+<circle class="puff" cx="20" cy="0" r="52" style="--start:7.88s;--dx:6"/>
+<circle class="puff" cx="110" cy="0" r="44" style="--start:7.91s;--dx:36"/>
+<circle class="puff" cx="-120" cy="0" r="30" style="--start:7.94s;--dx:-40"/>
+</g>
+<g id="sparkle-burst" transform="translate(880,816)">
+<g class="burst" style="--start:15s;--dx:146;--dy:-8"><path d="M0 -22 Q3 -3 22 0 Q3 3 0 22 Q-3 3 -22 0 Q-3 -3 0 -22Z"/></g>
+<g class="burst" style="--start:15s;--dx:133;--dy:108"><path d="M0 -22 Q3 -3 22 0 Q3 3 0 22 Q-3 3 -22 0 Q-3 -3 0 -22Z"/></g>
+<g class="burst" style="--start:15s;--dx:26;--dy:208"><path d="M0 -22 Q3 -3 22 0 Q3 3 0 22 Q-3 3 -22 0 Q-3 -3 0 -22Z"/></g>
+<g class="burst" style="--start:15s;--dx:-74;--dy:89"><path d="M0 -22 Q3 -3 22 0 Q3 3 0 22 Q-3 3 -22 0 Q-3 -3 0 -22Z"/></g>
+<g class="burst" style="--start:15s;--dx:-182;--dy:41"><path d="M0 -22 Q3 -3 22 0 Q3 3 0 22 Q-3 3 -22 0 Q-3 -3 0 -22Z"/></g>
+<g class="burst" style="--start:15s;--dx:-244;--dy:-91"><path d="M0 -22 Q3 -3 22 0 Q3 3 0 22 Q-3 3 -22 0 Q-3 -3 0 -22Z"/></g>
+<g class="burst" style="--start:15s;--dx:-100;--dy:-151"><path d="M0 -22 Q3 -3 22 0 Q3 3 0 22 Q-3 3 -22 0 Q-3 -3 0 -22Z"/></g>
+<g class="burst" style="--start:15s;--dx:-20;--dy:-238"><path d="M0 -22 Q3 -3 22 0 Q3 3 0 22 Q-3 3 -22 0 Q-3 -3 0 -22Z"/></g>
+<g class="burst" style="--start:15s;--dx:125;--dy:-256"><path d="M0 -22 Q3 -3 22 0 Q3 3 0 22 Q-3 3 -22 0 Q-3 -3 0 -22Z"/></g>
+<g class="burst" style="--start:15s;--dx:137;--dy:-101"><path d="M0 -22 Q3 -3 22 0 Q3 3 0 22 Q-3 3 -22 0 Q-3 -3 0 -22Z"/></g>
+</g>
+<!-- ===== FOREGROUND (blurred branches + bokeh, moves fastest) ===== -->
+<!-- parallax layer: foreground (moves at 1.5x world speed) -->
+<defs><g id="tile-fg"><circle class="bokeh" cx="791" cy="218" r="19" filter="url(#blurSm)"/><circle class="bokeh" cx="1735" cy="851" r="18" filter="url(#blurSm)"/><circle class="bokeh" cx="437" cy="364" r="21" filter="url(#blurSm)"/><circle class="bokeh" cx="962" cy="534" r="43" filter="url(#blurSm)"/><circle class="bokeh" cx="859" cy="224" r="30" filter="url(#blurSm)"/><circle class="bokeh" cx="1594" cy="841" r="35" filter="url(#blurSm)"/><circle class="bokeh" cx="689" cy="239" r="37" filter="url(#blurSm)"/></g></defs>
+<g id="L-foreground" class="par par15 "><use href="#tile-fg" x="0"/><use href="#tile-fg" x="1600"/><use href="#tile-fg" x="3200"/><use href="#tile-fg" x="4800"/><use href="#tile-fg" x="6400"/><use href="#tile-fg" x="8000"/><use href="#tile-fg" x="9600"/><use href="#tile-fg" x="11200"/></g>
+</g>
+</svg>
+
+<!-- mood tint: the scene turns cold/blue while Ray is hurt (5.7s - 15s) -->
+<div id="mood"></div>
+<div id="grade"></div>
+<div id="vignette"></div>
+
+<!-- ===================== TEXT: CAPTIONS (edit the words, --start and --dur) ===================== -->
+<div id="cap1" class="cap" style="--start:.7s;--dur:2.6s">EVERY MORNING, <em>RAY RUNS.</em></div>
+<div id="cap2" class="cap" style="--start:3.3s;--dur:2.2s">NO SHOES. NO CUSHION. <em>NO CHANCE.</em></div>
+<div id="cap3" class="cap" style="--start:7.3s;--dur:2.9s">WITHOUT THE RIGHT SHOES,<br><em>YOU CAN'T GO FAR.</em></div>
+<div id="cap4" class="cap" style="--start:18.5s;--dur:3.3s">SAME RAY. <em>NEW STRIDE.</em></div>
+
+<!-- ===================== SPEECH BUBBLES ===================== -->
+<div id="say-max" class="bubble max" style="--start:13.1s;--dur:1.9s;left:952px;bottom:730px;width:560px;--tail:236px"><span class="who">MAX</span>Here, Ray. Try these on.</div>
+<div id="say-ray" class="bubble ray" style="--start:15.1s;--dur:1.5s;left:575px;bottom:481px;width:560px;--tail:236px"><span class="who">RAY</span>Whoa... they fit perfectly!</div>
+
+<!-- ===================== "OUCH!" burst ===================== -->
+<div id="ouch" style="--start:6.15s;--dur:1.3s;left:746px;top:166px"><div class="ouch-in"><span>OUCH!</span></div></div>
+
+<!-- ===================== SPEED LINES (17.4s - 22s) ===================== -->
+<div id="speedlines" style="--start:17.4s;--dur:4.8s">
+<i style="top:480px;width:267px;animation-duration:0.57s;animation-delay:-0.38s"></i><i style="top:260px;width:328px;animation-duration:0.35s;animation-delay:-0.05s"></i><i style="top:201px;width:498px;animation-duration:0.52s;animation-delay:-0.09s"></i><i style="top:712px;width:356px;animation-duration:0.41s;animation-delay:-0.1s"></i><i style="top:889px;width:653px;animation-duration:0.32s;animation-delay:-0.32s"></i><i style="top:259px;width:462px;animation-duration:0.41s;animation-delay:-0.11s"></i><i style="top:416px;width:702px;animation-duration:0.57s;animation-delay:-0.4s"></i><i style="top:451px;width:713px;animation-duration:0.29s;animation-delay:-0.09s"></i><i style="top:756px;width:588px;animation-duration:0.45s;animation-delay:-0.02s"></i><i style="top:289px;width:369px;animation-duration:0.41s;animation-delay:0s"></i><i style="top:764px;width:428px;animation-duration:0.53s;animation-delay:-0.19s"></i><i style="top:216px;width:306px;animation-duration:0.34s;animation-delay:-0.32s"></i><i style="top:155px;width:567px;animation-duration:0.39s;animation-delay:-0.31s"></i><i style="top:270px;width:751px;animation-duration:0.46s;animation-delay:-0.42s"></i><i style="top:278px;width:703px;animation-duration:0.4s;animation-delay:-0.31s"></i><i style="top:458px;width:725px;animation-duration:0.35s;animation-delay:-0.31s"></i><i style="top:882px;width:357px;animation-duration:0.33s;animation-delay:-0.31s"></i><i style="top:707px;width:360px;animation-duration:0.49s;animation-delay:-0.19s"></i><i style="top:634px;width:569px;animation-duration:0.3s;animation-delay:-0.02s"></i><i style="top:251px;width:279px;animation-duration:0.43s;animation-delay:-0.13s"></i><i style="top:897px;width:620px;animation-duration:0.4s;animation-delay:-0.21s"></i><i style="top:750px;width:511px;animation-duration:0.37s;animation-delay:-0.09s"></i>
+</div>
+
+<!-- ===================== FLASHES ===================== -->
+<div class="flash" style="--start:15s"></div>
+<div class="flash small" style="--start:6.28s"></div>
+
+<!-- brand tag -->
+<div id="brandtag">STRIDE</div>
+
+<!-- ===================== END CARD (22s -> 27s) ===================== -->
+<div id="end" style="--start:22s;--dur:5s">
+  <svg id="end-shoe" viewBox="-60 -50 180 110" width="760" height="464">
+    <g class="float"><g transform="translate(20,10) scale(1.5)"><g class="shoe">
+  <ellipse class="shoe-glow" cx="16" cy="10" rx="78" ry="44" fill="url(#glowG)"/>
+  <path class="shoe-sole" d="M-26 16 H56 Q66 16 63 25 Q60 30 52 30 H-22 Q-30 30 -26 16Z"/>
+  <path class="shoe-up" d="M-24 18 L-22 -12 Q-8 -20 8 -9 Q28 4 48 6 Q66 10 62 18Z"/>
+  <path class="shoe-tip" d="M44 6 Q66 10 62 18 L38 18 Q42 10 44 6Z"/>
+  <path class="shoe-swoosh" d="M-18 12 Q8 4 44 12" fill="none"/>
+  <path class="shoe-lace" d="M-2 -8 l12 8 M8 -13 l12 8 M-12 -6 l8 6" fill="none"/>
+</g></g></g>
+  </svg>
+  <h1 id="end-title" style="--start:22.5s"><span>STRIDE</span> <span class="x1">X1</span></h1>
+  <p id="end-tag" style="--start:23.2s">RUN FASTER. <em>FALL NEVER.</em></p>
+  <div id="end-cta" style="--start:24s">SHOP NOW &rarr; stride.example</div>
+</div>
+
+<!-- cinematic letterbox bars + fades -->
+<div class="bar top"></div><div class="bar bot"></div>
+<div id="fadein"></div><div id="fadeout"></div>
+
+</section>
+</div>
+
+<script>
+/* optional helpers - the animation itself is fully CSS and plays without this script */
+(function () {
+  function fit() {
+    var r = document.getElementById('root'), s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    if (Math.abs(s - 1) < 0.002) { r.style.transform = ''; return; }
+    r.style.transformOrigin = '0 0';
+    r.style.transform = 'translate(' + ((innerWidth - 1920 * s) / 2) + 'px,' + ((innerHeight - 1080 * s) / 2) + 'px) scale(' + s + ')';
+  }
+  fit(); addEventListener('resize', fit);
+  /* click = replay */
+  document.addEventListener('click', function () { document.getAnimations().forEach(function (a) { a.currentTime = 0; a.play(); }); });
+  /* used by the MP4 renderer: window.seekTo(seconds) */
+  window.seekTo = function (t) { document.getAnimations().forEach(function (a) { a.pause(); a.currentTime = t * 1000; }); };
+  /* HyperFrames-style timeline handle (length only) */
+  if (window.gsap) {
+    var tl = gsap.timeline({ paused: true }); tl.set({}, {}, 27);
+    window.__timelines = window.__timelines || {}; window.__timelines['shoe-ad'] = tl;
+  }
+})();
+</script>
+</body>
+</html>

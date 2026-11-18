@@ -1516,6 +1516,36 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === "OPTIONS") return send(res, 204, {});
 
+    // 0. Deterministic Video-Render Backend Integration (Port 5050)
+    if (
+      req.url === "/render" ||
+      req.url.startsWith("/jobs/") ||
+      req.url === "/lint" ||
+      req.url.startsWith("/render-studio") ||
+      req.url.startsWith("/samples/")
+    ) {
+      const renderBackendPort = process.env.RENDER_PORT || 5050;
+      const targetPath = req.url === "/render-studio" ? "/" : req.url;
+      const proxyReq = http.request(
+        {
+          hostname: "127.0.0.1",
+          port: renderBackendPort,
+          path: targetPath,
+          method: req.method,
+          headers: req.headers,
+        },
+        (proxyRes) => {
+          res.writeHead(proxyRes.statusCode, proxyRes.headers);
+          proxyRes.pipe(res);
+        }
+      );
+      proxyReq.on("error", (err) => {
+        send(res, 502, { error: `Render backend proxy error: ${err.message}` });
+      });
+      req.pipe(proxyReq);
+      return;
+    }
+
     // AI PROVIDER STATUS & HEALTH (Phase 9 & Part 3)
     if (
       req.method === "GET" &&
@@ -6029,16 +6059,44 @@ if (!window.__timelines["main"] && typeof gsap !== "undefined") {
           await updateProgress("preparing_composition", "preparing_composition", "HyperFrames project verified. Preparing composition timeline...");
 
           // Common Renderer pipeline
-          await updateProgress("rendering", "rendering", `Executing HyperFrames renderer (${duration}s @ ${fps}fps, ${resolution})...`);
+          await updateProgress("rendering", "rendering", `Executing deterministic video render (${duration}s @ ${fps}fps, ${resolution})...`);
           const outputMp4Path = path.join(OUTPUTS_DIR, `output-${jobId}.mp4`);
 
-          const renderResult = await Renderer.render({
-            projectDir,
-            outputPath: outputMp4Path,
-            resolution,
-            format: "mp4",
-            extractFrames: false,
-          });
+          let renderResult = { success: false, error: null };
+
+          // 1. Try deterministic Playwright seek renderer first for direct-code SVG/CSS animation ads
+          const directHtmlPath = path.join(projectDir, "index.html");
+          if (fs.existsSync(directHtmlPath)) {
+            try {
+              console.log(`[DirectCode] Running deterministic Playwright frame seek on ${directHtmlPath}...`);
+              const jobTempDir = path.join(OUTPUTS_DIR, `job_playwright_${jobId}`);
+              const renderCmd = `python3 render-service/worker.py "${directHtmlPath}" "${jobTempDir}" ${duration} ${fps}`;
+              await execAsync(renderCmd, { timeout: 600000 });
+              const expectedOut = path.join(jobTempDir, "out.mp4");
+              if (fs.existsSync(expectedOut)) {
+                fs.copyFileSync(expectedOut, outputMp4Path);
+                const contactPath = path.join(jobTempDir, "contact.jpg");
+                if (fs.existsSync(contactPath)) {
+                  fs.copyFileSync(contactPath, path.join(OUTPUTS_DIR, `contact-${jobId}.jpg`));
+                }
+                renderResult = { success: true };
+                console.log(`[DirectCode] Deterministic Playwright render succeeded for ${jobId}!`);
+              }
+            } catch (pErr) {
+              console.warn(`[Deterministic Playwright Renderer Notice]: ${pErr.message}`);
+            }
+          }
+
+          // 2. Fallback to HyperFrames CLI renderer if Playwright was bypassed
+          if (!renderResult.success || !fs.existsSync(outputMp4Path)) {
+            renderResult = await Renderer.render({
+              projectDir,
+              outputPath: outputMp4Path,
+              resolution,
+              format: "mp4",
+              extractFrames: false,
+            });
+          }
 
           if (!renderResult.success || !fs.existsSync(outputMp4Path)) {
             const errStr = renderResult.error || "Rendering output file failed";

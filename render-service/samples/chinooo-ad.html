@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1920, height=1080">
+  <title>Explore China — 60s Cinematic Travel Ad</title>
+  <style>
+    /* Ollastar Character & Parallax Animation Engine Base Styles */
+:root {
+  --fps: 30;
+  --stage-w: 1920px;
+  --stage-h: 1080px;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+#stage {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: #000;
+  transform-origin: 0 0;
+}
+
+/* Character IK and SVG wrappers */
+.character {
+  position: absolute;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
+.char-wrapper {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
+/* Camera viewport with zoom-padding to prevent edge clipping */
+.camera-view {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: center center;
+}
+
+/* Letterbox bars (110px top and bottom, keeps content within safe area 0-970px) */
+.letterbox-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 110px;
+  background: #000;
+  z-index: 999;
+}
+
+.letterbox-bot {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 110px;
+  background: #000;
+  z-index: 999;
+}
+
+/* Visibility windows: shows element only during active animation interval */
+.vis-window {
+  opacity: 0;
+  animation-fill-mode: forwards;
+}
+
+/* Parallax Background Layers */
+.parallax-layer {
+  position: absolute;
+  width: 3840px;
+  height: 1080px;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+    :root {
+      --sky-top: #0f172a;
+      --sky-mid: #334155;
+      --lantern: #ef4444;
+      --gold: #f59e0b;
+      --wall: #78716c;
+      --roof: #dc2626;
+      --text-glow: #fde047;
+    }
+
+    /* Camera Pan & Parallax */
+    @keyframes cameraPan {
+      0% { transform: translate(0px, 0px) scale(1.05); }
+      25% { transform: translate(-300px, -20px) scale(1.08); }
+      50% { transform: translate(-600px, 0px) scale(1.12); }
+      75% { transform: translate(-900px, -30px) scale(1.08); }
+      100% { transform: translate(-1200px, 0px) scale(1.05); }
+    }
+
+    .camera-track {
+      position: absolute;
+      width: 3840px;
+      height: 1080px;
+      animation: cameraPan 60s linear infinite;
+    }
+
+    /* Title Animations */
+    @keyframes titleFade {
+      0%, 5% { opacity: 0; transform: translateY(30px); }
+      10%, 90% { opacity: 1; transform: translateY(0); }
+      95%, 100% { opacity: 0; transform: translateY(-30px); }
+    }
+
+    .hero-title {
+      position: absolute;
+      left: 120px;
+      top: 180px;
+      font-size: 72px;
+      font-weight: 800;
+      color: #fff;
+      text-shadow: 0 4px 24px rgba(245, 158, 11, 0.6);
+      animation: titleFade 15s ease-in-out infinite;
+    }
+
+    .badge-gold {
+      background: var(--gold);
+      color: #000;
+      padding: 6px 18px;
+      border-radius: 999px;
+      font-size: 24px;
+      font-weight: 700;
+      display: inline-block;
+      margin-bottom: 12px;
+    }
+
+    /* Character Walking Animation */
+    @keyframes charWalk {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-12px) rotate(2deg); }
+    }
+
+    .traveler {
+      position: absolute;
+      bottom: 180px;
+      left: 450px;
+      animation: charWalk 1.2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <!-- 110px Letterbox Top & Bottom (Content kept between y=110 and y=970) -->
+    <div class="letterbox-top"></div>
+    <div class="letterbox-bot"></div>
+
+    <div class="camera-track">
+      <!-- Sky and Mountains Parallax -->
+      <svg width="3840" height="1080" style="position: absolute; top:0; left:0;">
+        <defs>
+          <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#0f172a" />
+            <stop offset="50%" stop-color="#1e293b" />
+            <stop offset="100%" stop-color="#334155" />
+          </linearGradient>
+        </defs>
+        <rect width="3840" height="1080" fill="url(#skyGrad)" />
+        <!-- Distant Mountains -->
+        <path d="M0 650 Q400 400 800 650 T1600 650 T2400 650 T3200 650 T3840 650 L3840 1080 L0 1080 Z" fill="#1e293b" opacity="0.6" />
+        <path d="M0 720 Q500 500 1000 720 T2000 720 T3000 720 T3840 720 L3840 1080 L0 1080 Z" fill="#0f172a" />
+        <!-- Great Wall Silhouette Battlement -->
+        <path d="M0 820 L400 790 L800 830 L1200 780 L1600 810 L2000 770 L2400 800 L2800 760 L3200 790 L3840 760 L3840 1080 L0 1080 Z" fill="#44403c" />
+        <!-- Traditional Pagoda Tower -->
+        <rect x="700" y="580" width="120" height="180" fill="#7f1d1d" />
+        <path d="M660 580 L760 520 L860 580 Z" fill="#b91c1c" />
+        <path d="M680 640 L760 600 L840 640 Z" fill="#b91c1c" />
+        <rect x="2200" y="560" width="140" height="200" fill="#7f1d1d" />
+        <path d="M2160 560 L2270 490 L2380 560 Z" fill="#b91c1c" />
+      </svg>
+
+      <!-- Animated Character -->
+      <div class="traveler">
+        <svg width="150" height="220" viewBox="0 0 100 160">
+          
+    <g id="traveler-1" class="char-wrapper" transform="scale(1.2)">
+      <!-- Head and torso -->
+      <circle cx="50" cy="30" r="18" fill="#fcd34d" />
+      <path d="M35 48 Q50 45 65 48 L68 95 L32 95 Z" fill="#dc2626" />
+      <!-- Left Arm wrapper -->
+      <g id="traveler-1-arm-l" class="arm-wrapper">
+        <rect x="26" y="50" width="8" height="38" rx="4" fill="#fcd34d" />
+      </g>
+      <!-- Right Arm wrapper -->
+      <g id="traveler-1-arm-r" class="arm-wrapper">
+        <rect x="66" y="50" width="8" height="38" rx="4" fill="#fcd34d" />
+      </g>
+      <!-- Left Leg wrapper -->
+      <g id="traveler-1-leg-l" class="leg-wrapper">
+        <rect x="36" y="95" width="10" height="45" rx="4" fill="#1e293b" />
+        <ellipse cx="41" cy="142" rx="9" ry="5" fill="#fbbf24" />
+      </g>
+      <!-- Right Leg wrapper -->
+      <g id="traveler-1-leg-r" class="leg-wrapper">
+        <rect x="54" y="95" width="10" height="45" rx="4" fill="#1e293b" />
+        <ellipse cx="59" cy="142" rx="9" ry="5" fill="#fbbf24" />
+      </g>
+    </g>
+    
+        </svg>
+      </div>
+
+      <!-- Scene Speech Bubbles -->
+      
+    <div class="bubble vis-window" style="--start:2.0s; --dur:6.0s; left:520px; top:680px;">
+      <div class="who">Guide</div>
+      <div class="msg">Welcome to China! Discover 5,000 years of wonder.</div>
+    </div>
+    
+      
+    <div class="bubble vis-window" style="--start:10.0s; --dur:7.0s; left:780px; top:680px;">
+      <div class="who">Guide</div>
+      <div class="msg">From ancient dynasties to futuristic skylines.</div>
+    </div>
+    
+      
+    <div class="bubble vis-window" style="--start:20.0s; --dur:8.0s; left:1200px; top:680px;">
+      <div class="who">Foodie</div>
+      <div class="msg">Taste the authentic regional cuisines of Sichuan and Canton.</div>
+    </div>
+    
+      
+    <div class="bubble vis-window" style="--start:32.0s; --dur:10.0s; left:1600px; top:680px;">
+      <div class="who">Explorer</div>
+      <div class="msg">Your journey begins today.</div>
+    </div>
+    
+    </div>
+
+    <!-- Fixed Hero Typography -->
+    <div class="hero-title">
+      <div class="badge-gold">CHINA 2026</div>
+      <div>DISCOVER THE EXTRAORDINARY</div>
+    </div>
+  </div>
+
+  <script>
+    // Deterministic seekTo controller
+    window.seekTo = function(t) {
+      document.getAnimations().forEach(a => {
+        try { a.pause(); a.currentTime = t * 1000; } catch (e) {}
+      });
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+/* Ollastar Character & Parallax Animation Engine Base Styles */
+:root {
+  --fps: 30;
+  --stage-w: 1920px;
+  --stage-h: 1080px;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+#stage {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: #000;
+  transform-origin: 0 0;
+}
+
+/* Character IK and SVG wrappers */
+.character {
+  position: absolute;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
+.char-wrapper {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
+/* Camera viewport with zoom-padding to prevent edge clipping */
+.camera-view {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: center center;
+}
+
+/* Letterbox bars (110px top and bottom, keeps content within safe area 0-970px) */
+.letterbox-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 110px;
+  background: #000;
+  z-index: 999;
+}
+
+.letterbox-bot {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 110px;
+  background: #000;
+  z-index: 999;
+}
+
+/* Visibility windows: shows element only during active animation interval */
+.vis-window {
+  opacity: 0;
+  animation-fill-mode: forwards;
+}
+
+/* Parallax Background Layers */
+.parallax-layer {
+  position: absolute;
+  width: 3840px;
+  height: 1080px;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
